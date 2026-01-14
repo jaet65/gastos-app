@@ -2,44 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* FORZAR FONDO BLANCO PURO EN TODA LA APP */
-html, body, #root {
-  background-color: #ffffff !important; /* Blanco a la fuerza */
-  height: 100%;
+/* 1. FONDO METALLIC BLUE (Plata y Acero) */
+body {
   margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  /* Degradado diagonal: De blanco hielo a azul acero suave */
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #bfdbfe 100%);
+  background-attachment: fixed;
   font-family: system-ui, -apple-system, sans-serif;
+  color: #0f172a; /* Texto Slate Dark (Gris azulado oscuro) */
 }
 
-/* Estilo para la barra de desplazamiento */
-::-webkit-scrollbar {
-  width: 8px;
+/* 2. FORZAR TRANSPARENCIA */
+html, #root {
+  background-color: transparent !important;
+  background: none !important;
 }
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
-}
-/* FORZAR LAYOUT DE ESCRITORIO */
+
+/* 3. REGLAS DE LAYOUT */
 @media (min-width: 768px) {
   .layout-container {
-    flex-direction: row !important; /* Poner lado a lado */
+    flex-direction: row !important;
+    align-items: flex-start;
   }
-  .layout-left {
-    width: 33.333333% !important;   /* 1/3 del ancho */
-  }
-  .layout-right {
-    width: 66.666667% !important;   /* 2/3 del ancho */
+  .layout-col {
+    width: 50% !important;
+    display: flex;
+    justify-content: center;
   }
 }
 
-/* FORZAR LAYOUT MÓVIL */
 @media (max-width: 767px) {
   .layout-container {
-    flex-direction: column !important; /* Uno abajo de otro */
+    flex-direction: column !important;
+    align-items: center !important;
   }
-  .layout-left, .layout-right {
-    width: 100% !important; /* Ancho completo */
+  .layout-col {
+    width: 100% !important;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
   }
 }

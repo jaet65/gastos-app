@@ -3,14 +3,13 @@ import { db } from '../firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck } from 'lucide-react';
 
-// InputGroup Fuera para evitar re-render
+// InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => (
-  // Borde más oscuro (gray-300) para mayor contraste en fondo blanco
-  <div className="flex items-center bg-white border-2 border-gray-200 rounded-xl focus-within:border-black focus-within:ring-0 transition-all overflow-hidden h-14">
-    <div className="pl-4 text-gray-900">
-      <Icon size={20} strokeWidth={2.5} />
+  <div className="flex items-center bg-white/50 transition-all overflow-hidden h-18 hover:bg-white/80 focus-within:bg-white backdrop-blur-md">
+    <div className="pl-8 text-slate-400">
+      <Icon size={24} strokeWidth={2.5} />
     </div>
-    <div className="flex-1 h-full flex items-center">
+    <div className="flex-1 h-full flex items-center pr-8">
       {children}
     </div>
   </div>
@@ -29,7 +28,6 @@ const FormularioGasto = () => {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  // TUS CREDENCIALES
   const CLOUD_NAME = "didj7kuah"; 
   const UPLOAD_PRESET = "gastos_app"; 
 
@@ -64,9 +62,7 @@ const FormularioGasto = () => {
 
     try {
       let pdfUrl = '';
-      if (archivo) {
-        pdfUrl = await subirACloudinary(archivo);
-      }
+      if (archivo) pdfUrl = await subirACloudinary(archivo);
 
       await addDoc(collection(db, "gastos"), {
         ...formData,
@@ -89,35 +85,25 @@ const FormularioGasto = () => {
 
   return (
     <div className="w-full">
-      {/* Tarjeta con borde sólido para resaltar en fondo blanco */}
-      <div className="bg-white rounded-2xl border-2 border-gray-100 shadow-xl p-6">
+      {/* TARJETA PRINCIPAL: Bloque de cristal plano sin bordes ni sombras */}
+      <div className="bg-white/40 backdrop-blur-xl p-12">
         
-        <div className="mb-6">
-          <h2 className="text-2xl font-black text-black">Nuevo Gasto</h2>
-          <p className="text-gray-500 font-medium text-sm">Ingresa los detalles</p>
+        <div className="mb-12">
+          <h2 className="text-4xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
+          <p className="text-slate-500 font-medium text-base mt-2">Ingresa los detalles del movimiento</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputGroup icon={Calendar}>
-              <input
-                type="date"
-                name="fecha"
-                required
-                value={formData.fecha}
-                onChange={handleChange}
-                className="w-full h-full pl-3 bg-transparent border-none outline-none text-black font-semibold text-sm"
-              />
+              <input type="date" name="fecha" required value={formData.fecha} onChange={handleChange}
+                className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-700 font-bold text-base" />
             </InputGroup>
 
             <InputGroup icon={Layers}>
-              <select
-                name="categoria"
-                value={formData.categoria}
-                onChange={handleChange}
-                className="w-full h-full pl-3 bg-transparent border-none outline-none text-black font-semibold text-sm cursor-pointer appearance-none"
-              >
+              <select name="categoria" value={formData.categoria} onChange={handleChange}
+                className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-700 font-bold text-base cursor-pointer appearance-none">
                 <option value="Transporte">Transporte</option>
                 <option value="Comida">Comida</option>
                 <option value="Otros">Otros</option>
@@ -126,61 +112,49 @@ const FormularioGasto = () => {
           </div>
 
           <InputGroup icon={AlignLeft}>
-            <input
-              type="text"
-              name="concepto"
-              placeholder="Descripción"
-              required
-              value={formData.concepto}
-              onChange={handleChange}
-              className="w-full h-full pl-3 bg-transparent border-none outline-none text-black font-medium placeholder-gray-400"
-            />
+            <input type="text" name="concepto" placeholder="Descripción" required value={formData.concepto} onChange={handleChange}
+              className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-900 font-bold text-lg placeholder-slate-400" />
           </InputGroup>
 
           <InputGroup icon={DollarSign}>
-            <input
-              type="number"
-              name="monto"
-              placeholder="0.00"
-              step="0.01"
-              required
-              value={formData.monto}
-              onChange={handleChange}
-              className="w-full h-full pl-3 bg-transparent border-none outline-none text-black text-lg font-bold placeholder-gray-300"
-            />
+            <input type="number" name="monto" placeholder="0.00" step="0.01" required value={formData.monto} onChange={handleChange}
+              className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-900 text-3xl font-black placeholder-slate-300" />
           </InputGroup>
 
           <div>
             {!archivo ? (
-              <div 
-                onClick={() => fileInputRef.current.click()}
-                className="border-2 border-dashed border-gray-300 hover:border-black hover:bg-gray-50 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors gap-2"
-              >
-                <UploadCloud size={24} className="text-gray-400" />
-                <span className="text-xs font-bold text-gray-500 uppercase">Adjuntar PDF</span>
+              // Área de carga plana, sin borde punteado
+              <div onClick={() => fileInputRef.current.click()}
+                className="bg-white/50 hover:bg-white/80 p-10 flex flex-col items-center justify-center cursor-pointer transition-all gap-4 group">
+                <div className="bg-white p-5 transition-transform group-hover:scale-110 text-blue-500">
+                  <UploadCloud size={32} />
+                </div>
+                <span className="text-sm font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600">Adjuntar PDF</span>
                 <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
               </div>
             ) : (
-              <div className="flex items-center gap-3 bg-gray-50 border-2 border-gray-200 p-3 rounded-xl">
-                <div className="bg-black text-white p-2 rounded-lg">
-                  <FileCheck size={18} />
+              // Archivo cargado: Bloque sólido
+              <div className="flex items-center gap-6 bg-slate-100 p-6">
+                <div className="bg-slate-800 text-white p-4">
+                  <FileCheck size={24} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-black truncate">{archivo.name}</p>
+                  <p className="text-base font-bold text-slate-800 truncate">{archivo.name}</p>
                 </div>
-                <button type="button" onClick={removeFile} className="p-2 text-gray-500 hover:text-red-600 transition-colors">
-                  <X size={20} />
+                <button type="button" onClick={removeFile} className="p-4 text-slate-400 hover:text-red-500 transition-colors">
+                  <X size={24} />
                 </button>
               </div>
             )}
           </div>
 
-          <button
-            type="submit"
+          {/* BOTON PLANO GRANDE */}
+          <button 
+            type="submit" 
             disabled={loading}
-            className="w-full py-4 rounded-xl bg-black text-white font-bold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+            className="w-full py-6 bg-slate-900 text-white font-black text-xl hover:bg-blue-900 transition-all duration-300 disabled:opacity-50"
           >
-            {loading ? 'Guardando...' : 'Guardar Gasto'}
+            {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>
         </form>
       </div>
