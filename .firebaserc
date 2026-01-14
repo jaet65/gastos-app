@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "gastosmaf-4331f"
-  }
+    "default": "comprobacionmaf"
+  },
+  "targets": {},
+  "etags": {}
 }

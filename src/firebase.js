@@ -3,12 +3,12 @@ import { getFirestore } from "firebase/firestore";
 
 // TUS CREDENCIALES DE FIREBASE (Cópialas de la consola de Firebase)
 const firebaseConfig = {
-  apiKey: "AIzaSyDTTvNOTFf34CzmH8ZbO8ZqTv1iPxz5CIA",
-  authDomain: "gastosmaf-4331f.firebaseapp.com",
-  projectId: "gastosmaf-4331f",
-  storageBucket: "gastosmaf-4331f.firebasestorage.app",
-  messagingSenderId: "781006798727",
-  appId: "1:781006798727:web:eeff50e436f23f8c6e5d22"
+  apiKey: "AIzaSyDomrFDQwToUH9HKtlAQVJ6X1jWwppwFHY",
+  authDomain: "comprobacionmaf.firebaseapp.com",
+  projectId: "comprobacionmaf",
+  storageBucket: "comprobacionmaf.firebasestorage.app",
+  messagingSenderId: "773054789582",
+  appId: "1:773054789582:web:d6bddafd4b33271889dd9f"
 };
 
 const app = initializeApp(firebaseConfig);
