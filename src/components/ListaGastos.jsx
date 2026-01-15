@@ -28,6 +28,10 @@ const ListaGastos = () => {
   const [nuevoArchivo, setNuevoArchivo] = useState(null); 
   const [subiendo, setSubiendo] = useState(false);
 
+  // Constantes de Cloudinary (Iguales a las de FormularioGasto)
+  const CLOUD_NAME = "didj7kuah"; 
+  const UPLOAD_PRESET = "gastos_app"; 
+
   useEffect(() => {
     const q = query(collection(db, "gastos"), orderBy("creado_en", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -42,15 +46,36 @@ const ListaGastos = () => {
     }
   };
 
+  // Función auxiliar para subir archivos (Reutilizada)
+  const subirACloudinary = async (file) => {
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", UPLOAD_PRESET);
+    data.append("cloud_name", CLOUD_NAME);
+    
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
+      { method: "POST", body: data }
+    );
+    const fileData = await response.json();
+    return fileData.secure_url;
+  };
+
   const guardarEdicion = async (e) => {
     e.preventDefault();
     if (!gastoAEditar) return;
     setSubiendo(true);
 
     try {
-        let urlFinal = gastoAEditar.url_factura;
-        // AQUÍ IRÍA TU LÓGICA DE SUBIDA SI nuevoArchivo EXISTE
+        // 1. Determinar la URL final
+        let urlFinal = gastoAEditar.url_factura || ""; // Mantener la anterior por defecto
+
+        // 2. Si hay un archivo NUEVO seleccionado, subirlo y reemplazar la URL
+        if (nuevoArchivo) {
+            urlFinal = await subirACloudinary(nuevoArchivo);
+        }
         
+        // 3. Actualizar en Firestore
         const ref = doc(db, "gastos", gastoAEditar.id);
         await updateDoc(ref, {
             concepto: gastoAEditar.concepto,
@@ -60,11 +85,12 @@ const ListaGastos = () => {
             url_factura: urlFinal 
         });
 
+        alert("Gasto actualizado correctamente");
         setGastoAEditar(null);
         setNuevoArchivo(null);
     } catch (error) {
         console.error("Error", error);
-        alert("Error: " + error.message);
+        alert("Error al actualizar: " + error.message);
     } finally {
         setSubiendo(false);
     }
@@ -140,8 +166,8 @@ const ListaGastos = () => {
         const IconoEstado = isFactura ? FileCheck : AlertTriangle;
 
         return (
-          <Card key={estado} className="p-0 overflow-hidden ring-1 ring-gray-200 shadow-sm">
-            <div className={`py-2 px-4 border-l-4 ${isFactura ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+          <Card key={estado} className="p-0 overflow-hidden shadow-sm">
+            <div className={`py-0 px-0 border-l-4 ${isFactura ? 'border-emerald-500 bg-emerald-500' : 'border-amber-500 bg-amber-500'}`}>
                 <Flex justifyContent="between" alignItems="center">
                     <div className="flex items-center gap-2">
                         <Icon icon={IconoEstado} color={colorEstado} variant="light" size="sm" />
@@ -161,23 +187,23 @@ const ListaGastos = () => {
                     return (
                         <div key={nombreCategoria}>
                             {indexCat > 0 && <Divider className="my-0 opacity-50" />}
-                            <div className="pt-3 pb-1">
-                                <div className="px-4 mb-2">
+                            <div className="pt-0 pb-0">
+                                <div className="px-4 mb-0">
                                     <Flex justifyContent="between" alignItems="center">
                                         <Badge icon={CatIcon} color={color} size="xs">{nombreCategoria}</Badge>
                                         <Text className="text-xs font-bold text-slate-400">${datosCategoria.totalCategoria.toFixed(2)}</Text>
                                     </Flex>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-0">
                                     {fechasOrdenadas.map((fecha) => {
                                         const items = datosCategoria.fechas[fecha];
                                         return (
-                                            <div key={fecha} className="px-3">
-                                                <div className="flex items-center gap-2 mb-1 ml-1">
+                                            <div key={fecha} className="px-0">
+                                                <div className="flex items-center gap-2 mb-0 ml-0">
                                                     <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                                    <Text className="text-[10px] font-bold text-slate-400 uppercase">{fecha}</Text>
+                                                    <Text className="text-[17px] font-bold text-slate-400 uppercase">{fecha}</Text>
                                                 </div>
-                                                <List className="mt-0 space-y-1">
+                                                <List className="mt-0 space-y-0">
                                                     {items.map((gasto) => (
                                                         <ListItem key={gasto.id} className="p-0 border-none">
                                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
@@ -223,30 +249,24 @@ const ListaGastos = () => {
         );
       })}
 
-      {/* --- MODAL DE EDICIÓN ESTILO POPUP --- 
-          Cambios Clave:
-          - bg-black/80: Fondo muy oscuro y sólido.
-          - bg-white: Fondo de la tarjeta sólido.
-          - shadow-2xl: Sombra profunda para que flote.
-      */}
+      {/* --- MODAL DE EDICIÓN ESTILO POPUP --- */}
       {gastoAEditar && createPortal(
         <div 
             className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
             style={{ 
-                backgroundColor: 'rgba(0, 0, 0, 0.8)', // Fondo oscuro 80% (Casi sólido)
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
                 position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 
             }}
         >
-            {/* CAJA BLANCA DEL POPUP */}
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative border border-slate-300">
+            <div className="bg-white rounded-xl shadow-2xl w-90 max-w-md p-6 relative border-none border-slate-300">
                 
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                     <h3 className="text-xl font-black text-slate-800">Editar Gasto</h3>
                     <button 
                         onClick={() => setGastoAEditar(null)} 
-                        className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors"
+                        className="bg-transparent text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors"
                     >
-                        <X size={24} />
+                        <X size={22} />
                     </button>
                 </div>
 
@@ -258,11 +278,11 @@ const ListaGastos = () => {
                             required
                             value={gastoAEditar.concepto} 
                             onChange={(e) => setGastoAEditar({...gastoAEditar, concepto: e.target.value})}
-                            className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                            className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Monto</label>
                             <input 
@@ -271,7 +291,7 @@ const ListaGastos = () => {
                                 required
                                 value={gastoAEditar.monto} 
                                 onChange={(e) => setGastoAEditar({...gastoAEditar, monto: e.target.value})}
-                                className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                                className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                             />
                         </div>
                         <div>
@@ -281,7 +301,7 @@ const ListaGastos = () => {
                                 required
                                 value={gastoAEditar.fecha} 
                                 onChange={(e) => setGastoAEditar({...gastoAEditar, fecha: e.target.value})}
-                                className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                                className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                             />
                         </div>
                     </div>
@@ -291,7 +311,7 @@ const ListaGastos = () => {
                         <select 
                              value={gastoAEditar.categoria} 
                              onChange={(e) => setGastoAEditar({...gastoAEditar, categoria: e.target.value})}
-                             className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all appearance-none"
+                             className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-allappearance-none"
                         >
                             <option value="Transporte">Transporte</option>
                             <option value="Comida">Comida</option>
@@ -299,17 +319,12 @@ const ListaGastos = () => {
                         </select>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-300 border-dashed">
+                    <br />
+
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-300 border-none">
                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 block flex items-center gap-2">
                              <FileText size={14}/> Factura PDF
                         </label>
-                        
-                        <input 
-                            type="file" 
-                            accept="application/pdf"
-                            onChange={(e) => setNuevoArchivo(e.target.files[0])}
-                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
-                        />
 
                         <div className="mt-2 text-xs">
                             {nuevoArchivo ? (
@@ -323,6 +338,18 @@ const ListaGastos = () => {
                             )}
                         </div>
                     </div>
+
+                    <br />
+
+                    <input 
+                      type="file" 
+                      accept="application/pdf"
+                      onChange={(e) => setNuevoArchivo(e.target.files[0])}
+                      className="bg-transparent w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+                    />
+
+                    <br />
+                    <br />
 
                     <button 
                         type="submit" 
