@@ -101,6 +101,12 @@ const ListaGastos = () => {
     setGastoAEditar(gasto);
   };
 
+  const quitarArchivoActual = () => {
+    if(confirm("¿Quitar el PDF adjunto de este gasto? (Se aplicará al Guardar)")) {
+      setGastoAEditar({ ...gastoAEditar, url_factura: "" });
+    }
+  };
+
   const getCategoryDetails = (cat) => {
     switch(cat) {
       case 'Transporte': return { color: 'slate', icon: Car };
@@ -182,7 +188,7 @@ const ListaGastos = () => {
             <div className="p-0">
                 {Object.entries(datosEstado.categorias).map(([nombreCategoria, datosCategoria], indexCat) => {
                     const { color, icon: CatIcon } = getCategoryDetails(nombreCategoria);
-                    const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(b) - new Date(a));
+                    const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(a) - new Date(b));
 
                     return (
                         <div key={nombreCategoria}>
@@ -321,18 +327,39 @@ const ListaGastos = () => {
 
                     <br />
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-300 border-none">
+                    <div className="bg-slate-50 p-4 rounded-lg border-none border-slate-300 border-dashed">
                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 block flex items-center gap-2">
                              <FileText size={14}/> Factura PDF
                         </label>
-
-                        <div className="mt-2 text-xs">
+                        
+                        {/* ZONA DE ESTADO DEL ARCHIVO CON OPCIÓN DE ELIMINAR */}
+                        <div className="mt-2 text-xs flex items-center justify-between">
                             {nuevoArchivo ? (
-                                <span className="text-emerald-600 font-bold">Archivo nuevo seleccionado</span>
-                            ) : gastoAEditar.url_factura ? (
-                                <span className="text-blue-600 font-medium truncate flex items-center gap-1">
-                                    <FileCheck size={12}/> Factura actual cargada
-                                </span>
+                                <div className="flex items-center gap-2 bg-emerald-100 px-2 py-1 rounded">
+                                    <span className="text-emerald-700 font-bold">Archivo nuevo seleccionado</span>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setNuevoArchivo(null)} 
+                                        className="text-emerald-700 hover:text-emerald-900 bg-emerald-200 hover:bg-emerald-300 rounded-full p-0.5 transition-colors"
+                                        title="Cancelar subida"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ) : (gastoAEditar.url_factura && gastoAEditar.url_factura !== "") ? (
+                                <div className="flex items-center gap-2 bg-blue-50 px-2 py-1 rounded w-full justify-between">
+                                    <span className="text-blue-600 font-medium truncate flex items-center gap-1">
+                                        <FileCheck size={12}/> Factura actual cargada
+                                    </span>
+                                    <button 
+                                        type="button" 
+                                        onClick={quitarArchivoActual}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-100 p-1 rounded transition-colors"
+                                        title="Quitar archivo adjunto"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
                             ) : (
                                 <span className="text-slate-400 italic">Sin factura actualmente</span>
                             )}
