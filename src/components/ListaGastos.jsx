@@ -1,12 +1,32 @@
 import { useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
-import { FileText, Trash2, Calendar, Filter } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+// Componentes Tremor
+import { 
+  Card, 
+  Title, 
+  Text, 
+  Metric, 
+  List, 
+  ListItem, 
+  Badge, 
+  Flex, 
+  Icon,
+  Divider,
+} from "@tremor/react";
+// Iconos
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  
+  // Estado para edición
+  const [gastoAEditar, setGastoAEditar] = useState(null);
+  const [nuevoArchivo, setNuevoArchivo] = useState(null); 
+  const [subiendo, setSubiendo] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "gastos"), orderBy("creado_en", "desc"));
@@ -22,124 +42,305 @@ const ListaGastos = () => {
     }
   };
 
-  // Colores de fondo planos, SIN BORDES
-  const getBadgeColor = (cat) => {
-    switch(cat) {
-      case 'Transporte': return 'bg-slate-200 text-slate-700';
-      case 'Comida': return 'bg-blue-100 text-blue-700';
-      default: return 'bg-white text-gray-600';
+  const guardarEdicion = async (e) => {
+    e.preventDefault();
+    if (!gastoAEditar) return;
+    setSubiendo(true);
+
+    try {
+        let urlFinal = gastoAEditar.url_factura;
+        // AQUÍ IRÍA TU LÓGICA DE SUBIDA SI nuevoArchivo EXISTE
+        
+        const ref = doc(db, "gastos", gastoAEditar.id);
+        await updateDoc(ref, {
+            concepto: gastoAEditar.concepto,
+            monto: parseFloat(gastoAEditar.monto),
+            fecha: gastoAEditar.fecha,
+            categoria: gastoAEditar.categoria,
+            url_factura: urlFinal 
+        });
+
+        setGastoAEditar(null);
+        setNuevoArchivo(null);
+    } catch (error) {
+        console.error("Error", error);
+        alert("Error: " + error.message);
+    } finally {
+        setSubiendo(false);
     }
   };
 
-  const gastosProcesados = useMemo(() => {
+  const abrirEdicion = (gasto) => {
+    setNuevoArchivo(null);
+    setGastoAEditar(gasto);
+  };
+
+  const getCategoryDetails = (cat) => {
+    switch(cat) {
+      case 'Transporte': return { color: 'slate', icon: Car };
+      case 'Comida': return { color: 'blue', icon: Utensils };
+      default: return { color: 'gray', icon: Layers };
+    }
+  };
+
+  const dataAgrupada = useMemo(() => {
     const filtrados = gastos.filter(g => {
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
       return true;
     });
 
-    return filtrados.reduce((acc, gasto) => {
-      const cat = gasto.categoria || 'Otros';
-      if (!acc[cat]) acc[cat] = { items: [], total: 0 };
-      acc[cat].items.push(gasto);
-      acc[cat].total += parseFloat(gasto.monto);
+    const resultado = filtrados.reduce((acc, gasto) => {
+      const estado = gasto.url_factura ? 'Con Factura' : 'Sin Factura';
+      const categoria = gasto.categoria || 'Otros';
+      const fecha = gasto.fecha;
+
+      if (!acc[estado]) acc[estado] = { totalEstado: 0, categorias: {} };
+      if (!acc[estado].categorias[categoria]) acc[estado].categorias[categoria] = { totalCategoria: 0, fechas: {} };
+      if (!acc[estado].categorias[categoria].fechas[fecha]) acc[estado].categorias[categoria].fechas[fecha] = [];
+
+      acc[estado].categorias[categoria].fechas[fecha].push(gasto);
+      acc[estado].categorias[categoria].totalCategoria += parseFloat(gasto.monto);
+      acc[estado].totalEstado += parseFloat(gasto.monto);
+      
       return acc;
     }, {});
+
+    return resultado;
   }, [gastos, fechaInicio, fechaFin]);
 
-  const totalGeneral = Object.values(gastosProcesados).reduce((sum, grupo) => sum + grupo.total, 0);
-  const hayDatos = Object.keys(gastosProcesados).length > 0;
+  const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
 
   return (
-    <div className="space-y-16">
+    <div className="space-y-4 relative">
+      {/* 2. FILTROS */}
+      <div className="flex gap-2">
+        <div className="bg-white p-2 rounded-lg border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+            <Calendar size={14} className="text-gray-400 ml-1"/>
+            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full text-xs outline-none text-gray-600"/>
+        </div>
+        <div className="bg-white p-2 rounded-lg border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+            <Calendar size={14} className="text-gray-400 ml-1"/>
+            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-full text-xs outline-none text-gray-600"/>
+        </div>
+      </div>
       
-      {/* FILTROS: Bloque plano */}
-      <div className="bg-white/50 backdrop-blur-xl p-12">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="p-4 bg-white"><Filter size={24} className="text-slate-400" /></div>
-          <h3 className="font-bold text-2xl text-slate-700">Filtrar por fecha</h3>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-6">
-          <div className="flex-1 bg-white/60 px-6 py-5 flex items-center hover:bg-white transition-colors">
-            <Calendar size={20} className="text-slate-400 mr-4"/>
-            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
-              className="bg-transparent w-full text-base font-bold text-slate-700 outline-none" />
-          </div>
-          <div className="flex-1 bg-white/60 px-6 py-5 flex items-center hover:bg-white transition-colors">
-            <Calendar size={20} className="text-slate-400 mr-4"/>
-            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}
-              className="bg-transparent w-full text-base font-bold text-slate-700 outline-none" />
-          </div>
-          {(fechaInicio || fechaFin) && (
-            <button onClick={() => {setFechaInicio(''); setFechaFin('');}}
-              className="px-10 py-5 bg-slate-800 text-white text-sm font-black uppercase tracking-wider hover:bg-slate-900 transition-colors">
-              Limpiar
-            </button>
-          )}
-        </div>
-      </div>
+      {/* 1. TOTAL GENERAL */}
+      <Card decoration="top" decorationColor="blue" className="py-3 px-4 shadow-sm">
+        <Flex justifyContent="between" alignItems="center">
+            <Text>Total Periodo</Text>
+            <Metric>${totalGeneral.toFixed(2)}</Metric>
+        </Flex>
+      </Card>
 
-      {/* RESULTADOS */}
-      <div className="flex items-end justify-between px-2">
-        <h2 className="text-4xl font-black text-slate-800 tracking-tight">Resultados</h2>
-        <div className="text-right">
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Total</p>
-          <p className="text-4xl font-black text-slate-900">${totalGeneral.toFixed(2)}</p>
-        </div>
-      </div>
+      {/* 3. LISTADO */}
+      {Object.entries(dataAgrupada).map(([estado, datosEstado]) => {
+        const isFactura = estado === 'Con Factura';
+        const colorEstado = isFactura ? 'emerald' : 'amber';
+        const IconoEstado = isFactura ? FileCheck : AlertTriangle;
 
-      {!hayDatos ? (
-        <div className="py-32 text-center opacity-50">
-          <p className="text-slate-500 font-bold text-2xl">No hay movimientos.</p>
-        </div>
-      ) : (
-        <div>
-          {Object.entries(gastosProcesados).map(([categoria, datos]) => (
-            // Bloque de Categoría con gran margen inferior (mb-20) para separar
-            <div key={categoria} className="mb-20">
-              
-              <div className="space-y-6">
-                <div className="flex items-center justify-between px-2">
-                  {/* Badge plano sin borde */}
-                  <div className={`px-6 py-3 text-sm font-black uppercase tracking-wider ${getBadgeColor(categoria)}`}>
-                    {categoria}
-                  </div>
-                  <span className="font-bold text-slate-500 text-lg">
-                    ${datos.total.toFixed(2)}
-                  </span>
-                </div>
-
-                <div className="grid gap-6">
-                  {datos.items.map((gasto) => (
-                    // Tarjeta de gasto plana
-                    <div key={gasto.id} className="group bg-white/60 backdrop-blur-md p-8 hover:bg-white transition-all flex justify-between items-center">
-                      <div className="flex flex-col gap-2">
-                        <span className="font-black text-slate-900 text-xl">{gasto.concepto}</span>
-                        <span className="text-sm font-bold text-slate-400">{gasto.fecha}</span>
-                      </div>
-                      <div className="flex items-center gap-8">
-                        <span className="font-black text-2xl text-slate-900">${parseFloat(gasto.monto).toFixed(2)}</span>
-                        <div className="flex items-center gap-6 pl-8">
-                          {gasto.url_factura ? (
-                             <a href={gasto.url_factura} target="_blank" className="text-slate-300 hover:text-slate-800 transition-colors" title="Ver PDF">
-                               <FileText size={24} strokeWidth={2.5} />
-                             </a>
-                          ) : <div className="w-6"></div>}
-                          <button onClick={() => eliminarGasto(gasto.id)} className="bg-transparent border-none p-0 cursor-pointer hover:text-red-500 transition-colors" title="Eliminar">
-                             <Trash2 size={24} color="#ef4444" strokeWidth={2.5} />
-                          </button>
-                        </div>
-                      </div>
+        return (
+          <Card key={estado} className="p-0 overflow-hidden ring-1 ring-gray-200 shadow-sm">
+            <div className={`py-2 px-4 border-l-4 ${isFactura ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                <Flex justifyContent="between" alignItems="center">
+                    <div className="flex items-center gap-2">
+                        <Icon icon={IconoEstado} color={colorEstado} variant="light" size="sm" />
+                        <Title className={`text-sm uppercase font-bold ${isFactura ? 'text-emerald-900' : 'text-amber-900'}`}>{estado}</Title>
                     </div>
-                  ))}
-                </div>
-              </div>
-
+                    <Text className={`font-bold ${isFactura ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        ${datosEstado.totalEstado.toFixed(2)}
+                    </Text>
+                </Flex>
             </div>
-          ))}
-        </div>
+
+            <div className="p-0">
+                {Object.entries(datosEstado.categorias).map(([nombreCategoria, datosCategoria], indexCat) => {
+                    const { color, icon: CatIcon } = getCategoryDetails(nombreCategoria);
+                    const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(b) - new Date(a));
+
+                    return (
+                        <div key={nombreCategoria}>
+                            {indexCat > 0 && <Divider className="my-0 opacity-50" />}
+                            <div className="pt-3 pb-1">
+                                <div className="px-4 mb-2">
+                                    <Flex justifyContent="between" alignItems="center">
+                                        <Badge icon={CatIcon} color={color} size="xs">{nombreCategoria}</Badge>
+                                        <Text className="text-xs font-bold text-slate-400">${datosCategoria.totalCategoria.toFixed(2)}</Text>
+                                    </Flex>
+                                </div>
+                                <div className="space-y-2">
+                                    {fechasOrdenadas.map((fecha) => {
+                                        const items = datosCategoria.fechas[fecha];
+                                        return (
+                                            <div key={fecha} className="px-3">
+                                                <div className="flex items-center gap-2 mb-1 ml-1">
+                                                    <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                                    <Text className="text-[10px] font-bold text-slate-400 uppercase">{fecha}</Text>
+                                                </div>
+                                                <List className="mt-0 space-y-1">
+                                                    {items.map((gasto) => (
+                                                        <ListItem key={gasto.id} className="p-0 border-none">
+                                                            <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
+                                                                <div className="col-span-5 pr-2">
+                                                                    <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
+                                                                </div>
+                                                                <div className="col-span-3 text-right">
+                                                                    <Text className="font-mono font-bold text-slate-900 text-sm">${parseFloat(gasto.monto).toFixed(2)}</Text>
+                                                                </div>
+                                                                <div className="col-span-3 flex justify-end items-center gap-2 pl-1">
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => abrirEdicion(gasto)} 
+                                                                        className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                    >
+                                                                        <Pencil size={16} />
+                                                                    </button>
+
+                                                                    {gasto.url_factura && (
+                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
+                                                                            <FileText size={16} />
+                                                                        </a>
+                                                                    )}
+                                                                    
+                                                                    <button onClick={() => eliminarGasto(gasto.id)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
+                                                                        <Trash2 size={16} color="#ef4444" strokeWidth={2.5} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </ListItem>
+                                                    ))}
+                                                </List>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+          </Card>
+        );
+      })}
+
+      {/* --- MODAL DE EDICIÓN ESTILO POPUP --- 
+          Cambios Clave:
+          - bg-black/80: Fondo muy oscuro y sólido.
+          - bg-white: Fondo de la tarjeta sólido.
+          - shadow-2xl: Sombra profunda para que flote.
+      */}
+      {gastoAEditar && createPortal(
+        <div 
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
+            style={{ 
+                backgroundColor: 'rgba(0, 0, 0, 0.8)', // Fondo oscuro 80% (Casi sólido)
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 
+            }}
+        >
+            {/* CAJA BLANCA DEL POPUP */}
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative border border-slate-300">
+                
+                <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                    <h3 className="text-xl font-black text-slate-800">Editar Gasto</h3>
+                    <button 
+                        onClick={() => setGastoAEditar(null)} 
+                        className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors"
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <form onSubmit={guardarEdicion} className="space-y-5">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Concepto</label>
+                        <input 
+                            type="text" 
+                            required
+                            value={gastoAEditar.concepto} 
+                            onChange={(e) => setGastoAEditar({...gastoAEditar, concepto: e.target.value})}
+                            className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Monto</label>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                required
+                                value={gastoAEditar.monto} 
+                                onChange={(e) => setGastoAEditar({...gastoAEditar, monto: e.target.value})}
+                                className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha</label>
+                            <input 
+                                type="date" 
+                                required
+                                value={gastoAEditar.fecha} 
+                                onChange={(e) => setGastoAEditar({...gastoAEditar, fecha: e.target.value})}
+                                className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Categoría</label>
+                        <select 
+                             value={gastoAEditar.categoria} 
+                             onChange={(e) => setGastoAEditar({...gastoAEditar, categoria: e.target.value})}
+                             className="w-full p-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all appearance-none"
+                        >
+                            <option value="Transporte">Transporte</option>
+                            <option value="Comida">Comida</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-300 border-dashed">
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block flex items-center gap-2">
+                             <FileText size={14}/> Factura PDF
+                        </label>
+                        
+                        <input 
+                            type="file" 
+                            accept="application/pdf"
+                            onChange={(e) => setNuevoArchivo(e.target.files[0])}
+                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+                        />
+
+                        <div className="mt-2 text-xs">
+                            {nuevoArchivo ? (
+                                <span className="text-emerald-600 font-bold">Archivo nuevo seleccionado</span>
+                            ) : gastoAEditar.url_factura ? (
+                                <span className="text-blue-600 font-medium truncate flex items-center gap-1">
+                                    <FileCheck size={12}/> Factura actual cargada
+                                </span>
+                            ) : (
+                                <span className="text-slate-400 italic">Sin factura actualmente</span>
+                            )}
+                        </div>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        disabled={subiendo}
+                        className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg flex justify-center items-center gap-2 mt-4 shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] ${subiendo ? 'opacity-70 cursor-wait' : ''}`}
+                    >
+                        {subiendo ? (
+                             <>Guardando...</>
+                        ) : (
+                             <><Save size={18} /> Guardar Cambios</>
+                        )}
+                    </button>
+                </form>
+            </div>
+        </div>,
+        document.body
       )}
+
     </div>
   );
 };
