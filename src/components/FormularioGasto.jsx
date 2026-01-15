@@ -152,7 +152,7 @@ const FormularioGasto = () => {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-6 bg-slate-900 text-white font-black text-xl hover:bg-blue-900 transition-all duration-300 disabled:opacity-50"
+            className="bg-transparent rounded-full w-full py-6 bg-slate-900 text-white font-black text-xl hover:bg-blue-900 transition-all duration-300 disabled:opacity-50"
           >
             {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>

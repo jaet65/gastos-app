@@ -147,13 +147,13 @@ const ListaGastos = () => {
     <div className="space-y-4 relative">
       {/* 2. FILTROS */}
       <div className="flex gap-2">
-        <div className="bg-white p-2 rounded-lg border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+        <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
             <Calendar size={14} className="text-gray-400 ml-1"/>
-            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full text-xs outline-none text-gray-600"/>
+            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
         </div>
-        <div className="bg-white p-2 rounded-lg border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+        <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
             <Calendar size={14} className="text-gray-400 ml-1"/>
-            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-full text-xs outline-none text-gray-600"/>
+            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
         </div>
       </div>
       
