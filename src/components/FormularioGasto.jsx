@@ -90,7 +90,7 @@ const FormularioGasto = () => {
         // Crear el registro de la propina
         const propinaRef = await addDoc(collection(db, "gastos"), {
           fecha: formData.fecha,
-          concepto: `Propina => ${formData.concepto}`,
+          concepto: `Propina => ${formData.concepto} @ ${formData.fecha}`,
           monto: montoPropina,
           categoria: 'Comida',
           url_factura: '', // Sin factura
@@ -175,6 +175,8 @@ const FormularioGasto = () => {
             </div>
           )}
 
+          <br/><br/>
+
           <div>
             {!archivo ? (
               <div onClick={() => fileInputRef.current.click()}
@@ -200,12 +202,14 @@ const FormularioGasto = () => {
             )}
           </div>
 
+          <br/><br/>
+
           {/* BOTÓN GIGANTE (FORZADO) */}
           <button 
             type="submit" 
             disabled={loading}
             style={{ height: '100px', fontSize: '28px' }}
-            className="w-full mt-8 rounded-3xl bg-slate-900 text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
+            className="w-full mt-8 rounded-full bg-transparent text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
           >
             {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>

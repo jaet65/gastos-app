@@ -105,7 +105,7 @@ const ListaGastos = () => {
             const montoPropina = montoPrincipal * 0.10;
             const datosPropina = {
                 fecha: gastoAEditar.fecha,
-                concepto: `Propina => ${gastoAEditar.concepto}`,
+                concepto: `Propina => ${gastoAEditar.concepto}  @ ${gastoAEditar.fecha}`,
                 monto: montoPropina,
                 categoria: 'Comida',
                 url_factura: '' // Sin factura siempre
@@ -223,7 +223,7 @@ const ListaGastos = () => {
             <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
         </div>
         {(fechaInicio || fechaFin) && (
-          <button onClick={limpiarFiltros} className="bg-white p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
+          <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
             <RotateCcw size={16} />
           </button>
         )}
@@ -296,27 +296,27 @@ const ListaGastos = () => {
                                                                         </div>
                                                                     )}
                                                                 </div>
-
+                                                                
                                                                 <div className="col-span-3 text-right">
                                                                     <Text className="font-mono font-bold text-slate-900 text-sm">${parseFloat(gasto.monto).toFixed(2)}</Text>
                                                                 </div>
+                                                                
                                                                 <div className="col-span-3 flex justify-end items-center gap-2 pl-1">
+                                                                    {gasto.url_factura && (
+                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
+                                                                            <FileText size={20} />
+                                                                        </a>
+                                                                    )}
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => abrirEdicion(gasto)} 
                                                                         className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                                                     >
-                                                                        <Pencil size={16} />
+                                                                        <Pencil size={20} />
                                                                     </button>
 
-                                                                    {gasto.url_factura && (
-                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
-                                                                            <FileText size={16} />
-                                                                        </a>
-                                                                    )}
-                                                                    
                                                                     <button onClick={() => eliminarGasto(gasto.id, gasto.idPropina)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
-                                                                        <Trash2 size={16} color="#ef4444" strokeWidth={2.5} />
+                                                                        <Trash2 size={20} color="#ef4444" strokeWidth={2.5} />
                                                                     </button>
                                                                 </div>
                                                             </div>
@@ -485,7 +485,7 @@ const ListaGastos = () => {
                     <button 
                         type="submit" 
                         disabled={subiendo}
-                        className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg flex justify-center items-center gap-2 mt-4 shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] ${subiendo ? 'opacity-70 cursor-wait' : ''}`}
+                        className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-4 shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] ${subiendo ? 'opacity-70 cursor-wait' : ''}`}
                     >
                         {subiendo ? (
                              <>Guardando...</>
