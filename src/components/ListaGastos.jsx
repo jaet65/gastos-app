@@ -14,9 +14,10 @@ import {
   Flex, 
   Icon,
   Divider,
+  
 } from "@tremor/react";
 // Iconos
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
@@ -143,10 +144,15 @@ const ListaGastos = () => {
 
   const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
 
+  const limpiarFiltros = () => {
+    setFechaInicio('');
+    setFechaFin('');
+  };
+
   return (
     <div className="space-y-4 relative">
       {/* 2. FILTROS */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
             <Calendar size={14} className="text-gray-400 ml-1"/>
             <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
@@ -155,6 +161,17 @@ const ListaGastos = () => {
             <Calendar size={14} className="text-gray-400 ml-1"/>
             <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
         </div>
+        {/* 3. BOTÓN DE RESET (Solo se muestra si hay algún filtro activo) */}
+        {(fechaInicio || fechaFin) && (
+          <button 
+            onClick={limpiarFiltros}
+            className="bg-white p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0"
+            title="Limpiar filtros"
+          >
+            <RotateCcw size={16} />
+          </button>
+        )}
+
       </div>
       
       {/* 1. TOTAL GENERAL */}
@@ -220,22 +237,22 @@ const ListaGastos = () => {
                                                                     <Text className="font-mono font-bold text-slate-900 text-sm">${parseFloat(gasto.monto).toFixed(2)}</Text>
                                                                 </div>
                                                                 <div className="col-span-3 flex justify-end items-center gap-2 pl-1">
+                                                                    {gasto.url_factura && (
+                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
+                                                                            <FileText size={20} />
+                                                                        </a>
+                                                                    )}
+                                                                    
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => abrirEdicion(gasto)} 
                                                                         className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                                                     >
-                                                                        <Pencil size={16} />
+                                                                        <Pencil size={20} />
                                                                     </button>
-
-                                                                    {gasto.url_factura && (
-                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
-                                                                            <FileText size={16} />
-                                                                        </a>
-                                                                    )}
                                                                     
                                                                     <button onClick={() => eliminarGasto(gasto.id)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
-                                                                        <Trash2 size={16} color="#ef4444" strokeWidth={2.5} />
+                                                                        <Trash2 size={20} color="#ef4444" strokeWidth={2.5} />
                                                                     </button>
                                                                 </div>
                                                             </div>

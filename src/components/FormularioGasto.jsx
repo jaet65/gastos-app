@@ -120,7 +120,7 @@ const FormularioGasto = () => {
             <input type="number" name="monto" placeholder="0.00" step="0.01" required value={formData.monto} onChange={handleChange}
               className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-900 text-3xl font-black placeholder-slate-300" />
           </InputGroup>
-
+          <br /><br />
           <div>
             {!archivo ? (
               // Área de carga plana, sin borde punteado
@@ -131,6 +131,7 @@ const FormularioGasto = () => {
                 </div>
                 <span className="text-sm font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600">Adjuntar PDF</span>
                 <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
+                <br /><br />
               </div>
             ) : (
               // Archivo cargado: Bloque sólido
@@ -152,7 +153,8 @@ const FormularioGasto = () => {
           <button 
             type="submit" 
             disabled={loading}
-            className="bg-transparent rounded-full w-full py-6 bg-slate-900 text-white font-black text-xl hover:bg-blue-900 transition-all duration-300 disabled:opacity-50"
+            style={{ height: '50px', fontSize: '20px' }} // Forzamos altura y fuente
+            className="w-full mt-8 rounded-full bg-transparent text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
           >
             {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>
