@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 // Componentes Tremor
 import { 
   Card, 
@@ -14,10 +14,9 @@ import {
   Flex, 
   Icon,
   Divider,
-  
 } from "@tremor/react";
-// Iconos
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw } from 'lucide-react';
+// Iconos: Agregamos 'Coins' para el indicador
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw, Coins } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
@@ -28,8 +27,9 @@ const ListaGastos = () => {
   const [gastoAEditar, setGastoAEditar] = useState(null);
   const [nuevoArchivo, setNuevoArchivo] = useState(null); 
   const [subiendo, setSubiendo] = useState(false);
+  // Estado para el checkbox de propina en edición
+  const [editarConPropina, setEditarConPropina] = useState(false);
 
-  // Constantes de Cloudinary (Iguales a las de FormularioGasto)
   const CLOUD_NAME = "didj7kuah"; 
   const UPLOAD_PRESET = "gastos_app"; 
 
@@ -41,13 +41,20 @@ const ListaGastos = () => {
     return () => unsubscribe();
   }, []);
 
-  const eliminarGasto = async (id) => {
+  const eliminarGasto = async (id, idPropina) => {
     if (confirm("¿Borrar este registro?")) {
       await deleteDoc(doc(db, "gastos", id));
+      // Si tiene propina asociada, la borramos también
+      if (idPropina) {
+        try {
+           await deleteDoc(doc(db, "gastos", idPropina));
+        } catch (e) {
+           console.log("La propina ya no existía o error al borrar", e);
+        }
+      }
     }
   };
 
-  // Función auxiliar para subir archivos (Reutilizada)
   const subirACloudinary = async (file) => {
     const data = new FormData();
     data.append("file", file);
@@ -68,23 +75,63 @@ const ListaGastos = () => {
     setSubiendo(true);
 
     try {
-        // 1. Determinar la URL final
-        let urlFinal = gastoAEditar.url_factura || ""; // Mantener la anterior por defecto
-
-        // 2. Si hay un archivo NUEVO seleccionado, subirlo y reemplazar la URL
+        let urlFinal = gastoAEditar.url_factura || ""; 
         if (nuevoArchivo) {
             urlFinal = await subirACloudinary(nuevoArchivo);
         }
         
-        // 3. Actualizar en Firestore
-        const ref = doc(db, "gastos", gastoAEditar.id);
-        await updateDoc(ref, {
+        const montoPrincipal = parseFloat(gastoAEditar.monto);
+        const refPrincipal = doc(db, "gastos", gastoAEditar.id);
+        
+        // Objeto de actualización base
+        let updateData = {
             concepto: gastoAEditar.concepto,
-            monto: parseFloat(gastoAEditar.monto),
+            monto: montoPrincipal,
             fecha: gastoAEditar.fecha,
             categoria: gastoAEditar.categoria,
             url_factura: urlFinal 
-        });
+        };
+
+        // LÓGICA DE PROPINA EN EDICIÓN
+        
+        // Caso A: Tenía propina y se desactivó el checkbox -> BORRAR PROPINA
+        if (gastoAEditar.idPropina && !editarConPropina) {
+            await deleteDoc(doc(db, "gastos", gastoAEditar.idPropina));
+            updateData.idPropina = null; // Quitar referencia
+        }
+
+        // Caso B: Se activó el checkbox (sea nueva o actualización)
+        else if (editarConPropina && gastoAEditar.categoria === 'Comida') {
+            const montoPropina = montoPrincipal * 0.10;
+            const datosPropina = {
+                fecha: gastoAEditar.fecha,
+                concepto: `Propina => ${gastoAEditar.concepto}`,
+                monto: montoPropina,
+                categoria: 'Comida',
+                url_factura: '' // Sin factura siempre
+            };
+
+            if (gastoAEditar.idPropina) {
+                // Actualizar propina existente
+                await updateDoc(doc(db, "gastos", gastoAEditar.idPropina), datosPropina);
+            } else {
+                // Crear nueva propina
+                const nuevaPropinaRef = await addDoc(collection(db, "gastos"), {
+                    ...datosPropina,
+                    creado_en: Timestamp.now()
+                });
+                updateData.idPropina = nuevaPropinaRef.id; // Guardar referencia
+            }
+        }
+
+        // Caso C: Cambió de categoría y tenía propina -> BORRAR PROPINA
+        else if (gastoAEditar.idPropina && gastoAEditar.categoria !== 'Comida') {
+             await deleteDoc(doc(db, "gastos", gastoAEditar.idPropina));
+             updateData.idPropina = null;
+        }
+
+        // Aplicar cambios al registro principal
+        await updateDoc(refPrincipal, updateData);
 
         alert("Gasto actualizado correctamente");
         setGastoAEditar(null);
@@ -97,15 +144,34 @@ const ListaGastos = () => {
     }
   };
 
+  // --- MODIFICACIÓN CLAVE: LÓGICA DE REDIRECCIÓN ---
   const abrirEdicion = (gasto) => {
+    // 1. Buscar si este gasto es "hijo" (propina) de alguien más
+    const gastoPadre = gastos.find(g => g.idPropina === gasto.id);
+
     setNuevoArchivo(null);
-    setGastoAEditar(gasto);
+
+    if (gastoPadre) {
+        // ¡Es una propina! Abrimos al padre en su lugar
+        setGastoAEditar(gastoPadre);
+        setEditarConPropina(true); // Marcamos el check porque el padre tiene propina
+        // Opcional: alert("Editando el gasto principal vinculado.");
+    } else {
+        // Es un gasto normal
+        setGastoAEditar(gasto);
+        setEditarConPropina(!!gasto.idPropina);
+    }
   };
 
   const quitarArchivoActual = () => {
     if(confirm("¿Quitar el PDF adjunto de este gasto? (Se aplicará al Guardar)")) {
       setGastoAEditar({ ...gastoAEditar, url_factura: "" });
     }
+  };
+
+  const limpiarFiltros = () => {
+    setFechaInicio('');
+    setFechaFin('');
   };
 
   const getCategoryDetails = (cat) => {
@@ -144,11 +210,6 @@ const ListaGastos = () => {
 
   const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
 
-  const limpiarFiltros = () => {
-    setFechaInicio('');
-    setFechaFin('');
-  };
-
   return (
     <div className="space-y-4 relative">
       {/* 2. FILTROS */}
@@ -161,17 +222,11 @@ const ListaGastos = () => {
             <Calendar size={14} className="text-gray-400 ml-1"/>
             <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
         </div>
-        {/* 3. BOTÓN DE RESET (Solo se muestra si hay algún filtro activo) */}
         {(fechaInicio || fechaFin) && (
-          <button 
-            onClick={limpiarFiltros}
-            className="bg-white p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0"
-            title="Limpiar filtros"
-          >
+          <button onClick={limpiarFiltros} className="bg-white p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
             <RotateCcw size={16} />
           </button>
         )}
-
       </div>
       
       {/* 1. TOTAL GENERAL */}
@@ -230,29 +285,38 @@ const ListaGastos = () => {
                                                     {items.map((gasto) => (
                                                         <ListItem key={gasto.id} className="p-0 border-none">
                                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
-                                                                <div className="col-span-5 pr-2">
+                                                                
+                                                                {/* --- MODIFICACIÓN: INDICADOR VISUAL SUTIL --- */}
+                                                                <div className="col-span-5 pr-2 flex items-center gap-1.5 overflow-hidden">
                                                                     <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
+                                                                    {/* Si tiene idPropina, mostramos la monedita */}
+                                                                    {gasto.idPropina && (
+                                                                        <div className="bg-yellow-100 text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
+                                                                            <Coins size={15} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    )}
                                                                 </div>
+
                                                                 <div className="col-span-3 text-right">
                                                                     <Text className="font-mono font-bold text-slate-900 text-sm">${parseFloat(gasto.monto).toFixed(2)}</Text>
                                                                 </div>
                                                                 <div className="col-span-3 flex justify-end items-center gap-2 pl-1">
-                                                                    {gasto.url_factura && (
-                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
-                                                                            <FileText size={20} />
-                                                                        </a>
-                                                                    )}
-                                                                    
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => abrirEdicion(gasto)} 
                                                                         className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                                                     >
-                                                                        <Pencil size={20} />
+                                                                        <Pencil size={16} />
                                                                     </button>
+
+                                                                    {gasto.url_factura && (
+                                                                        <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
+                                                                            <FileText size={16} />
+                                                                        </a>
+                                                                    )}
                                                                     
-                                                                    <button onClick={() => eliminarGasto(gasto.id)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
-                                                                        <Trash2 size={20} color="#ef4444" strokeWidth={2.5} />
+                                                                    <button onClick={() => eliminarGasto(gasto.id, gasto.idPropina)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
+                                                                        <Trash2 size={16} color="#ef4444" strokeWidth={2.5} />
                                                                     </button>
                                                                 </div>
                                                             </div>
@@ -281,7 +345,7 @@ const ListaGastos = () => {
                 position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 
             }}
         >
-            <div className="bg-white rounded-xl shadow-2xl w-90 max-w-md p-6 relative border-none border-slate-300">
+            <div className="bg-white rounded-xl shadow-2xl w-90 max-w-md p-6 relative border-none border-slate-300 max-h-[90vh] overflow-y-auto">
                 
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                     <h3 className="text-xl font-black text-slate-800">Editar Gasto</h3>
@@ -333,14 +397,38 @@ const ListaGastos = () => {
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Categoría</label>
                         <select 
                              value={gastoAEditar.categoria} 
-                             onChange={(e) => setGastoAEditar({...gastoAEditar, categoria: e.target.value})}
-                             className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-allappearance-none"
+                             onChange={(e) => {
+                                 setGastoAEditar({...gastoAEditar, categoria: e.target.value});
+                                 if (e.target.value !== 'Comida') setEditarConPropina(false);
+                             }}
+                             className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all appearance-none"
                         >
                             <option value="Transporte">Transporte</option>
                             <option value="Comida">Comida</option>
                             <option value="Otros">Otros</option>
                         </select>
                     </div>
+
+                    {/* CHECKBOX PROPINA EDICIÓN */}
+                    {gastoAEditar.categoria === 'Comida' && (
+                      <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-lg border-l-4 border-blue-500 mt-2">
+                        <input 
+                          type="checkbox" 
+                          id="checkPropinaEdit"
+                          checked={editarConPropina}
+                          onChange={(e) => setEditarConPropina(e.target.checked)}
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer accent-blue-600"
+                        />
+                        <label htmlFor="checkPropinaEdit" className="text-slate-700 font-bold text-sm cursor-pointer select-none">
+                          ¿Agregar Propina (10%)?
+                        </label>
+                        {editarConPropina && (
+                          <span className="ml-auto text-blue-600 font-black text-sm">
+                            +${(parseFloat(gastoAEditar.monto || 0) * 0.10).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <br />
 
@@ -349,7 +437,6 @@ const ListaGastos = () => {
                              <FileText size={14}/> Factura PDF
                         </label>
                         
-                        {/* ZONA DE ESTADO DEL ARCHIVO CON OPCIÓN DE ELIMINAR */}
                         <div className="mt-2 text-xs flex items-center justify-between">
                             {nuevoArchivo ? (
                                 <div className="flex items-center gap-2 bg-emerald-100 px-2 py-1 rounded">
