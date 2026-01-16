@@ -57,8 +57,27 @@ const ListaGastos = () => {
   };
 
   const subirACloudinary = async (file) => {
+    if (!file) throw new Error("Archivo inválido.");
+    if (file.size === 0) throw new Error("El archivo está vacío (0 bytes).");
+
+    // Convertir a Base64 para asegurar lectura completa en Android/Drive
+    const toBase64 = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+
+    let fileDataUrl;
+    try {
+        fileDataUrl = await toBase64(file);
+    } catch (readError) {
+        console.error("Error lectura:", readError);
+        throw new Error("Error leyendo el archivo. Prueba descargándolo al dispositivo.");
+    }
+
     const data = new FormData();
-    data.append("file", file);
+    data.append("file", fileDataUrl);
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
     
@@ -66,7 +85,14 @@ const ListaGastos = () => {
       `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
       { method: "POST", body: data }
     );
+    
     const fileData = await response.json();
+    
+    if (!response.ok || !fileData.secure_url) {
+      console.error("Error subiendo a Cloudinary (Edición):", fileData);
+      throw new Error(fileData.error?.message || "Error al subir el archivo");
+    }
+
     return fileData.secure_url;
   };
 
@@ -77,8 +103,15 @@ const ListaGastos = () => {
 
     try {
         let urlFinal = gastoAEditar.url_factura || ""; 
+        
         if (nuevoArchivo) {
-            urlFinal = await subirACloudinary(nuevoArchivo);
+            try {
+                urlFinal = await subirACloudinary(nuevoArchivo);
+            } catch (error) {
+                alert(`Error al subir la factura: ${error.message}`);
+                setSubiendo(false);
+                return;
+            }
         }
         
         const montoPrincipal = parseFloat(gastoAEditar.monto);
@@ -89,7 +122,7 @@ const ListaGastos = () => {
             monto: montoPrincipal,
             fecha: gastoAEditar.fecha,
             categoria: gastoAEditar.categoria,
-            url_factura: urlFinal 
+            url_factura: urlFinal || "" 
         };
 
         if (gastoAEditar.idPropina && !editarConPropina) {
@@ -128,7 +161,7 @@ const ListaGastos = () => {
         setNuevoArchivo(null);
     } catch (error) {
         console.error("Error", error);
-        alert("Error al actualizar: " + error.message);
+        alert("Error al guardar cambios: " + error.message);
     } finally {
         setSubiendo(false);
     }
@@ -155,7 +188,6 @@ const ListaGastos = () => {
     }
   };
 
-  // --- LOGICA DRAG MODAL (Detecta en todo el modal, pero no muestra overlay global) ---
   const handleDragEnterModal = (e) => {
     e.preventDefault();
     e.stopPropagation();

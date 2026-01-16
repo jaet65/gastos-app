@@ -43,7 +43,7 @@ const FormularioGasto = () => {
     }
   }, [formData.categoria]);
 
-  // --- LOGICA DE DRAG & DROP GLOBAL (Detección en toda la ventana) ---
+  // --- LOGICA DE DRAG & DROP GLOBAL ---
   useEffect(() => {
     const handleDragEnter = (e) => {
       e.preventDefault();
@@ -110,8 +110,30 @@ const FormularioGasto = () => {
   };
 
   const subirACloudinary = async (file) => {
+    // 1. Validación previa del archivo
+    if (!file) throw new Error("El archivo no es válido.");
+    if (file.size === 0) throw new Error("El archivo está vacío (0 bytes). Verifica que se haya descargado bien de Drive.");
+    
+    // FUNCIÓN HELPER: Convertir File a Base64
+    // Esto obliga al navegador a descargar/leer el archivo real del sistema
+    const toBase64 = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+
+    // 1. Intentamos leer el archivo primero
+    let fileDataUrl;
+    try {
+        fileDataUrl = await toBase64(file);
+    } catch (readError) {
+        console.error("Error de lectura:", readError);
+        throw new Error("No se pudo leer el archivo del dispositivo. Intenta descargarlo primero.");
+    }
+    
     const data = new FormData();
-    data.append("file", file);
+    data.append("file", fileDataUrl); // Cloudinary acepta Base64
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
     
@@ -119,7 +141,15 @@ const FormularioGasto = () => {
       `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
       { method: "POST", body: data }
     );
+    
     const fileData = await response.json();
+    
+    if (!response.ok || !fileData.secure_url) {
+      console.error("Error subiendo a Cloudinary:", fileData);
+      // Usamos el mensaje de error de Cloudinary si existe
+      throw new Error(fileData.error?.message || "Error desconocido al subir a Cloudinary");
+    }
+
     return fileData.secure_url;
   };
 
@@ -129,7 +159,18 @@ const FormularioGasto = () => {
 
     try {
       let pdfUrl = '';
-      if (archivo) pdfUrl = await subirACloudinary(archivo);
+      
+      if (archivo) {
+        try {
+          pdfUrl = await subirACloudinary(archivo);
+        } catch (uploadError) {
+          console.error(uploadError);
+          // 2. Alert con el mensaje real del error
+          alert(`No se pudo subir el archivo: ${uploadError.message}`);
+          setLoading(false);
+          return; // Detenemos todo si falla la subida
+        }
+      }
 
       const montoOriginal = parseFloat(formData.monto);
       const timestamp = Timestamp.now();
@@ -137,7 +178,7 @@ const FormularioGasto = () => {
       const docRef = await addDoc(collection(db, "gastos"), {
         ...formData,
         monto: montoOriginal,
-        url_factura: pdfUrl,
+        url_factura: pdfUrl || '',
         creado_en: timestamp
       });
 
@@ -158,14 +199,14 @@ const FormularioGasto = () => {
         });
       }
 
-      alert("¡Guardado!");
+      alert("¡Guardado correctamente!");
       setFormData(INITIAL_STATE);
       setAgregarPropina(false);
       removeFile();
 
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al guardar.");
+      console.error("Error general:", error);
+      alert("Error al guardar en la base de datos: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -232,7 +273,7 @@ const FormularioGasto = () => {
 
           <br/><br/>
 
-          {/* ZONA DE ARCHIVO (Reacciona al Drag Global) */}
+          {/* ZONA DE ARCHIVO */}
           <div>
             {!archivo ? (
               <div 
@@ -249,7 +290,6 @@ const FormularioGasto = () => {
                   p-5 transition-transform duration-300 rounded-full shadow-sm
                   ${isDragging ? 'bg-blue-200 text-blue-700 scale-110' : 'bg-white text-blue-500 group-hover:scale-110'}
                 `}>
-                  {/* CAMBIO DE ICONO SEGÚN ESTADO */}
                   {isDragging ? (
                     <ArrowDownCircle size={40} className="animate-bounce" strokeWidth={2.5} />
                   ) : (
