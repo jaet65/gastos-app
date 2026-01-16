@@ -1,8 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
-// Componentes Tremor
 import { 
   Card, 
   Title, 
@@ -15,8 +14,7 @@ import {
   Icon,
   Divider,
 } from "@tremor/react";
-// Iconos: Agregamos 'Coins' para el indicador
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw, Coins } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw, Coins, ArrowDownCircle } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
@@ -27,8 +25,12 @@ const ListaGastos = () => {
   const [gastoAEditar, setGastoAEditar] = useState(null);
   const [nuevoArchivo, setNuevoArchivo] = useState(null); 
   const [subiendo, setSubiendo] = useState(false);
-  // Estado para el checkbox de propina en edición
   const [editarConPropina, setEditarConPropina] = useState(false);
+  
+  // Estado para Drag & Drop en Modal
+  const [isDraggingModal, setIsDraggingModal] = useState(false);
+  const dragCounterModal = useRef(0);
+  const fileInputEditRef = useRef(null);
 
   const CLOUD_NAME = "didj7kuah"; 
   const UPLOAD_PRESET = "gastos_app"; 
@@ -44,7 +46,6 @@ const ListaGastos = () => {
   const eliminarGasto = async (id, idPropina) => {
     if (confirm("¿Borrar este registro?")) {
       await deleteDoc(doc(db, "gastos", id));
-      // Si tiene propina asociada, la borramos también
       if (idPropina) {
         try {
            await deleteDoc(doc(db, "gastos", idPropina));
@@ -83,7 +84,6 @@ const ListaGastos = () => {
         const montoPrincipal = parseFloat(gastoAEditar.monto);
         const refPrincipal = doc(db, "gastos", gastoAEditar.id);
         
-        // Objeto de actualización base
         let updateData = {
             concepto: gastoAEditar.concepto,
             monto: montoPrincipal,
@@ -92,15 +92,10 @@ const ListaGastos = () => {
             url_factura: urlFinal 
         };
 
-        // LÓGICA DE PROPINA EN EDICIÓN
-        
-        // Caso A: Tenía propina y se desactivó el checkbox -> BORRAR PROPINA
         if (gastoAEditar.idPropina && !editarConPropina) {
             await deleteDoc(doc(db, "gastos", gastoAEditar.idPropina));
-            updateData.idPropina = null; // Quitar referencia
+            updateData.idPropina = null;
         }
-
-        // Caso B: Se activó el checkbox (sea nueva o actualización)
         else if (editarConPropina && gastoAEditar.categoria === 'Comida') {
             const montoPropina = montoPrincipal * 0.10;
             const datosPropina = {
@@ -108,29 +103,24 @@ const ListaGastos = () => {
                 concepto: `Propina => ${gastoAEditar.concepto}  @ ${gastoAEditar.fecha}`,
                 monto: montoPropina,
                 categoria: 'Comida',
-                url_factura: '' // Sin factura siempre
+                url_factura: '' 
             };
 
             if (gastoAEditar.idPropina) {
-                // Actualizar propina existente
                 await updateDoc(doc(db, "gastos", gastoAEditar.idPropina), datosPropina);
             } else {
-                // Crear nueva propina
                 const nuevaPropinaRef = await addDoc(collection(db, "gastos"), {
                     ...datosPropina,
                     creado_en: Timestamp.now()
                 });
-                updateData.idPropina = nuevaPropinaRef.id; // Guardar referencia
+                updateData.idPropina = nuevaPropinaRef.id;
             }
         }
-
-        // Caso C: Cambió de categoría y tenía propina -> BORRAR PROPINA
         else if (gastoAEditar.idPropina && gastoAEditar.categoria !== 'Comida') {
              await deleteDoc(doc(db, "gastos", gastoAEditar.idPropina));
              updateData.idPropina = null;
         }
 
-        // Aplicar cambios al registro principal
         await updateDoc(refPrincipal, updateData);
 
         alert("Gasto actualizado correctamente");
@@ -144,20 +134,16 @@ const ListaGastos = () => {
     }
   };
 
-  // --- MODIFICACIÓN CLAVE: LÓGICA DE REDIRECCIÓN ---
   const abrirEdicion = (gasto) => {
-    // 1. Buscar si este gasto es "hijo" (propina) de alguien más
     const gastoPadre = gastos.find(g => g.idPropina === gasto.id);
-
     setNuevoArchivo(null);
+    setIsDraggingModal(false);
+    dragCounterModal.current = 0;
 
     if (gastoPadre) {
-        // ¡Es una propina! Abrimos al padre en su lugar
         setGastoAEditar(gastoPadre);
-        setEditarConPropina(true); // Marcamos el check porque el padre tiene propina
-        // Opcional: alert("Editando el gasto principal vinculado.");
+        setEditarConPropina(true);
     } else {
-        // Es un gasto normal
         setGastoAEditar(gasto);
         setEditarConPropina(!!gasto.idPropina);
     }
@@ -166,6 +152,42 @@ const ListaGastos = () => {
   const quitarArchivoActual = () => {
     if(confirm("¿Quitar el PDF adjunto de este gasto? (Se aplicará al Guardar)")) {
       setGastoAEditar({ ...gastoAEditar, url_factura: "" });
+    }
+  };
+
+  // --- LOGICA DRAG MODAL (Detecta en todo el modal, pero no muestra overlay global) ---
+  const handleDragEnterModal = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterModal.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingModal(true);
+    }
+  };
+
+  const handleDragLeaveModal = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterModal.current -= 1;
+    if (dragCounterModal.current === 0) {
+      setIsDraggingModal(false);
+    }
+  };
+
+  const handleDropModal = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingModal(false);
+    dragCounterModal.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type === "application/pdf") {
+        setNuevoArchivo(file);
+      } else {
+        alert("Por favor, arrastra solo archivos PDF.");
+      }
     }
   };
 
@@ -286,10 +308,8 @@ const ListaGastos = () => {
                                                         <ListItem key={gasto.id} className="p-0 border-none">
                                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
                                                                 
-                                                                {/* --- MODIFICACIÓN: INDICADOR VISUAL SUTIL --- */}
                                                                 <div className="col-span-5 pr-2 flex items-center gap-1.5 overflow-hidden">
                                                                     <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
-                                                                    {/* Si tiene idPropina, mostramos la monedita */}
                                                                     {gasto.idPropina && (
                                                                         <div className="bg-yellow-100 text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
                                                                             <Coins size={15} strokeWidth={2.5} />
@@ -344,6 +364,11 @@ const ListaGastos = () => {
                 backgroundColor: 'rgba(255, 255, 255, 0.9)',
                 position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 
             }}
+            // DRAG EVENTS DEL MODAL (Global al modal)
+            onDragEnter={handleDragEnterModal}
+            onDragLeave={handleDragLeaveModal}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDropModal}
         >
             <div className="bg-white rounded-xl shadow-2xl w-90 max-w-md p-6 relative border-none border-slate-300 max-h-[90vh] overflow-y-auto">
                 
@@ -409,7 +434,6 @@ const ListaGastos = () => {
                         </select>
                     </div>
 
-                    {/* CHECKBOX PROPINA EDICIÓN */}
                     {gastoAEditar.categoria === 'Comida' && (
                       <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-lg border-l-4 border-blue-500 mt-2">
                         <input 
@@ -432,54 +456,70 @@ const ListaGastos = () => {
 
                     <br />
 
-                    <div className="bg-slate-50 p-4 rounded-lg border-none border-slate-300 border-dashed">
+                    <div className="mt-4">
                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 block flex items-center gap-2">
                              <FileText size={14}/> Factura PDF
                         </label>
-                        
-                        <div className="mt-2 text-xs flex items-center justify-between">
-                            {nuevoArchivo ? (
-                                <div className="flex items-center gap-2 bg-emerald-100 px-2 py-1 rounded">
-                                    <span className="text-emerald-700 font-bold">Archivo nuevo seleccionado</span>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setNuevoArchivo(null)} 
-                                        className="text-emerald-700 hover:text-emerald-900 bg-emerald-200 hover:bg-emerald-300 rounded-full p-0.5 transition-colors"
-                                        title="Cancelar subida"
-                                    >
-                                        <X size={12} />
-                                    </button>
+
+                        {nuevoArchivo ? (
+                            <div className="flex items-center justify-between w-full bg-emerald-100 p-2 rounded border border-emerald-200">
+                                <div className="flex items-center gap-2 truncate">
+                                    <UploadCloud size={16} className="text-emerald-600" />
+                                    <span className="text-emerald-800 text-sm font-bold truncate">{nuevoArchivo.name}</span>
                                 </div>
-                            ) : (gastoAEditar.url_factura && gastoAEditar.url_factura !== "") ? (
-                                <div className="flex items-center gap-2 bg-blue-50 px-2 py-1 rounded w-full justify-between">
-                                    <span className="text-blue-600 font-medium truncate flex items-center gap-1">
-                                        <FileCheck size={12}/> Factura actual cargada
-                                    </span>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setNuevoArchivo(null)}
+                                    className="text-emerald-700 hover:text-emerald-900 bg-white/50 hover:bg-white rounded-full p-1"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ) : (gastoAEditar.url_factura && gastoAEditar.url_factura !== "") ? (
+                            <div className="flex items-center justify-between w-full bg-white p-2 rounded border border-blue-100">
+                                <div className="flex items-center gap-2 text-blue-600">
+                                    <FileCheck size={16}/> 
+                                    <span className="text-sm font-medium">Factura actual guardada</span>
+                                </div>
+                                <div className="flex gap-2">
                                     <button 
                                         type="button" 
                                         onClick={quitarArchivoActual}
-                                        className="text-red-500 hover:text-red-700 hover:bg-red-100 p-1 rounded transition-colors"
-                                        title="Quitar archivo adjunto"
+                                        className="text-red-500 hover:text-red-700 bg-red-50 p-1 rounded hover:bg-red-100"
+                                        title="Eliminar factura actual"
                                     >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
-                            ) : (
-                                <span className="text-slate-400 italic">Sin factura actualmente</span>
-                            )}
-                        </div>
+                            </div>
+                        ) : (
+                            <div 
+                                onClick={() => fileInputEditRef.current.click()}
+                                className={`
+                                    py-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors
+                                    ${isDraggingModal ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}
+                                `}
+                            >
+                                {isDraggingModal ? (
+                                    <ArrowDownCircle size={32} className="text-blue-600 animate-bounce mb-1" />
+                                ) : (
+                                    <UploadCloud size={24} className="text-slate-400 mb-1" />
+                                )}
+                                <span className={`text-xs font-bold uppercase ${isDraggingModal ? 'text-blue-600' : 'text-slate-400'}`}>
+                                    {isDraggingModal ? '¡Suelta para adjuntar!' : 'Click o arrastra para adjuntar'}
+                                </span>
+                            </div>
+                        )}
+                        
+                        <input 
+                            type="file" 
+                            accept="application/pdf"
+                            ref={fileInputEditRef}
+                            onChange={(e) => setNuevoArchivo(e.target.files[0])}
+                            className="hidden"
+                        />
                     </div>
 
-                    <br />
-
-                    <input 
-                      type="file" 
-                      accept="application/pdf"
-                      onChange={(e) => setNuevoArchivo(e.target.files[0])}
-                      className="bg-transparent w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
-                    />
-
-                    <br />
                     <br />
 
                     <button 

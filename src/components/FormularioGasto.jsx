@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react'; // Agregamos useEffect
+import { useState, useRef, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore'; // Agregamos updateDoc y doc
-import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, CheckSquare } from 'lucide-react'; // Agregamos CheckSquare
+import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
+import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle } from 'lucide-react';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => (
@@ -25,19 +25,78 @@ const FormularioGasto = () => {
 
   const [formData, setFormData] = useState(INITIAL_STATE);
   const [archivo, setArchivo] = useState(null);
-  const [agregarPropina, setAgregarPropina] = useState(false); // Estado para el checkbox
+  const [agregarPropina, setAgregarPropina] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Estado para el Drag & Drop Global
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+  
   const fileInputRef = useRef(null);
 
   const CLOUD_NAME = "didj7kuah"; 
   const UPLOAD_PRESET = "gastos_app"; 
 
-  // Resetear checkbox si cambia categoría
   useEffect(() => {
     if (formData.categoria !== 'Comida') {
       setAgregarPropina(false);
     }
   }, [formData.categoria]);
+
+  // --- LOGICA DE DRAG & DROP GLOBAL (Detección en toda la ventana) ---
+  useEffect(() => {
+    const handleDragEnter = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current += 1;
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        setIsDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current -= 1;
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
+      }
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      dragCounter.current = 0;
+      
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (file.type === "application/pdf") {
+          setArchivo(file);
+        } else {
+          alert("Por favor, arrastra solo archivos PDF.");
+        }
+      }
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -75,7 +134,6 @@ const FormularioGasto = () => {
       const montoOriginal = parseFloat(formData.monto);
       const timestamp = Timestamp.now();
 
-      // 1. Crear registro PRINCIPAL
       const docRef = await addDoc(collection(db, "gastos"), {
         ...formData,
         monto: montoOriginal,
@@ -83,21 +141,18 @@ const FormularioGasto = () => {
         creado_en: timestamp
       });
 
-      // 2. Lógica de PROPINA
       if (agregarPropina && formData.categoria === 'Comida') {
-        const montoPropina = montoOriginal * 0.10; // 10%
+        const montoPropina = montoOriginal * 0.10;
         
-        // Crear el registro de la propina
         const propinaRef = await addDoc(collection(db, "gastos"), {
           fecha: formData.fecha,
           concepto: `Propina => ${formData.concepto} @ ${formData.fecha}`,
           monto: montoPropina,
           categoria: 'Comida',
-          url_factura: '', // Sin factura
-          creado_en: timestamp // Mismo tiempo para orden
+          url_factura: '',
+          creado_en: timestamp
         });
 
-        // Actualizar el registro principal con el ID de la propina (para poder editar/borrar luego)
         await updateDoc(doc(db, "gastos", docRef.id), {
           idPropina: propinaRef.id
         });
@@ -154,7 +209,7 @@ const FormularioGasto = () => {
               className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-900 text-3xl font-black placeholder-slate-300" />
           </InputGroup>
 
-          {/* CHECKBOX DE PROPINA (Solo visible si es Comida) */}
+          {/* CHECKBOX DE PROPINA */}
           {formData.categoria === 'Comida' && (
             <div className="flex items-center gap-3 bg-blue-50/50 p-4 border-l-4 border-blue-500">
               <input 
@@ -177,19 +232,40 @@ const FormularioGasto = () => {
 
           <br/><br/>
 
+          {/* ZONA DE ARCHIVO (Reacciona al Drag Global) */}
           <div>
             {!archivo ? (
-              <div onClick={() => fileInputRef.current.click()}
-                className="bg-white/50 hover:bg-white/80 p-10 flex flex-col items-center justify-center cursor-pointer transition-all gap-4 group">
-                <div className="bg-white p-5 transition-transform group-hover:scale-110 text-blue-500">
-                  <UploadCloud size={32} />
+              <div 
+                onClick={() => fileInputRef.current.click()}
+                className={`
+                  p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-4 group border-2 border-dashed rounded-xl
+                  ${isDragging 
+                    ? 'border-blue-500 bg-blue-50 scale-105 shadow-xl ring-4 ring-blue-100' 
+                    : 'border-transparent bg-white/50 hover:bg-white/80'
+                  }
+                `}
+              >
+                <div className={`
+                  p-5 transition-transform duration-300 rounded-full shadow-sm
+                  ${isDragging ? 'bg-blue-200 text-blue-700 scale-110' : 'bg-white text-blue-500 group-hover:scale-110'}
+                `}>
+                  {/* CAMBIO DE ICONO SEGÚN ESTADO */}
+                  {isDragging ? (
+                    <ArrowDownCircle size={40} className="animate-bounce" strokeWidth={2.5} />
+                  ) : (
+                    <UploadCloud size={32} />
+                  )}
                 </div>
-                <span className="text-sm font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600">Adjuntar PDF</span>
+                
+                <span className={`text-sm font-bold uppercase tracking-widest transition-colors ${isDragging ? 'text-blue-700' : 'text-slate-500 group-hover:text-blue-600'}`}>
+                  {isDragging ? '¡SUELTA EL PDF AQUÍ!' : 'ARRASTRA O CLICK PARA ADJUNTAR PDF'}
+                </span>
+                
                 <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
               </div>
             ) : (
-              <div className="flex items-center gap-6 bg-slate-100 p-6">
-                <div className="bg-slate-800 text-white p-4">
+              <div className="flex items-center gap-6 bg-slate-100 p-6 rounded-xl border border-slate-200">
+                <div className="bg-slate-800 text-white p-4 rounded-lg">
                   <FileCheck size={24} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -204,7 +280,6 @@ const FormularioGasto = () => {
 
           <br/><br/>
 
-          {/* BOTÓN GIGANTE (FORZADO) */}
           <button 
             type="submit" 
             disabled={loading}
