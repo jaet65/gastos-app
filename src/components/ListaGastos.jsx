@@ -231,8 +231,8 @@ const ListaGastos = () => {
   const getCategoryDetails = (cat) => {
     switch(cat) {
       case 'Transporte': return { color: 'slate', icon: Car };
-      case 'Comida': return { color: 'blue', icon: Utensils };
-      default: return { color: 'gray', icon: Layers };
+      case 'Comida': return { color: 'slate', icon: Utensils };
+      default: return { color: 'slate', icon: Layers };
     }
   };
 
@@ -311,7 +311,7 @@ const ListaGastos = () => {
                 </Flex>
             </div>
 
-            <div className="p-0">
+            <div className="p-4 space-y-4">
                 {Object.entries(datosEstado.categorias).map(([nombreCategoria, datosCategoria], indexCat) => {
                     const { color, icon: CatIcon } = getCategoryDetails(nombreCategoria);
                     const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(a) - new Date(b));
@@ -319,8 +319,8 @@ const ListaGastos = () => {
                     return (
                         <div key={nombreCategoria}>
                             {indexCat > 0 && <Divider className="my-0 opacity-50" />}
-                            <div className="pt-0 pb-0">
-                                <div className="px-4 mb-0">
+                            <div className="pt-2 pb-0">
+                                <div className="px-0 mb-2">
                                     <Flex justifyContent="between" alignItems="center">
                                         <Badge icon={CatIcon} color={color} size="xs">{nombreCategoria}</Badge>
                                         <Text className="text-xs font-bold text-slate-400">${datosCategoria.totalCategoria.toFixed(2)}</Text>
@@ -331,16 +331,16 @@ const ListaGastos = () => {
                                         const items = datosCategoria.fechas[fecha];
                                         return (
                                             <div key={fecha} className="px-0">
-                                                <div className="flex items-center gap-2 mb-0 ml-0">
+                                                <div className="flex items-center gap-4 mb-0 ml-0">
                                                     <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                                    <Text className="text-[17px] font-bold text-slate-400 uppercase">{fecha}</Text>
+                                                    <Text className="text-[14px] font-bold text-slate-400 uppercase">{fecha}</Text>
                                                 </div>
                                                 <List className="mt-0 space-y-0">
                                                     {items.map((gasto) => (
                                                         <ListItem key={gasto.id} className="p-0 border-none">
                                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
                                                                 
-                                                                <div className="col-span-5 pr-2 flex items-center gap-1.5 overflow-hidden">
+                                                                <div className="col-span-6 pr-2 flex items-center gap-1.5 overflow-hidden">
                                                                     <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
                                                                     {gasto.idPropina && (
                                                                         <div className="bg-yellow-100 text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">

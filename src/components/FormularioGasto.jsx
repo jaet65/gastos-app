@@ -7,7 +7,7 @@ import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, Arr
 const InputGroup = ({ icon: Icon, children }) => (
   <div className="flex items-center bg-white/50 transition-all overflow-hidden h-18 hover:bg-white/80 focus-within:bg-white backdrop-blur-md">
     <div className="pl-8 text-slate-400">
-      <Icon size={24} strokeWidth={2.5} />
+      <Icon size={16} strokeWidth={2.5} />
     </div>
     <div className="flex-1 h-full flex items-center pr-8">
       {children}
@@ -215,24 +215,24 @@ const FormularioGasto = () => {
   return (
     <div className="w-full">
       {/* TARJETA PRINCIPAL */}
-      <div className="bg-white/40 backdrop-blur-xl p-12">
+      <div className="bg-white/40 backdrop-blur-xl p-0">
         
-        <div className="mb-12">
+        <div className="mb-0">
           <h2 className="text-4xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
           <p className="text-slate-500 font-medium text-base mt-2">Ingresa los detalles del movimiento</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-0">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
             <InputGroup icon={Calendar}>
               <input type="date" name="fecha" required value={formData.fecha} onChange={handleChange}
-                className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-700 font-bold text-base" />
+                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base" />
             </InputGroup>
 
             <InputGroup icon={Layers}>
               <select name="categoria" value={formData.categoria} onChange={handleChange}
-                className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-700 font-bold text-base cursor-pointer appearance-none">
+                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base cursor-pointer appearance-none">
                 <option value="Transporte">Transporte</option>
                 <option value="Comida">Comida</option>
                 <option value="Otros">Otros</option>
@@ -242,17 +242,17 @@ const FormularioGasto = () => {
 
           <InputGroup icon={AlignLeft}>
             <input type="text" name="concepto" placeholder="Descripción" required value={formData.concepto} onChange={handleChange}
-              className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-900 font-bold text-lg placeholder-slate-400" />
+              className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-lg placeholder-slate-400" />
           </InputGroup>
 
           <InputGroup icon={DollarSign}>
             <input type="number" name="monto" placeholder="0.00" step="0.01" required value={formData.monto} onChange={handleChange}
-              className="w-full h-full pl-6 bg-transparent border-none outline-none text-slate-900 text-3xl font-black placeholder-slate-300" />
+              className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 text-3xl font-black placeholder-slate-300" />
           </InputGroup>
 
           {/* CHECKBOX DE PROPINA */}
           {formData.categoria === 'Comida' && (
-            <div className="flex items-center gap-3 bg-blue-50/50 p-4 border-l-4 border-blue-500">
+            <div className="flex items-center gap-3 bg-blue-50/50 p-1 border-l-4 border-blue-500">
               <input 
                 type="checkbox" 
                 id="checkPropina"
@@ -260,7 +260,7 @@ const FormularioGasto = () => {
                 onChange={(e) => setAgregarPropina(e.target.checked)}
                 className="w-6 h-6 text-blue-600 rounded focus:ring-blue-500 cursor-pointer accent-blue-600"
               />
-              <label htmlFor="checkPropina" className="text-slate-700 font-bold text-sm cursor-pointer select-none">
+              <label htmlFor="checkPropina" className="text-slate-500 font-bold text-sm cursor-pointer select-none">
                 ¿Agregar Propina (10%)?
               </label>
               {agregarPropina && formData.monto && (
@@ -279,21 +279,21 @@ const FormularioGasto = () => {
               <div 
                 onClick={() => fileInputRef.current.click()}
                 className={`
-                  p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-4 group border-2 border-dashed rounded-xl
+                  p-0 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-1 group border-1 border-none
                   ${isDragging 
-                    ? 'border-blue-500 bg-blue-50 scale-105 shadow-xl ring-4 ring-blue-100' 
-                    : 'border-transparent bg-white/50 hover:bg-white/80'
+                    ? 'border-none bg-white/50 scale-105 shadow-xl ring-4 ring-blue-100 rounded-full' 
+                    : 'border-none bg-white/50 hover:bg-white/80'
                   }
                 `}
               >
                 <div className={`
-                  p-5 transition-transform duration-300 rounded-full shadow-sm
-                  ${isDragging ? 'bg-blue-200 text-blue-700 scale-110' : 'bg-white text-blue-500 group-hover:scale-110'}
+                  p-1 transition-transform duration-300 rounded-full shadow-sm
+                  ${isDragging ? 'bg-transparent text-blue-700 scale-110' : 'bg-white text-blue-500 group-hover:scale-110'}
                 `}>
                   {isDragging ? (
-                    <ArrowDownCircle size={40} className="animate-bounce" strokeWidth={2.5} />
+                    <ArrowDownCircle size={30} className="animate-bounce" strokeWidth={2.5} />
                   ) : (
-                    <UploadCloud size={32} />
+                    <UploadCloud size={30} />
                   )}
                 </div>
                 
@@ -324,7 +324,7 @@ const FormularioGasto = () => {
             type="submit" 
             disabled={loading}
             style={{ height: '100px', fontSize: '28px' }}
-            className="w-full mt-8 rounded-full bg-transparent text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
+            className="w-full mt-8 rounded-full bg-slate-900 text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
           >
             {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>

@@ -18,10 +18,10 @@ function App() {
       <div className="w-full lg:w-[450px] xl:w-[500px] shrink-0 h-[100dvh] lg:h-full bg-white relative z-0 flex flex-col border-r border-slate-100">
         
         {/* Navbar */}
-        <nav className="w-full pt-8 px-8 pb-4">
-          <div className="flex items-center gap-6">
+        <nav className="w-full pt-4 px-4 pb-0">
+          <div className="flex items-center gap-2">
             <div className="bg-blue-600 text-white p-4">
-              <LayoutDashboard size={24} strokeWidth={2.5} />
+              <LayoutDashboard size={16} strokeWidth={2.5} />
             </div>
             <h1 className="text-3xl font-black tracking-tighter text-slate-800">
               Gastos <span className="text-blue-500">MAF</span>
@@ -30,7 +30,7 @@ function App() {
         </nav>
 
         {/* Formulario Centrado */}
-        <div className="flex-1 flex flex-col justify-center p-6 lg:p-8">
+        <div className="flex-1 flex flex-col justify-center p-6 lg:p-2">
           <FormularioGasto />
 
           {/* Indicador visual en móvil (desaparece en lg) */}

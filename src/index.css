@@ -1,47 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* 1. FONDO METALLIC BLUE (Plata y Acero) */
 body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  /* Degradado diagonal: De blanco hielo a azul acero suave */
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #bfdbfe 100%);
   background-attachment: fixed;
   font-family: system-ui, -apple-system, sans-serif;
-  color: #0f172a; /* Texto Slate Dark (Gris azulado oscuro) */
-}
-
-/* 2. FORZAR TRANSPARENCIA */
-html, #root {
-  background-color: transparent !important;
-  background: none !important;
-}
-
-/* 3. REGLAS DE LAYOUT */
-@media (min-width: 768px) {
-  .layout-container {
-    flex-direction: row !important;
-    align-items: flex-start;
-  }
-  .layout-col {
-    width: 50% !important;
-    display: flex;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 767px) {
-  .layout-container {
-    flex-direction: column !important;
-    align-items: center !important;
-  }
-  .layout-col {
-    width: 100% !important;
-    display: flex;
-    justify-content: center;
-    margin-bottom: 2rem;
-  }
+  color: #0f172a;
 }
