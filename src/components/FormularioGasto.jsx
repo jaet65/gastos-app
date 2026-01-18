@@ -323,8 +323,8 @@ const FormularioGasto = () => {
           <button 
             type="submit" 
             disabled={loading}
-            style={{ height: '100px', fontSize: '28px' }}
-            className="w-full mt-8 rounded-full bg-slate-900 text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
+            style={{ height: '50px', fontSize: '20px' }}
+            className="w-full mt-2 mb-4 rounded-full bg-green-700 text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
           >
             {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>

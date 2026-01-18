@@ -294,12 +294,12 @@ const ListaGastos = () => {
       {/* 3. LISTADO */}
       {Object.entries(dataAgrupada).map(([estado, datosEstado]) => {
         const isFactura = estado === 'Con Factura';
-        const colorEstado = isFactura ? 'emerald' : 'amber';
+        const colorEstado = isFactura ? 'transparent' : 'transparent';
         const IconoEstado = isFactura ? FileCheck : AlertTriangle;
 
         return (
           <Card key={estado} className="p-0 overflow-hidden shadow-sm">
-            <div className={`py-0 px-0 border-l-4 ${isFactura ? 'border-emerald-500 bg-emerald-500' : 'border-amber-500 bg-amber-500'}`}>
+            <div className={`py-0 px-0 border-l-4 ${isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100'}`}>
                 <Flex justifyContent="between" alignItems="center">
                     <div className="flex items-center gap-2">
                         <Icon icon={IconoEstado} color={colorEstado} variant="light" size="sm" />
@@ -320,20 +320,27 @@ const ListaGastos = () => {
                         <div key={nombreCategoria}>
                             {indexCat > 0 && <Divider className="my-0 opacity-50" />}
                             <div className="pt-2 pb-0">
-                                <div className="px-0 mb-2">
+                                <div className="-ml-4 px-0 mb-2">
                                     <Flex justifyContent="between" alignItems="center">
-                                        <Badge icon={CatIcon} color={color} size="xs">{nombreCategoria}</Badge>
-                                        <Text className="text-xs font-bold text-slate-400">${datosCategoria.totalCategoria.toFixed(2)}</Text>
-                                    </Flex>
-                                </div>
+                                        <div className="flex items-center gap-1.5 pl-1">
+                                        <CatIcon size={15} className="text-slate-400" strokeWidth={2.5} />
+                                        <span className="text-xs font-black uppercase text-slate-600 tracking-wide">
+                                            {nombreCategoria}
+                                        </span>
+                                    </div>
+
+                                    <Text className="text-xs font-bold text-slate-400">
+                                        ${datosCategoria.totalCategoria.toFixed(2)}
+                                    </Text>
+                                </Flex>
+                            </div>
                                 <div className="space-y-0">
                                     {fechasOrdenadas.map((fecha) => {
                                         const items = datosCategoria.fechas[fecha];
                                         return (
                                             <div key={fecha} className="px-0">
                                                 <div className="flex items-center gap-4 mb-0 ml-0">
-                                                    <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                                    <Text className="text-[14px] font-bold text-slate-400 uppercase">{fecha}</Text>
+                                                    <Text className="text-xs font-bold text-green-700 uppercase">{fecha}</Text>
                                                 </div>
                                                 <List className="mt-0 space-y-0">
                                                     {items.map((gasto) => (
@@ -343,8 +350,8 @@ const ListaGastos = () => {
                                                                 <div className="col-span-6 pr-2 flex items-center gap-1.5 overflow-hidden">
                                                                     <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
                                                                     {gasto.idPropina && (
-                                                                        <div className="bg-yellow-100 text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
-                                                                            <Coins size={15} strokeWidth={2.5} />
+                                                                        <div className="bg-transparent text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
+                                                                            <Coins size={10} strokeWidth={2.5} />
                                                                         </div>
                                                                     )}
                                                                 </div>
