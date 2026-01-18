@@ -35,6 +35,14 @@ const ListaGastos = () => {
   const CLOUD_NAME = "didj7kuah"; 
   const UPLOAD_PRESET = "gastos_app"; 
 
+  const formatoMoneda = (cantidad) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(cantidad);
+  };
+
   useEffect(() => {
     const q = query(collection(db, "gastos"), orderBy("creado_en", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -284,10 +292,12 @@ const ListaGastos = () => {
       </div>
       
       {/* 1. TOTAL GENERAL */}
-      <Card decoration="top" decorationColor="blue" className="py-3 px-4 shadow-sm">
+      <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0">
         <Flex justifyContent="between" alignItems="center">
             <Text>Total Periodo</Text>
-            <Metric>${totalGeneral.toFixed(2)}</Metric>
+            <Metric className="italic text-xl font-black text-slate-800">
+                {formatoMoneda(totalGeneral)}
+            </Metric>
         </Flex>
       </Card>
 
@@ -306,7 +316,7 @@ const ListaGastos = () => {
                         <Title className={`text-sm uppercase font-bold ${isFactura ? 'text-emerald-900' : 'text-amber-900'}`}>{estado}</Title>
                     </div>
                     <Text className={`font-bold ${isFactura ? 'text-emerald-700' : 'text-amber-700'}`}>
-                        ${datosEstado.totalEstado.toFixed(2)}
+                        {formatoMoneda(datosEstado.totalEstado)}
                     </Text>
                 </Flex>
             </div>
@@ -320,17 +330,17 @@ const ListaGastos = () => {
                         <div key={nombreCategoria}>
                             {indexCat > 0 && <Divider className="my-0 opacity-50" />}
                             <div className="pt-2 pb-0">
-                                <div className="-ml-4 px-0 mb-2">
+                                <div className="-mr-4 -ml-4 px-0 mb-2">
                                     <Flex justifyContent="between" alignItems="center">
                                         <div className="flex items-center gap-1.5 pl-1">
-                                        <CatIcon size={15} className="text-slate-400" strokeWidth={2.5} />
-                                        <span className="text-xs font-black uppercase text-slate-600 tracking-wide">
+                                        <CatIcon size={20} className="text-slate-900" strokeWidth={2.5} />
+                                        <span className="text-xs font-black uppercase text-slate-900 tracking-wide">
                                             {nombreCategoria}
                                         </span>
                                     </div>
 
-                                    <Text className="text-xs font-bold text-slate-400">
-                                        ${datosCategoria.totalCategoria.toFixed(2)}
+                                    <Text className="text-sm font-bold text-blue-700">
+                                        {formatoMoneda(datosCategoria.totalCategoria)}
                                     </Text>
                                 </Flex>
                             </div>
@@ -357,10 +367,10 @@ const ListaGastos = () => {
                                                                 </div>
                                                                 
                                                                 <div className="col-span-3 text-right">
-                                                                    <Text className="font-mono font-bold text-slate-900 text-sm">${parseFloat(gasto.monto).toFixed(2)}</Text>
+                                                                    <Text className="font-mono font-bold text-slate-900 text-sm">{formatoMoneda(parseFloat(gasto.monto))}</Text>
                                                                 </div>
                                                                 
-                                                                <div className="col-span-3 flex justify-end items-center gap-2 pl-1">
+                                                                <div className="col-span-3 flex justify-end items-center gap-0 pl-1 -mr-6">
                                                                     {gasto.url_factura && (
                                                                         <a href={gasto.url_factura} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-slate-600">
                                                                             <FileText size={20} />
@@ -487,7 +497,7 @@ const ListaGastos = () => {
                         </label>
                         {editarConPropina && (
                           <span className="ml-auto text-blue-600 font-black text-sm">
-                            +${(parseFloat(gastoAEditar.monto || 0) * 0.10).toFixed(2)}
+                            +{formatoMoneda(parseFloat(gastoAEditar.monto || 0) * 0.10)}
                           </span>
                         )}
                       </div>
