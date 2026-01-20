@@ -1,8 +1,17 @@
 import FormularioGasto from './components/FormularioGasto';
 import ListaGastos from './components/ListaGastos';
-import { LayoutDashboard, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Menu, X } from 'lucide-react';
+import { useState } from 'react';
+import { useSwipeable } from 'react-swipeable';
 
 function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handlers = useSwipeable({
+    onSwipedLeft: () => setIsSidebarOpen(false), // Cierra el sidebar
+    onSwipedRight: () => setIsSidebarOpen(true), // Abre el sidebar
+  });
+
   return (
     // CONTENEDOR MAESTRO
     // - Móvil/Tablet: flex-col, h-auto (scroll global)
@@ -15,10 +24,10 @@ function App() {
           - Móvil: h-[100dvh] (Pantalla completa real)
           - Desktop (lg): Ancho fijo 450px, Altura 100%
       */}
-      <div className="w-full lg:w-[450px] xl:w-[500px] shrink-0 h-[100dvh] lg:h-full bg-white relative z-0 flex flex-col border-r border-slate-100">
+      <div {...handlers} className="w-full lg:w-[450px] xl:w-[500px] shrink-0 h-[100dvh] lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100">
         
         {/* Navbar */}
-        <nav className="w-full pt-4 px-4 pb-0">
+        <nav className="w-full pt-4 px-4 pb-0 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="bg-blue-600 text-white p-4">
               <LayoutDashboard size={16} strokeWidth={2.5} />
@@ -27,40 +36,58 @@ function App() {
               Gastos <span className="text-blue-500">MAF</span>
             </h1>
           </div>
+          {/* Botón de menú hamburguesa (solo móvil) */}
+          <button 
+            className="lg:hidden p-2 text-slate-500 hover:text-blue-600"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="Abrir lista de gastos"
+          >
+            <Menu size={24} />
+          </button>
         </nav>
 
         {/* Formulario Centrado */}
         <div className="flex-1 flex flex-col justify-center p-6 lg:p-2">
           <FormularioGasto />
-
-          {/* Indicador visual en móvil (desaparece en lg) */}
-          <div className="lg:hidden mt-auto pb-12 flex flex-col items-center gap-2 text-slate-400 animate-pulse opacity-80">
-            <span className="text-[10px] font-black uppercase tracking-widest">Desliza para ver lista</span>
-            <ChevronDown size={24} />
-          </div>
         </div>
       </div>
 
       {/* ------------------------------------------------------------
-          COLUMNA DERECHA (Listado / Ventana Emergente)
+          COLUMNA DERECHA (Sidebar en móvil, Contenido en Desktop)
           ------------------------------------------------------------ 
-          - Móvil: Se comporta como una "Hoja" que sube.
+          - Móvil: Sidebar fijo que se desliza desde la izquierda.
           - Desktop (lg): Ocupa el espacio restante (flex-1), tiene su propio scroll.
       */}
-      <div className="w-full lg:flex-1 lg:h-full lg:overflow-y-auto bg-slate-100 relative z-10">
-        
-        {/* ENVOLTORIO ESTILO 'HOJA'
-            - Móvil: Borde superior redondo, sombra, margen negativo para solaparse.
-            - Desktop: Sin bordes redondos, sin sombra, sin márgenes extraños.
-        */}
-        <div className="min-h-screen lg:min-h-0 bg-slate-100 lg:bg-transparent rounded-t-[40px] lg:rounded-none shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-none -mt-8 lg:mt-0 pt-8 lg:pt-0 px-4 lg:px-16 pb-32">
-           
-           {/* "Agarradera" visual (Solo móvil) */}
-           <div className="lg:hidden w-16 h-1.5 bg-slate-300 rounded-full mx-auto mb-8" />
-           
-           <ListaGastos />
+      <div 
+        {...handlers}
+        className={`
+          fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out
+          lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        <div className="h-full w-full overflow-y-auto px-4 lg:px-16 pb-32 pt-4">
+          {/* Botón para cerrar el sidebar (solo móvil) */}
+          <div className="flex justify-end lg:hidden mb-4">
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 text-slate-500 hover:text-red-600"
+              aria-label="Cerrar lista de gastos"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          <ListaGastos />
         </div>
       </div>
+
+      {/* Overlay para cerrar el sidebar en móvil */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
     </div>
   );

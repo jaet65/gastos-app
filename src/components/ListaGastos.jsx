@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
+import { motion, AnimatePresence } from 'framer-motion';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { 
   Card, 
@@ -14,7 +15,7 @@ import {
   Icon,
   Divider,
 } from "@tremor/react";
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw, Coins, ArrowDownCircle } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw, Coins, ArrowDownCircle, Search } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
@@ -26,6 +27,7 @@ const ListaGastos = () => {
   const [nuevoArchivo, setNuevoArchivo] = useState(null); 
   const [subiendo, setSubiendo] = useState(false);
   const [editarConPropina, setEditarConPropina] = useState(false);
+  const [terminoBusqueda, setTerminoBusqueda] = useState('');
   
   // Estado para Drag & Drop en Modal
   const [isDraggingModal, setIsDraggingModal] = useState(false);
@@ -234,6 +236,7 @@ const ListaGastos = () => {
   const limpiarFiltros = () => {
     setFechaInicio('');
     setFechaFin('');
+    setTerminoBusqueda('');
   };
 
   const getCategoryDetails = (cat) => {
@@ -248,6 +251,12 @@ const ListaGastos = () => {
     const filtrados = gastos.filter(g => {
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
+      if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
+        // Si hay un término de búsqueda y el concepto no lo incluye, no lo muestres.
+        // Pero si este gasto es una propina, debemos verificar si el concepto del gasto padre lo incluye.
+        const gastoPadre = gastos.find(padre => padre.idPropina === g.id);
+        return gastoPadre && gastoPadre.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase());
+      }
       return true;
     });
 
@@ -268,31 +277,47 @@ const ListaGastos = () => {
     }, {});
 
     return resultado;
-  }, [gastos, fechaInicio, fechaFin]);
+  }, [gastos, fechaInicio, fechaFin, terminoBusqueda]);
 
   const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
 
   return (
     <div className="space-y-4 relative">
-      {/* 2. FILTROS */}
-      <div className="flex gap-2 items-center">
-        <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
-            <Calendar size={14} className="text-gray-400 ml-1"/>
-            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
+      {/* CONTENEDOR DE FILTROS FIJO */}
+      <div className="sticky top-0 z-10 bg-slate-100 pt-1 pb-4 -mt-4 -mx-4 px-4 border-b border-slate-200">
+        <div className="space-y-3">
+          {/* 2. FILTROS */}
+          <div className="flex gap-2 items-center">
+            <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+                <Calendar size={14} className="text-gray-400 ml-1"/>
+                <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
+            </div>
+            <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+                <Calendar size={14} className="text-gray-400 ml-1"/>
+                <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
+            </div>
+            {(fechaInicio || fechaFin || terminoBusqueda) && (
+              <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
+                <RotateCcw size={16} />
+              </button>
+            )}
+          </div>
+          {/* Campo de búsqueda */}
+          <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
+            <Search size={14} className="text-gray-400 ml-1"/>
+            <input 
+              type="text" 
+              placeholder="Buscar por concepto..."
+              value={terminoBusqueda}
+              onChange={e => setTerminoBusqueda(e.target.value)}
+              className="border-none bg-transparent w-full text-xs outline-none text-gray-600"
+            />
+          </div>
         </div>
-        <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
-            <Calendar size={14} className="text-gray-400 ml-1"/>
-            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
-        </div>
-        {(fechaInicio || fechaFin) && (
-          <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
-            <RotateCcw size={16} />
-          </button>
-        )}
       </div>
       
       {/* 1. TOTAL GENERAL */}
-      <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0">
+      <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0 mt-4">
         <Flex justifyContent="between" alignItems="center">
             <Text>Total Periodo</Text>
             <Metric className="italic text-xl font-black text-slate-800">
@@ -302,7 +327,14 @@ const ListaGastos = () => {
       </Card>
 
       {/* 3. LISTADO */}
-      {Object.entries(dataAgrupada).map(([estado, datosEstado]) => {
+      {Object.entries(dataAgrupada)
+        .sort(([estadoA], [estadoB]) => {
+          // Ordena para que "Con Factura" siempre aparezca primero
+          if (estadoA === 'Con Factura') return -1;
+          if (estadoB === 'Con Factura') return 1;
+          return 0;
+        })
+        .map(([estado, datosEstado]) => {
         const isFactura = estado === 'Con Factura';
         const colorEstado = isFactura ? 'transparent' : 'transparent';
         const IconoEstado = isFactura ? FileCheck : AlertTriangle;
@@ -322,7 +354,14 @@ const ListaGastos = () => {
             </div>
 
             <div className="p-4 space-y-4">
-                {Object.entries(datosEstado.categorias).map(([nombreCategoria, datosCategoria], indexCat) => {
+                {Object.entries(datosEstado.categorias)
+                    .sort(([catA], [catB]) => {
+                      // Ordena las categorías según el orden especificado
+                      const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
+                      return (order[catA] || 99) - (order[catB] || 99);
+                    })
+                    .map(([nombreCategoria, datosCategoria], indexCat) => {
+
                     const { color, icon: CatIcon } = getCategoryDetails(nombreCategoria);
                     const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(a) - new Date(b));
 
