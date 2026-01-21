@@ -1,13 +1,16 @@
 import FormularioGasto from './components/FormularioGasto';
 import ListaGastos from './components/ListaGastos';
+import ListaSolicitudes from './components/ListaSolicitudes';
 import { LayoutDashboard, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useSwipeable } from 'react-swipeable';
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('gastos');
 
   const handlers = useSwipeable({
+    // No abrir/cerrar con swipe si estamos en desktop
     onSwipedLeft: () => setIsSidebarOpen(false), // Cierra el sidebar
     onSwipedRight: () => setIsSidebarOpen(true), // Abre el sidebar
   });
@@ -58,6 +61,7 @@ function App() {
           - Móvil: Sidebar fijo que se desliza desde la izquierda.
           - Desktop (lg): Ocupa el espacio restante (flex-1), tiene su propio scroll.
       */}
+
       <div 
         {...handlers}
         className={`
@@ -77,7 +81,30 @@ function App() {
               <X size={24} />
             </button>
           </div>
-          <ListaGastos />
+
+          {/* Pestañas */}
+          <div className="flex border-b border-slate-200 mb-4">
+            <TabButton 
+              label="Gastos" 
+              isActive={activeTab === 'gastos'} 
+              onClick={() => setActiveTab('gastos')} 
+            />
+            <TabButton 
+              label="Solicitudes" 
+              isActive={activeTab === 'solicitudes'} 
+              onClick={() => setActiveTab('solicitudes')} 
+            />
+          </div>
+
+          {/* Contenido de la pestaña activa */}
+          <div>
+            {activeTab === 'gastos' && (
+              <ListaGastos />
+            )}
+            {activeTab === 'solicitudes' && (
+              <ListaSolicitudes />
+            )}
+          </div>
         </div>
       </div>
 
@@ -92,5 +119,21 @@ function App() {
     </div>
   );
 }
+
+const TabButton = ({ label, isActive, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`
+      px-4 py-2 text-sm font-bold transition-colors
+      ${isActive 
+        ? 'border-b-2 border-blue-600 text-blue-600' 
+        : 'text-slate-500 hover:text-slate-800'
+      }
+    `}
+  >
+    {label}
+  </button>
+);
+
 
 export default App;

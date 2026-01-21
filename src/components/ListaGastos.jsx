@@ -1,7 +1,10 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { db } from '../firebase';
+import EditGastoModal from './EditGastoModal';
+import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { saveAs } from 'file-saver';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { 
   Card, 
@@ -15,28 +18,17 @@ import {
   Icon,
   Divider,
 } from "@tremor/react";
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, X, Save, UploadCloud, RotateCcw, Coins, ArrowDownCircle, Search } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  
-  // Estado para edición
   const [gastoAEditar, setGastoAEditar] = useState(null);
-  const [nuevoArchivo, setNuevoArchivo] = useState(null); 
-  const [subiendo, setSubiendo] = useState(false);
-  const [editarConPropina, setEditarConPropina] = useState(false);
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
+  const [reporteGenerandose, setReporteGenerandose] = useState(false);
+  const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
   
-  // Estado para Drag & Drop en Modal
-  const [isDraggingModal, setIsDraggingModal] = useState(false);
-  const dragCounterModal = useRef(0);
-  const fileInputEditRef = useRef(null);
-
-  const CLOUD_NAME = "didj7kuah"; 
-  const UPLOAD_PRESET = "gastos_app"; 
-
   const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -66,92 +58,41 @@ const ListaGastos = () => {
     }
   };
 
-  const subirACloudinary = async (file) => {
-    if (!file) throw new Error("Archivo inválido.");
-    if (file.size === 0) throw new Error("El archivo está vacío (0 bytes).");
-
-    // Convertir a Base64 para asegurar lectura completa en Android/Drive
-    const toBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-
-    let fileDataUrl;
+  const guardarEdicion = async (gastoActualizado, conPropina) => {
     try {
-        fileDataUrl = await toBase64(file);
-    } catch (readError) {
-        console.error("Error lectura:", readError);
-        throw new Error("Error leyendo el archivo. Prueba descargándolo al dispositivo.");
-    }
-
-    const data = new FormData();
-    data.append("file", fileDataUrl);
-    data.append("upload_preset", UPLOAD_PRESET);
-    data.append("cloud_name", CLOUD_NAME);
-    
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
-      { method: "POST", body: data }
-    );
-    
-    const fileData = await response.json();
-    
-    if (!response.ok || !fileData.secure_url) {
-      console.error("Error subiendo a Cloudinary (Edición):", fileData);
-      throw new Error(fileData.error?.message || "Error al subir el archivo");
-    }
-
-    return fileData.secure_url;
-  };
-
-  const guardarEdicion = async (e) => {
-    e.preventDefault();
-    if (!gastoAEditar) return;
-    setSubiendo(true);
-
-    try {
-        let urlFinal = gastoAEditar.url_factura || ""; 
-        
-        if (nuevoArchivo) {
-            try {
-                urlFinal = await subirACloudinary(nuevoArchivo);
-            } catch (error) {
-                alert(`Error al subir la factura: ${error.message}`);
-                setSubiendo(false);
-                return;
-            }
-        }
-        
-        const montoPrincipal = parseFloat(gastoAEditar.monto);
-        const refPrincipal = doc(db, "gastos", gastoAEditar.id);
+        const montoPrincipal = parseFloat(gastoActualizado.monto);
+        const refPrincipal = doc(db, "gastos", gastoActualizado.id);
         
         let updateData = {
-            concepto: gastoAEditar.concepto,
+            concepto: gastoActualizado.concepto,
             monto: montoPrincipal,
-            fecha: gastoAEditar.fecha,
-            categoria: gastoAEditar.categoria,
-            url_factura: urlFinal || "" 
+            fecha: gastoActualizado.fecha,
+            categoria: gastoActualizado.categoria,
+            url_factura: gastoActualizado.url_factura || "" 
         };
 
-        if (gastoAEditar.idPropina && !editarConPropina) {
-            await deleteDoc(doc(db, "gastos", gastoAEditar.idPropina));
+        // Lógica para manejar la propina
+        if (gastoActualizado.idPropina && !conPropina) {
+            // Se desmarcó la propina, hay que borrarla
+            await deleteDoc(doc(db, "gastos", gastoActualizado.idPropina));
             updateData.idPropina = null;
         }
-        else if (editarConPropina && gastoAEditar.categoria === 'Comida') {
+        else if (conPropina && gastoActualizado.categoria === 'Comida') {
+            // Se marcó la propina (o ya estaba marcada)
             const montoPropina = montoPrincipal * 0.10;
             const datosPropina = {
-                fecha: gastoAEditar.fecha,
-                concepto: `Propina => ${gastoAEditar.concepto}  @ ${gastoAEditar.fecha}`,
+                fecha: gastoActualizado.fecha,
+                concepto: `Propina => ${gastoActualizado.concepto}  @ ${gastoActualizado.fecha}`,
                 monto: montoPropina,
                 categoria: 'Comida',
                 url_factura: '' 
             };
 
-            if (gastoAEditar.idPropina) {
-                await updateDoc(doc(db, "gastos", gastoAEditar.idPropina), datosPropina);
+            if (gastoActualizado.idPropina) {
+                // La propina ya existía, solo se actualiza
+                await updateDoc(doc(db, "gastos", gastoActualizado.idPropina), datosPropina);
             } else {
+                // La propina no existía, se crea una nueva
                 const nuevaPropinaRef = await addDoc(collection(db, "gastos"), {
                     ...datosPropina,
                     creado_en: Timestamp.now()
@@ -159,77 +100,337 @@ const ListaGastos = () => {
                 updateData.idPropina = nuevaPropinaRef.id;
             }
         }
-        else if (gastoAEditar.idPropina && gastoAEditar.categoria !== 'Comida') {
-             await deleteDoc(doc(db, "gastos", gastoAEditar.idPropina));
+        else if (gastoActualizado.idPropina && gastoActualizado.categoria !== 'Comida') {
+             // Si se cambia la categoría a algo que no es comida, se borra la propina
+             await deleteDoc(doc(db, "gastos", gastoActualizado.idPropina));
              updateData.idPropina = null;
         }
 
         await updateDoc(refPrincipal, updateData);
 
         alert("Gasto actualizado correctamente");
-        setGastoAEditar(null);
-        setNuevoArchivo(null);
+        // El modal se cerrará desde su propio componente
     } catch (error) {
         console.error("Error", error);
         alert("Error al guardar cambios: " + error.message);
-    } finally {
-        setSubiendo(false);
+        throw error; // Re-lanza el error para que el modal sepa que falló
     }
   };
 
   const abrirEdicion = (gasto) => {
     const gastoPadre = gastos.find(g => g.idPropina === gasto.id);
-    setNuevoArchivo(null);
-    setIsDraggingModal(false);
-    dragCounterModal.current = 0;
-
-    if (gastoPadre) {
-        setGastoAEditar(gastoPadre);
-        setEditarConPropina(true);
-    } else {
-        setGastoAEditar(gasto);
-        setEditarConPropina(!!gasto.idPropina);
-    }
+    // Si se hace clic en una propina, abre la edición del gasto padre
+    setGastoAEditar(gastoPadre || gasto);
   };
 
-  const quitarArchivoActual = () => {
-    if(confirm("¿Quitar el PDF adjunto de este gasto? (Se aplicará al Guardar)")) {
-      setGastoAEditar({ ...gastoAEditar, url_factura: "" });
-    }
-  };
-
-  const handleDragEnterModal = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterModal.current += 1;
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      setIsDraggingModal(true);
-    }
-  };
-
-  const handleDragLeaveModal = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterModal.current -= 1;
-    if (dragCounterModal.current === 0) {
-      setIsDraggingModal(false);
-    }
-  };
-
-  const handleDropModal = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingModal(false);
-    dragCounterModal.current = 0;
-
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      if (file.type === "application/pdf") {
-        setNuevoArchivo(file);
-      } else {
-        alert("Por favor, arrastra solo archivos PDF.");
+  const generarReporte = async (fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
+    setReporteGenerandose(true);
+    try {
+      // 1. Filtrar todos los gastos según los filtros actuales (no solo los que tienen factura)
+      // Usaremos dataAgrupada que ya tiene los filtros y la agrupación aplicados.
+      const gastosFiltrados = gastos.filter(g => {
+        if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
+        if (fechaFinReporte && g.fecha > fechaFinReporte) return false;
+        if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
+          const gastoPadre = gastos.find(padre => padre.idPropina === g.id);
+          return gastoPadre && gastoPadre.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase());
+        }
+        return true;
+      });
+      
+      if (gastosFiltrados.length === 0) {
+        alert("No hay gastos en el periodo seleccionado para generar un reporte.");
+        setReporteGenerandose(false);
+        return;
       }
+
+      const pdfDoc = await PDFDocument.create();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const margin = 50;
+
+      // Variables para controlar la página actual y la posición Y
+      let page;
+      let y;
+      let width;
+      let height;
+
+      // Si hay una solicitud vinculada, adjuntar su PDF primero
+      if (solicitudVinculada) {
+        try {
+            const solicitudPdfBytes = await fetch(solicitudVinculada.url_pdf_solicitud).then(res => res.arrayBuffer());
+            const solicitudPdf = await PDFDocument.load(solicitudPdfBytes);
+            const copiedSolicitudPages = await pdfDoc.copyPages(solicitudPdf, solicitudPdf.getPageIndices());
+            copiedSolicitudPages.forEach((p) => pdfDoc.addPage(p));
+        } catch (error) {
+            console.error(`No se pudo cargar el PDF de la solicitud ${solicitudVinculada.id}:`, error);
+            alert(`Advertencia: No se pudo adjuntar el PDF de la solicitud ${solicitudVinculada.proyecto}. El reporte continuará sin él.`);
+        }
+      }
+
+      // Calcular valores para la portada de resumen
+      const sumaFacturado = gastosFiltrados
+          .filter(g => g.url_factura)
+          .reduce((sum, g) => sum + parseFloat(g.monto), 0);
+
+      const sumaSinFactura = gastosFiltrados
+          .filter(g => !g.url_factura)
+          .reduce((sum, g) => sum + parseFloat(g.monto), 0);
+
+      const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
+
+      let porReembolsar = 0;
+      let porReintegrar = 0;
+
+      if (importeRecibido > 0) {
+          if (sumaFacturado > importeRecibido) {
+              porReembolsar = sumaFacturado - importeRecibido;
+          } else if (importeRecibido > sumaFacturado) {
+              porReintegrar = importeRecibido - sumaFacturado;
+          }
+      }
+
+      if (solicitudVinculada) {
+          page = pdfDoc.addPage();
+          ({ width, height } = page.getSize());
+          let currentY = height - margin;
+
+        // --- Encabezado ---
+        try {
+            const logoUrl = '/CECAI.png'; // Asegúrate que este archivo exista en tu carpeta /public
+            const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
+            const logoImage = await pdfDoc.embedPng(logoImageBytes);
+            const logoDims = logoImage.scale(0.05); // Ajusta el tamaño del logo
+            page.drawImage(logoImage, {
+                x: margin,
+                y: currentY - logoDims.height,
+                width: logoDims.width,
+                height: logoDims.height,
+            });
+        } catch (error) {
+            console.warn("No se pudo cargar el logo. Asegúrate que 'CECAI.png' esté en la carpeta /public.");
+        }
+
+        currentY -= 100;
+
+          page.drawText('Resumen de Solicitud y Gastos', { x: margin, y: currentY, font: boldFont, size: 24, color: rgb(0, 0, 0) });
+          currentY -= 40;
+
+          page.drawText(`Consultor: ${solicitudVinculada.consultor}`, { x: margin, y: currentY, font: font, size: 14 });
+          currentY -= 20;
+          page.drawText(`Solicitud: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
+          currentY -= 20;
+          page.drawText(`Periodo: ${solicitudVinculada.fechaInicio} al ${solicitudVinculada.fechaFin}`, { x: margin, y: currentY, font: font, size: 12 });
+          currentY -= 40;
+
+          page.drawText('Detalle Financiero:', { x: margin, y: currentY, font: boldFont, size: 16 });
+          currentY -= 30;
+
+          // Importe recibido
+          const importeRecibidoTexto = formatoMoneda(importeRecibido);
+          const importeRecibidoAncho = boldFont.widthOfTextAtSize(importeRecibidoTexto, 12);
+          page.drawText('Importe recibido:', { x: margin, y: currentY, font: font, size: 12 });
+          page.drawText(importeRecibidoTexto, { x: width - margin - importeRecibidoAncho, y: currentY, font: boldFont, size: 12 });
+          currentY -= 20;
+
+          // Suma Facturado
+          const sumaFacturadoTexto = formatoMoneda(sumaFacturado);
+          const sumaFacturadoAncho = boldFont.widthOfTextAtSize(sumaFacturadoTexto, 12);
+          page.drawText('Suma Facturado:', { x: margin, y: currentY, font: font, size: 12 });
+          page.drawText(sumaFacturadoTexto, { x: width - margin - sumaFacturadoAncho, y: currentY, font: boldFont, size: 12 });
+          currentY -= 20;
+
+          // Suma Sin Factura
+          const sumaSinFacturaTexto = formatoMoneda(sumaSinFactura);
+          const sumaSinFacturaAncho = boldFont.widthOfTextAtSize(sumaSinFacturaTexto, 12);
+          page.drawText('Sin factura:', { x: margin, y: currentY, font: font, size: 12 });
+          page.drawText(sumaSinFacturaTexto, { x: width - margin - sumaSinFacturaAncho, y: currentY, font: boldFont, size: 12 });
+          currentY -= 30;
+
+          // Por reembolsar / Por reintegrar
+          if (porReembolsar > 0) {
+              const porReembolsarTexto = formatoMoneda(porReembolsar);
+              const porReembolsarAncho = boldFont.widthOfTextAtSize(porReembolsarTexto, 12);
+              page.drawText('Por reembolsar a colaborador:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
+              page.drawText(porReembolsarTexto, { x: width - margin - porReembolsarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
+          } else if (porReintegrar > 0) {
+              const porReintegrarTexto = formatoMoneda(porReintegrar);
+              const porReintegrarAncho = boldFont.widthOfTextAtSize(porReintegrarTexto, 12);
+              page.drawText('Por reintegrar a CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
+              page.drawText(porReintegrarTexto, { x: width - margin - porReintegrarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
+          }
+          currentY -= 20;
+      }
+
+      const checkPageBreak = () => {
+        if (y < margin) {
+          page = pdfDoc.addPage();
+          y = height - margin;
+          return true;
+        }
+        return false;
+      };
+
+      // --- 2. Crear la página de listado de gastos ---
+      page = pdfDoc.addPage();
+      ({ width, height } = page.getSize());
+      y = height - margin;
+
+      // Título
+      page.drawText('Reporte de Gastos', { x: margin, y, font: boldFont, size: 24, color: rgb(0, 0, 0) });
+      y -= 30;
+
+      // Rango de fechas
+      const rangoFechas = (fechaInicioReporte || fechaFinReporte) 
+        ? `Periodo: ${fechaInicioReporte || 'N/A'} a ${fechaFinReporte || 'N/A'}`
+        : 'Periodo: Todos los gastos';
+      page.drawText(rangoFechas, { x: margin, y, font, size: 12, color: rgb(0.3, 0.3, 0.3) });
+      y -= 40;
+
+      // Agrupar los datos filtrados para el reporte
+      const dataAgrupadaReporte = gastosFiltrados.reduce((acc, gasto) => {
+        const estado = gasto.url_factura ? 'Con Factura' : 'Sin Factura';
+        const categoria = gasto.categoria || 'Otros';
+        const fecha = gasto.fecha;
+
+        if (!acc[estado]) acc[estado] = { totalEstado: 0, categorias: {} };
+        if (!acc[estado].categorias[categoria]) acc[estado].categorias[categoria] = { totalCategoria: 0, fechas: {} };
+        if (!acc[estado].categorias[categoria].fechas[fecha]) acc[estado].categorias[categoria].fechas[fecha] = [];
+
+        acc[estado].categorias[categoria].fechas[fecha].push(gasto);
+        acc[estado].categorias[categoria].totalCategoria += parseFloat(gasto.monto);
+        acc[estado].totalEstado += parseFloat(gasto.monto);
+        
+        return acc;
+      }, {});
+
+
+      // --- Iterar sobre la estructura agrupada y ordenada ---
+      const sortedEstados = Object.entries(dataAgrupadaReporte).sort(([estadoA], [estadoB]) => {
+        if (estadoA === 'Con Factura') return -1;
+        if (estadoB === 'Con Factura') return 1;
+        return 0;
+      });
+
+      for (const [estado, datosEstado] of sortedEstados) {
+        checkPageBreak();
+        const isFactura = estado === 'Con Factura';
+        const subtotalTexto = formatoMoneda(datosEstado.totalEstado);
+        const subtotalAncho = boldFont.widthOfTextAtSize(subtotalTexto, 16);
+        // Dibuja el título del estado a la izquierda y su subtotal a la derecha, en la misma línea.
+        page.drawText(estado, { x: margin, y, font: boldFont, size: 16, color: isFactura ? rgb(0.05, 0.4, 0.11) : rgb(0.72, 0.38, 0.02) });
+        page.drawText(subtotalTexto, { x: width - margin - subtotalAncho, y, font: boldFont, size: 16, color: isFactura ? rgb(0.05, 0.4, 0.11) : rgb(0.72, 0.38, 0.02) });
+
+        y -= 25;
+
+        const sortedCategorias = Object.entries(datosEstado.categorias).sort(([catA], [catB]) => {
+          const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
+          return (order[catA] || 99) - (order[catB] || 99);
+        });
+
+        for (const [nombreCategoria, datosCategoria] of sortedCategorias) {
+          checkPageBreak();
+          page.drawText(nombreCategoria, { x: margin + 15, y, font: boldFont, size: 12, color: rgb(0.1, 0.1, 0.1) });
+          y -= 20;
+
+          const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(a) - new Date(b));
+
+          for (const fecha of fechasOrdenadas) {
+            checkPageBreak();
+            page.drawText(fecha, { x: margin + 30, y, font, size: 10, color: rgb(0.2, 0.5, 0.2) });
+            y -= 18;
+
+            const items = datosCategoria.fechas[fecha];
+            for (const gasto of items) {
+              checkPageBreak();
+              const montoTexto = formatoMoneda(gasto.monto);
+              const montoAncho = boldFont.widthOfTextAtSize(montoTexto, 10);
+              page.drawText(gasto.concepto.substring(0, 50), { x: margin + 45, y, font, size: 10 });
+              page.drawText(montoTexto, { x: width - margin - montoAncho, y, font, size: 10, font: boldFont });
+              y -= 15;
+            }
+          }
+          y -= 10; // Espacio entre categorías
+        }
+        y -= 15; // Espacio entre estados (Con/Sin Factura)
+      }
+
+      // --- Total General ---
+      checkPageBreak();
+      y -= 10;
+
+      // Total
+      const totalGeneral = Object.values(dataAgrupadaReporte).reduce((sum, e) => sum + e.totalEstado, 0);
+      const totalTexto = formatoMoneda(totalGeneral);
+      const totalAncho = boldFont.widthOfTextAtSize(totalTexto, 14);
+      page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 1 });
+      page.drawText('TOTAL GENERAL:', { x: margin, y: y - 5, font: boldFont, size: 14 });
+      page.drawText(totalTexto, { x: width - margin - totalAncho, y: y - 5, font: boldFont, size: 14 });
+
+      // --- 3. Adjuntar los PDFs de las facturas ---
+      const gastosConFactura = gastosFiltrados
+        .filter(g => g.url_factura) // Solo los que tienen factura
+        .sort((a, b) => {
+          // Ordenar por categoría primero
+          const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
+          const categoriaA = order[a.categoria] || 99;
+          const categoriaB = order[b.categoria] || 99;
+          if (categoriaA !== categoriaB) {
+            return categoriaA - categoriaB;
+          }
+          // Si la categoría es la misma, ordenar por fecha
+          return a.fecha.localeCompare(b.fecha);
+        });
+
+
+      if (gastosConFactura.length > 0) {
+        // Añadir una página de índice para las facturas
+        page = pdfDoc.addPage();
+        y = height - margin; // Resetear 'y' para la nueva página
+
+        page.drawText('Índice de Facturas Adjuntas', {
+          x: margin, y, font: boldFont, size: 24, color: rgb(0, 0, 0)
+        });
+        y -= 40;
+
+        // Cabeceras del índice
+        page.drawText('Concepto del Gasto', { x: margin, y, font: boldFont, size: 10 });
+        page.drawText('Fecha', { x: width - margin - 100, y, font: boldFont, size: 10 });
+        y -= 15;
+        page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+        y -= 20;
+
+        // Listar cada factura en el índice
+        for (const gasto of gastosConFactura) {
+          checkPageBreak(); // Comprobar si se necesita una nueva página para el índice
+          page.drawText(gasto.concepto.substring(0, 70), { x: margin, y, font, size: 10 });
+          page.drawText(gasto.fecha, { x: width - margin - 100, y, font, size: 10 });
+          y -= 20;
+        }
+      }
+
+      for (const gasto of gastosConFactura) {
+        try {
+          const url = gasto.url_factura;
+          const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
+          const donorPdfDoc = await PDFDocument.load(existingPdfBytes);
+          const copiedPages = await pdfDoc.copyPages(donorPdfDoc, donorPdfDoc.getPageIndices());
+          copiedPages.forEach((page) => pdfDoc.addPage(page));
+        } catch (error) {
+          console.error(`No se pudo cargar o procesar el PDF para el gasto '${gasto.concepto}':`, error);
+        }
+      }
+
+      // 4. Guardar y descargar el archivo final
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      saveAs(blob, `Reporte_Gastos_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    } catch (error) {
+      console.error("Error generando el reporte PDF:", error);
+      alert("Ocurrió un error al generar el reporte: " + error.message);
+    } finally {
+      setReporteGenerandose(false);
     }
   };
 
@@ -313,6 +514,11 @@ const ListaGastos = () => {
               className="border-none bg-transparent w-full text-xs outline-none text-gray-600"
             />
           </div>
+          {/* Botón para generar reporte */}
+          <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
+            <FileDown size={16} />
+            <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Reporte PDF'}</span>
+          </button>
         </div>
       </div>
       
@@ -325,6 +531,23 @@ const ListaGastos = () => {
             </Metric>
         </Flex>
       </Card>
+
+      {/* RENDERIZADO DEL MODAL */}
+      {gastoAEditar && (
+        <EditGastoModal 
+          gasto={gastoAEditar}
+          onClose={() => setGastoAEditar(null)}
+          onSave={guardarEdicion}
+        />
+      )}
+
+      {modalReporteAbierto && (
+        <ReporteOpcionesModal 
+          onClose={() => setModalReporteAbierto(false)}
+          onGenerarConFechasPersonalizadas={() => generarReporte(fechaInicio, fechaFin, null)}
+          onGenerarConSolicitud={(solicitud) => generarReporte(solicitud.fechaInicio, solicitud.fechaFin, solicitud)}
+        />
+      )}
 
       {/* 3. LISTADO */}
       {Object.entries(dataAgrupada)
@@ -443,189 +666,6 @@ const ListaGastos = () => {
           </Card>
         );
       })}
-
-      {/* --- MODAL DE EDICIÓN ESTILO POPUP --- */}
-      {gastoAEditar && createPortal(
-        <div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center p-4"
-            style={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 
-            }}
-            // DRAG EVENTS DEL MODAL (Global al modal)
-            onDragEnter={handleDragEnterModal}
-            onDragLeave={handleDragLeaveModal}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDropModal}
-        >
-            <div className="bg-white rounded-xl shadow-2xl w-90 max-w-md p-6 relative border-none border-slate-300 max-h-[90vh] overflow-y-auto">
-                
-                <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                    <h3 className="text-xl font-black text-slate-800">Editar Gasto</h3>
-                    <button 
-                        onClick={() => setGastoAEditar(null)} 
-                        className="bg-transparent text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors"
-                    >
-                        <X size={22} />
-                    </button>
-                </div>
-
-                <form onSubmit={guardarEdicion} className="space-y-5">
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Concepto</label>
-                        <input 
-                            type="text" 
-                            required
-                            value={gastoAEditar.concepto} 
-                            onChange={(e) => setGastoAEditar({...gastoAEditar, concepto: e.target.value})}
-                            className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Monto</label>
-                            <input 
-                                type="number" 
-                                step="0.01"
-                                required
-                                value={gastoAEditar.monto} 
-                                onChange={(e) => setGastoAEditar({...gastoAEditar, monto: e.target.value})}
-                                className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha</label>
-                            <input 
-                                type="date" 
-                                required
-                                value={gastoAEditar.fecha} 
-                                onChange={(e) => setGastoAEditar({...gastoAEditar, fecha: e.target.value})}
-                                className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Categoría</label>
-                        <select 
-                             value={gastoAEditar.categoria} 
-                             onChange={(e) => {
-                                 setGastoAEditar({...gastoAEditar, categoria: e.target.value});
-                                 if (e.target.value !== 'Comida') setEditarConPropina(false);
-                             }}
-                             className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 outline focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all appearance-none"
-                        >
-                            <option value="Transporte">Transporte</option>
-                            <option value="Comida">Comida</option>
-                            <option value="Otros">Otros</option>
-                        </select>
-                    </div>
-
-                    {gastoAEditar.categoria === 'Comida' && (
-                      <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-lg border-l-4 border-blue-500 mt-2">
-                        <input 
-                          type="checkbox" 
-                          id="checkPropinaEdit"
-                          checked={editarConPropina}
-                          onChange={(e) => setEditarConPropina(e.target.checked)}
-                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer accent-blue-600"
-                        />
-                        <label htmlFor="checkPropinaEdit" className="text-slate-700 font-bold text-sm cursor-pointer select-none">
-                          ¿Agregar Propina (10%)?
-                        </label>
-                        {editarConPropina && (
-                          <span className="ml-auto text-blue-600 font-black text-sm">
-                            +{formatoMoneda(parseFloat(gastoAEditar.monto || 0) * 0.10)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <br />
-
-                    <div className="mt-4">
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block flex items-center gap-2">
-                             <FileText size={14}/> Factura PDF
-                        </label>
-
-                        {nuevoArchivo ? (
-                            <div className="flex items-center justify-between w-full bg-emerald-100 p-2 rounded border border-emerald-200">
-                                <div className="flex items-center gap-2 truncate">
-                                    <UploadCloud size={16} className="text-emerald-600" />
-                                    <span className="text-emerald-800 text-sm font-bold truncate">{nuevoArchivo.name}</span>
-                                </div>
-                                <button 
-                                    type="button" 
-                                    onClick={() => setNuevoArchivo(null)}
-                                    className="text-emerald-700 hover:text-emerald-900 bg-white/50 hover:bg-white rounded-full p-1"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
-                        ) : (gastoAEditar.url_factura && gastoAEditar.url_factura !== "") ? (
-                            <div className="flex items-center justify-between w-full bg-white p-2 rounded border border-blue-100">
-                                <div className="flex items-center gap-2 text-blue-600">
-                                    <FileCheck size={16}/> 
-                                    <span className="text-sm font-medium">Factura actual guardada</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button 
-                                        type="button" 
-                                        onClick={quitarArchivoActual}
-                                        className="text-red-500 hover:text-red-700 bg-red-50 p-1 rounded hover:bg-red-100"
-                                        title="Eliminar factura actual"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div 
-                                onClick={() => fileInputEditRef.current.click()}
-                                className={`
-                                    py-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors
-                                    ${isDraggingModal ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}
-                                `}
-                            >
-                                {isDraggingModal ? (
-                                    <ArrowDownCircle size={32} className="text-blue-600 animate-bounce mb-1" />
-                                ) : (
-                                    <UploadCloud size={24} className="text-slate-400 mb-1" />
-                                )}
-                                <span className={`text-xs font-bold uppercase ${isDraggingModal ? 'text-blue-600' : 'text-slate-400'}`}>
-                                    {isDraggingModal ? '¡Suelta para adjuntar!' : 'Click o arrastra para adjuntar'}
-                                </span>
-                            </div>
-                        )}
-                        
-                        <input 
-                            type="file" 
-                            accept="application/pdf"
-                            ref={fileInputEditRef}
-                            onChange={(e) => setNuevoArchivo(e.target.files[0])}
-                            className="hidden"
-                        />
-                    </div>
-
-                    <br />
-
-                    <button 
-                        type="submit" 
-                        disabled={subiendo}
-                        className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-4 shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] ${subiendo ? 'opacity-70 cursor-wait' : ''}`}
-                    >
-                        {subiendo ? (
-                             <>Guardando...</>
-                        ) : (
-                             <><Save size={18} /> Guardar Cambios</>
-                        )}
-                    </button>
-                </form>
-            </div>
-        </div>,
-        document.body
-      )}
 
     </div>
   );

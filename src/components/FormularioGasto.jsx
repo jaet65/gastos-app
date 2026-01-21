@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
-import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle } from 'lucide-react';
+import SolicitudRecursosModal from './SolicitudRecursosModal';
+import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => (
@@ -27,6 +28,7 @@ const FormularioGasto = () => {
   const [archivo, setArchivo] = useState(null);
   const [agregarPropina, setAgregarPropina] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [modalRecursosAbierto, setModalRecursosAbierto] = useState(false);
   
   // Estado para el Drag & Drop Global
   const [isDragging, setIsDragging] = useState(false);
@@ -214,11 +216,22 @@ const FormularioGasto = () => {
 
   return (
     <div className="w-full">
+      {/* RENDERIZADO DEL MODAL DE RECURSOS */}
+      {modalRecursosAbierto && (
+        <SolicitudRecursosModal onClose={() => setModalRecursosAbierto(false)} />
+      )}
+
       {/* TARJETA PRINCIPAL */}
       <div className="bg-white/40 backdrop-blur-xl p-0">
         
-        <div className="mb-0">
+        <div className="flex justify-between items-start mb-4">
           <h2 className="text-4xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
+          <button type="button" onClick={() => setModalRecursosAbierto(true)} className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Generar solicitud de recursos">
+            <FileCog size={16} />
+            <span>Solicitar Recursos</span>
+          </button>
+        </div>
+        <div className="mb-0">
           <p className="text-slate-500 font-medium text-base mt-2">Ingresa los detalles del movimiento</p>
         </div>
 
