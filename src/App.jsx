@@ -32,11 +32,11 @@ function App() {
         {/* Navbar */}
         <nav className="w-full pt-4 px-4 pb-0 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="bg-blue-600 text-white p-4">
-              <LayoutDashboard size={16} strokeWidth={2.5} />
+            <div className="p-2"> {/* Ajusta el padding si es necesario */}
+              <img src="/MAF.png" alt="Logo MAF" className="h-26 w-auto" /> {/* Ajusta h-8 y w-auto según el tamaño deseado */}
             </div>
             <h1 className="text-3xl font-black tracking-tighter text-slate-800">
-              Gastos <span className="text-blue-500">MAF</span>
+              Gastos <span className="text-orange-500">MAF</span>
             </h1>
           </div>
           {/* Botón de menú hamburguesa (solo móvil) */}
