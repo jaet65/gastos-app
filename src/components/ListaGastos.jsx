@@ -127,6 +127,26 @@ const ListaGastos = () => {
     setGastoAEditar(gastoPadre || gasto);
   };
 
+  const subirReporteACloudinary = async (pdfBytes, solicitudId) => {
+    const CLOUD_NAME = "didj7kuah"; 
+    const UPLOAD_PRESET = "gastos_app"; 
+
+    const data = new FormData();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    data.append("file", blob, `reporte_gastos_${solicitudId}.pdf`);
+    data.append("upload_preset", UPLOAD_PRESET);
+    data.append("cloud_name", CLOUD_NAME);
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, { method: "POST", body: data });
+    const fileData = await response.json();
+
+    if (!response.ok || !fileData.secure_url) {
+        console.error("Error subiendo reporte a Cloudinary:", fileData);
+        throw new Error(fileData.error?.message || "Error al subir el reporte a Cloudinary");
+    }
+    return fileData.secure_url;
+  };
+
   const handleAbrirModalSolicitudParaReporte = () => {
     if (!fechaInicio || !fechaFin) {
       alert("Por favor, selecciona un rango de fechas en los filtros antes de continuar.");
@@ -485,6 +505,16 @@ const ListaGastos = () => {
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       saveAs(blob, `Reporte_Gastos_${new Date().toISOString().split('T')[0]}.pdf`);
+
+      // Si hay solicitud vinculada, subir reporte y actualizarla
+      if (solicitudVinculada) {
+          const reporteUrl = await subirReporteACloudinary(pdfBytes, solicitudVinculada.id);
+          const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
+          await updateDoc(solicitudRef, {
+              estado: 'Finalizada',
+              url_reporte_gastos: reporteUrl
+          });
+      }
 
       // Marcar gastos como archivados
       const updates = gastosFiltrados.map(gasto => {

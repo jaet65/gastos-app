@@ -138,7 +138,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 montoComida: montoComida,
                 totalSolicitado: totalSolicitado,
                 url_pdf_solicitud: pdfUrl,
-                creado_en: Timestamp.now()
+                creado_en: Timestamp.now(),
+                estado: 'Enviada' // Estado por defecto al crear
             };
             const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
 

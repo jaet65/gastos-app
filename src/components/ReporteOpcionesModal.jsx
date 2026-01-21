@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { X, Calendar, Link as LinkIcon, ChevronRight } from 'lucide-react';
 
 const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud }) => {
@@ -12,7 +12,11 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
     useEffect(() => {
         if (view === 'seleccionarSolicitud') {
             setLoading(true);
-            const q = query(collection(db, "solicitudes"), orderBy("fechaInicio", "desc"));
+            const q = query(
+                collection(db, "solicitudes"),
+                where("estado", "!=", "Finalizada"), // No mostrar las finalizadas
+                orderBy("fechaInicio", "desc")
+            );
             const unsubscribe = onSnapshot(q, (snapshot) => {
                 setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 setLoading(false);
