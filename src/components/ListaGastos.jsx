@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { db } from '../firebase';
+import SolicitudRecursosModal from './SolicitudRecursosModal';
 import EditGastoModal from './EditGastoModal';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +30,7 @@ const ListaGastos = () => {
   const [reporteGenerandose, setReporteGenerandose] = useState(false);
   const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
+  const [modalSolicitudParaReporteAbierto, setModalSolicitudParaReporteAbierto] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
   
   const formatoMoneda = (cantidad) => {
@@ -124,6 +126,16 @@ const ListaGastos = () => {
     // Si se hace clic en una propina, abre la edición del gasto padre
     setGastoAEditar(gastoPadre || gasto);
   };
+
+  const handleAbrirModalSolicitudParaReporte = () => {
+    if (!fechaInicio || !fechaFin) {
+      alert("Por favor, selecciona un rango de fechas en los filtros antes de continuar.");
+      return;
+    }
+    setModalReporteAbierto(false);
+    setModalSolicitudParaReporteAbierto(true);
+  };
+
 
   const handleUnarchiveVisible = async () => {
     const archivedVisibleGastos = [];
@@ -232,49 +244,54 @@ const ListaGastos = () => {
           }
       }
 
+      // --- Portada de Resumen Financiero (se genera siempre) ---
+      page = pdfDoc.addPage();
+      ({ width, height } = page.getSize());
+      let currentY = height - margin;
+
+      // Encabezado con logo
+      try {
+          const logoUrl = '/CECAI.png';
+          const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
+          const logoImage = await pdfDoc.embedPng(logoImageBytes);
+          const logoDims = logoImage.scale(0.05);
+          page.drawImage(logoImage, {
+              x: margin,
+              y: currentY - logoDims.height,
+              width: logoDims.width,
+              height: logoDims.height,
+          });
+      } catch (error) {
+          console.warn("No se pudo cargar el logo 'CECAI.png' desde la carpeta /public.");
+      }
+      currentY -= 100;
+
+      // Título y detalles de la portada
+      page.drawText('Resumen de Gastos', { x: margin, y: currentY, font: boldFont, size: 24, color: rgb(0, 0, 0) });
+      currentY -= 40;
+
       if (solicitudVinculada) {
-          page = pdfDoc.addPage();
-          ({ width, height } = page.getSize());
-          let currentY = height - margin;
-
-        // --- Encabezado ---
-        try {
-            const logoUrl = '/CECAI.png'; // Asegúrate que este archivo exista en tu carpeta /public
-            const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
-            const logoImage = await pdfDoc.embedPng(logoImageBytes);
-            const logoDims = logoImage.scale(0.05); // Ajusta el tamaño del logo
-            page.drawImage(logoImage, {
-                x: margin,
-                y: currentY - logoDims.height,
-                width: logoDims.width,
-                height: logoDims.height,
-            });
-        } catch (error) {
-            console.warn("No se pudo cargar el logo. Asegúrate que 'CECAI.png' esté en la carpeta /public.");
-        }
-
-        currentY -= 100;
-
-          page.drawText('Resumen de Solicitud y Gastos', { x: margin, y: currentY, font: boldFont, size: 24, color: rgb(0, 0, 0) });
-          currentY -= 40;
-
           page.drawText(`Consultor: ${solicitudVinculada.consultor}`, { x: margin, y: currentY, font: font, size: 14 });
           currentY -= 20;
           page.drawText(`Solicitud: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
           currentY -= 20;
-          page.drawText(`Periodo: ${solicitudVinculada.fechaInicio} al ${solicitudVinculada.fechaFin}`, { x: margin, y: currentY, font: font, size: 12 });
-          currentY -= 40;
+      }
+      page.drawText(`Periodo: ${fechaInicioReporte || 'N/A'} al ${fechaFinReporte || 'N/A'}`, { x: margin, y: currentY, font: font, size: 12 });
+      currentY -= 40;
 
-          page.drawText('Detalle Financiero:', { x: margin, y: currentY, font: boldFont, size: 16 });
-          currentY -= 30;
+      page.drawText('Detalle Financiero:', { x: margin, y: currentY, font: boldFont, size: 16 });
+      currentY -= 30;
 
+      // --- Campos del detalle financiero ---
+      if (solicitudVinculada) {
           // Importe recibido
           const importeRecibidoTexto = formatoMoneda(importeRecibido);
           const importeRecibidoAncho = boldFont.widthOfTextAtSize(importeRecibidoTexto, 12);
           page.drawText('Importe recibido:', { x: margin, y: currentY, font: font, size: 12 });
           page.drawText(importeRecibidoTexto, { x: width - margin - importeRecibidoAncho, y: currentY, font: boldFont, size: 12 });
           currentY -= 20;
-
+      }
+      
           // Suma Facturado
           const sumaFacturadoTexto = formatoMoneda(sumaFacturado);
           const sumaFacturadoAncho = boldFont.widthOfTextAtSize(sumaFacturadoTexto, 12);
@@ -289,6 +306,7 @@ const ListaGastos = () => {
           page.drawText(sumaSinFacturaTexto, { x: width - margin - sumaSinFacturaAncho, y: currentY, font: boldFont, size: 12 });
           currentY -= 30;
 
+      if (solicitudVinculada) {
           // Por reembolsar / Por reintegrar
           if (porReembolsar > 0) {
               const porReembolsarTexto = formatoMoneda(porReembolsar);
@@ -301,8 +319,8 @@ const ListaGastos = () => {
               page.drawText('Por reintegrar a CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
               page.drawText(porReintegrarTexto, { x: width - margin - porReintegrarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
           }
-          currentY -= 20;
       }
+      currentY -= 20;
 
       const checkPageBreak = () => {
         if (y < margin) {
@@ -611,8 +629,17 @@ const ListaGastos = () => {
       {modalReporteAbierto && (
         <ReporteOpcionesModal 
           onClose={() => setModalReporteAbierto(false)}
-          onGenerarConFechasPersonalizadas={() => generarReporte(fechaInicio, fechaFin, null)}
+          onGenerarConFechasPersonalizadas={handleAbrirModalSolicitudParaReporte}
           onGenerarConSolicitud={(solicitud) => generarReporte(solicitud.fechaInicio, solicitud.fechaFin, solicitud)}
+        />
+      )}
+
+      {modalSolicitudParaReporteAbierto && (
+        <SolicitudRecursosModal
+          onClose={() => setModalSolicitudParaReporteAbierto(false)}
+          fechaInicioInicial={fechaInicio}
+          fechaFinInicial={fechaFin}
+          onSolicitudCreada={(nuevaSolicitud) => generarReporte(nuevaSolicitud.fechaInicio, nuevaSolicitud.fechaFin, nuevaSolicitud)}
         />
       )}
 

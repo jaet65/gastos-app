@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
+import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 
 // InputGroup: Bloque plano sin bordes
@@ -18,7 +19,7 @@ const InputGroup = ({ icon: Icon, children }) => (
 
 const FormularioGasto = () => {
   const INITIAL_STATE = {
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: formatInTimeZone(new Date(), 'America/Mexico_City', 'yyyy-MM-dd'),
     concepto: '',
     monto: '',
     categoria: 'Transporte',

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { differenceInDays, format } from 'date-fns';
+import { differenceInCalendarDays } from 'date-fns';
+import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
 
 const CLOUD_NAME = "didj7kuah";
@@ -13,19 +14,19 @@ const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cantidad);
 };
 
-const SolicitudRecursosModal = ({ onClose }) => {
-    const [fechaInicio, setFechaInicio] = useState('');
-    const [fechaFin, setFechaFin] = useState('');
+const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInicial = '', onSolicitudCreada }) => {
+    const [fechaInicio, setFechaInicio] = useState(fechaInicioInicial);
+    const [fechaFin, setFechaFin] = useState(fechaFinInicial);
     const [loading, setLoading] = useState(false);
 
     const { dias, montoTransporte, montoComida, totalSolicitado } = useMemo(() => {
         if (!fechaInicio || !fechaFin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
         
-        const inicio = new Date(fechaInicio);
-        const fin = new Date(fechaFin);
+        const inicio = new Date(`${fechaInicio}T00:00:00`); // Asegurar que se interprete como local al día
+        const fin = new Date(`${fechaFin}T00:00:00`);
         if (inicio > fin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
 
-        const dias = differenceInDays(fin, inicio) + 1;
+        const dias = differenceInCalendarDays(fin, inicio) + 1;
         const montoTransporte = dias * 700;
         const montoComida = dias * 600;
         const totalSolicitado = montoTransporte + montoComida;
@@ -68,7 +69,7 @@ const SolicitudRecursosModal = ({ onClose }) => {
         page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
         y -= 20;
         page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
-        page.drawText(`${format(new Date(fechaInicio), 'dd/MM/yyyy')} al ${format(new Date(fechaFin), 'dd/MM/yyyy')} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
+        page.drawText(`${format(new Date(`${fechaInicio}T00:00:00`), 'dd/MM/yyyy')} al ${format(new Date(`${fechaFin}T00:00:00`), 'dd/MM/yyyy')} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
         y -= 40;
         page.drawText('Desglose de Gastos:', { x: margin, y, font: boldFont, size: 14 });
         y -= 30;
@@ -127,7 +128,7 @@ const SolicitudRecursosModal = ({ onClose }) => {
             const pdfUrl = await subirACloudinary(pdfBytes);
 
             // 3. Guardar en la nueva colección "solicitudes"
-            await addDoc(collection(db, "solicitudes"), {
+            const nuevaSolicitudData = {
                 consultor: 'Mario Alberto Agraz Martínez',
                 proyecto: 'Rally TrackSIM',
                 fechaInicio: fechaInicio,
@@ -138,10 +139,15 @@ const SolicitudRecursosModal = ({ onClose }) => {
                 totalSolicitado: totalSolicitado,
                 url_pdf_solicitud: pdfUrl,
                 creado_en: Timestamp.now()
-            });
+            };
+            const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
 
-            alert("Solicitud de recursos generada y guardada correctamente.");
-            onClose();
+            if (onSolicitudCreada) {
+                onSolicitudCreada({ id: docRef.id, ...nuevaSolicitudData });
+            } else {
+                alert("Solicitud de recursos generada y guardada correctamente.");
+            }
+            onClose(); // Cierra el modal en cualquier caso
 
         } catch (error) {
             console.error("Error al solicitar recursos:", error);
