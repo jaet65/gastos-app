@@ -18,7 +18,7 @@ import {
   Icon,
   Divider,
 } from "@tremor/react";
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 
 const ListaGastos = () => {
   const [gastos, setGastos] = useState([]);
@@ -28,6 +28,8 @@ const ListaGastos = () => {
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
   const [reporteGenerandose, setReporteGenerandose] = useState(false);
   const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
+  const [mostrarArchivados, setMostrarArchivados] = useState(false);
+  const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
   
   const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
@@ -121,6 +123,46 @@ const ListaGastos = () => {
     const gastoPadre = gastos.find(g => g.idPropina === gasto.id);
     // Si se hace clic en una propina, abre la edición del gasto padre
     setGastoAEditar(gastoPadre || gasto);
+  };
+
+  const handleUnarchiveVisible = async () => {
+    const archivedVisibleGastos = [];
+    // Aplanar dataAgrupada para obtener todos los elementos archivados visibles
+    Object.values(dataAgrupada).forEach(estado => {
+      Object.values(estado.categorias).forEach(cat => {
+        Object.values(cat.fechas).forEach(items => {
+          items.forEach(gasto => {
+            if (gasto.archivado) {
+              archivedVisibleGastos.push(gasto);
+            }
+          });
+        });
+      });
+    });
+
+    if (archivedVisibleGastos.length === 0) {
+      alert("No hay gastos archivados visibles para desarchivar.");
+      return;
+    }
+
+    if (!confirm(`¿Estás seguro de que quieres desarchivar ${archivedVisibleGastos.length} registros visibles?`)) {
+      return;
+    }
+
+    setIsUnarchiving(true);
+    try {
+      const updates = archivedVisibleGastos.map(gasto => {
+        const gastoRef = doc(db, "gastos", gasto.id);
+        return updateDoc(gastoRef, { archivado: false });
+      });
+      await Promise.all(updates);
+      alert("Registros desarchivados correctamente.");
+    } catch (error) {
+      console.error("Error al desarchivar registros:", error);
+      alert("Ocurrió un error al desarchivar los registros.");
+    } finally {
+      setIsUnarchiving(false);
+    }
   };
 
   const generarReporte = async (fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
@@ -426,6 +468,15 @@ const ListaGastos = () => {
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       saveAs(blob, `Reporte_Gastos_${new Date().toISOString().split('T')[0]}.pdf`);
 
+      // Marcar gastos como archivados
+      const updates = gastosFiltrados.map(gasto => {
+        const gastoRef = doc(db, "gastos", gasto.id);
+        return updateDoc(gastoRef, { archivado: true });
+      });
+      await Promise.all(updates);
+
+      alert("Reporte generado y gastos marcados como archivados.");
+
     } catch (error) {
       console.error("Error generando el reporte PDF:", error);
       alert("Ocurrió un error al generar el reporte: " + error.message);
@@ -450,6 +501,10 @@ const ListaGastos = () => {
 
   const dataAgrupada = useMemo(() => {
     const filtrados = gastos.filter(g => {
+      // Ocultar archivados si el toggle no está activo
+      if (!mostrarArchivados && g.archivado) {
+        return false;
+      }
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
       if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
@@ -478,7 +533,7 @@ const ListaGastos = () => {
     }, {});
 
     return resultado;
-  }, [gastos, fechaInicio, fechaFin, terminoBusqueda]);
+  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados]);
 
   const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
 
@@ -497,6 +552,18 @@ const ListaGastos = () => {
                 <Calendar size={14} className="text-gray-400 ml-1"/>
                 <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600"/>
             </div>
+            <button onClick={() => setMostrarArchivados(!mostrarArchivados)} className={`p-2 rounded-full border transition-all shadow-sm flex-shrink-0 ${mostrarArchivados ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-transparent border-gray-200 text-slate-400 hover:bg-slate-50'}`} title={mostrarArchivados ? "Ocultar archivados" : "Mostrar archivados"}>
+              {mostrarArchivados 
+                ? <ArchiveRestore size={16} /> 
+                : <Archive size={16} />
+              }
+            </button>
+            {mostrarArchivados && gastos.some(g => g.archivado) && ( // Solo mostrar si se están viendo archivados y hay al menos un gasto archivado en la lista general
+              <button onClick={handleUnarchiveVisible} disabled={isUnarchiving} className="flex items-center gap-1 p-2 rounded-full border transition-all shadow-sm flex-shrink-0 bg-yellow-100 border-yellow-200 text-yellow-700 hover:bg-yellow-200" title="Desarchivar todos los visibles">
+                {isUnarchiving ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
+                <span className="text-xs font-bold">Desarchivar</span>
+              </button>
+            )}
             {(fechaInicio || fechaFin || terminoBusqueda) && (
               <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
                 <RotateCcw size={16} />
@@ -620,6 +687,11 @@ const ListaGastos = () => {
                                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
                                                                 
                                                                 <div className="col-span-6 pr-2 flex items-center gap-1.5 overflow-hidden">
+                                                                    {gasto.archivado && (
+                                                                        <div className="text-slate-400 flex-shrink-0" title="Gasto archivado">
+                                                                            <Archive size={12} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    )}
                                                                     <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
                                                                     {gasto.idPropina && (
                                                                         <div className="bg-transparent text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
