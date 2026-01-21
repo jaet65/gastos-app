@@ -13,9 +13,9 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
         if (view === 'seleccionarSolicitud') {
             setLoading(true);
             const q = query(
-                collection(db, "solicitudes"),
+                collection(db, "solicitudes"), 
                 where("estado", "!=", "Finalizada"), // No mostrar las finalizadas
-                orderBy("fechaInicio", "desc")
+                orderBy("fechaInicio", "desc")       // ¡Segundo ordenado en otro campo!
             );
             const unsubscribe = onSnapshot(q, (snapshot) => {
                 setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));

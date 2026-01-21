@@ -14,9 +14,9 @@ const formatoMoneda = (cantidad) => {
 };
 
 const statusColors = {
-    'Enviada': { badge: 'bg-yellow-100 text-yellow-800', dot: 'bg-yellow-500' },
-    'Recibida': { badge: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500' },
-    'Finalizada': { badge: 'bg-green-100 text-green-800', dot: 'bg-green-500' },
+    'Enviada': { badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-500', tremor: 'warning' },
+    'Recibida': { badge: 'bg-blue-500 text-white', dot: 'bg-blue-500', tremor: 'info' },
+    'Finalizada': { badge: 'bg-green-500 text-white', dot: 'bg-green-500', tremor: 'success' },
 };
 
 const ListaSolicitudes = () => {
@@ -130,7 +130,12 @@ const ListaSolicitudes = () => {
                                     </Menu>
                                 </div>
                             </div>
-                            <div className="text-right"><Text className="font-bold text-xs text-slate-500 uppercase">Total Solicitado</Text><Badge size="lg">{formatoMoneda(solicitud.totalSolicitado)}</Badge></div>
+                            <div className="text-right">
+                                <Text className="font-bold text-xs text-slate-500 uppercase mb-1">Total Solicitado</Text>
+                                <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
+                                    {formatoMoneda(solicitud.totalSolicitado)}
+                                </span>
+                            </div>
                         </Flex>
                     </Card>
                 ))
