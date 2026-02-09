@@ -14,7 +14,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
             setLoading(true);
             const q = query(
                 collection(db, "solicitudes"), 
-                where("estado", "!=", "Finalizada"), // No mostrar las finalizadas
+                where("estado", "!=", "Finalizada"),
                 orderBy("fechaInicio", "desc")       // ¡Segundo ordenado en otro campo!
             );
             const unsubscribe = onSnapshot(q, (snapshot) => {

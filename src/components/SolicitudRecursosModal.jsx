@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { differenceInCalendarDays } from 'date-fns';
+import { differenceInCalendarDays, format as formatDateFns } from 'date-fns';
 import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
 
@@ -192,6 +192,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                             <div className="flex justify-between text-base"><p className="font-bold">Total Solicitado:</p><p className="font-black text-blue-600">{formatoMoneda(totalSolicitado)}</p></div>
                         </div>
                     )}
+
 
                     <button onClick={handleSolicitar} disabled={loading || dias <= 0} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-6 shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                         {loading ? 'Procesando...' : <><Send size={18} /> Generar y Guardar Solicitud</>}

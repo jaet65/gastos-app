@@ -6,6 +6,8 @@ import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { 
   Card, 
@@ -127,17 +129,37 @@ const ListaGastos = () => {
     setGastoAEditar(gastoPadre || gasto);
   };
 
-  const subirReporteACloudinary = async (pdfBytes, solicitudId) => {
+  const subirReporteACloudinary = async (fileBlob, solicitudId, formato) => {
     const CLOUD_NAME = "didj7kuah"; 
     const UPLOAD_PRESET = "gastos_app"; 
+  
+    const fileExtension = formato === 'excel' ? 'xlsx' : 'pdf';
+    const mimeType = formato === 'excel' 
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      : 'application/pdf';
+
+    // La función ahora recibe un Blob directamente, no los bytes.
+    // Si por alguna razón se pasan bytes, lo convertimos a Blob.
+    let blob;
+    if (formato === 'zip') {
+      blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob], { type: 'application/zip' });
+    } else {
+      blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob], { type: mimeType });
+    }
 
     const data = new FormData();
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    data.append("file", blob, `reporte_gastos_${solicitudId}.pdf`);
+    const finalExtension = formato === 'zip' ? 'zip' : fileExtension;
+    const fileName = `reporte_gastos_${solicitudId}.${finalExtension}`;
+    data.append("file", blob, fileName);
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
 
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, { method: "POST", body: data });
+    // Usamos el endpoint 'raw' para archivos que no son multimedia (como PDF, XLSX)
+    // y 'image' para imágenes. 'auto' a veces falla en la detección.
+    // Para ZIP y Excel, es mandatorio usar 'raw'.
+    const resourceType = (formato === 'excel' || formato === 'zip') ? 'raw' : 'auto';
+    const uploadEndpoint = `${resourceType}/upload`;
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${uploadEndpoint}`, { method: "POST", body: data });
     const fileData = await response.json();
 
     if (!response.ok || !fileData.secure_url) {
@@ -214,10 +236,115 @@ const ListaGastos = () => {
       
       if (gastosFiltrados.length === 0) {
         alert("No hay gastos en el periodo seleccionado para generar un reporte.");
-        setReporteGenerandose(false);
-        return;
+        return; // No es necesario cambiar el estado aquí, se hace en el finally
       }
 
+      // 2. Generar ambos reportes y obtener sus blobs
+      const [excelBlob, pdfBlob] = await Promise.all([
+        generarReporteExcel(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada),
+        generarReportePdf(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada)
+      ]);
+
+      // 3. Crear el archivo ZIP
+      const zip = new JSZip();
+      const reportDate = new Date().toISOString().split('T')[0];
+      zip.file(`Reporte_Gastos_${reportDate}.xlsx`, excelBlob);
+      zip.file(`Reporte_Gastos_${reportDate}.pdf`, pdfBlob);
+
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+
+      // 4. Descargar el ZIP
+      saveAs(zipBlob, `Reporte_Compilado_${reportDate}.zip`);
+
+      // 5. Subir a Cloudinary si hay solicitud
+      if (solicitudVinculada) {
+        const reporteUrl = await subirReporteACloudinary(zipBlob, solicitudVinculada.id, 'zip');
+        const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
+        await updateDoc(solicitudRef, { estado: 'Finalizada', url_reporte_gastos: reporteUrl });
+      }
+
+      // Marcar gastos como archivados
+      const updates = gastosFiltrados.map(gasto => updateDoc(doc(db, "gastos", gasto.id), { archivado: true }));
+      await Promise.all(updates);      alert("Reporte generado y gastos marcados como archivados.");
+    } catch (error) {
+      console.error(`Error generando el reporte compilado:`, error);
+      alert("Ocurrió un error al generar el reporte: " + error.message);
+    } finally {
+      setReporteGenerandose(false);
+    }
+  };
+
+  const generarReporteExcel = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
+    // 1. Preparar los datos
+    const dataParaExcel = gastosFiltrados.map(gasto => ({
+      Fecha: gasto.fecha,
+      Concepto: gasto.concepto,
+      Categoria: gasto.categoria,
+      Monto: parseFloat(gasto.monto),
+      Factura: gasto.url_factura ? 'Sí' : 'No',
+      'URL Factura': gasto.url_factura || ''
+    }));
+
+    const wb = XLSX.utils.book_new();
+
+    // --- Hoja de Resumen ---
+    const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
+    const sumaSinFactura = gastosFiltrados.filter(g => !g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
+    const totalGeneral = sumaFacturado + sumaSinFactura;
+    const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
+    let porReembolsar = 0;
+    let porReintegrar = 0;
+
+    if (importeRecibido > 0) {
+        if (sumaFacturado > importeRecibido) porReembolsar = sumaFacturado - importeRecibido;
+        else if (importeRecibido > sumaFacturado) porReintegrar = importeRecibido - sumaFacturado;
+    }
+
+    const resumenData = [
+      ["Resumen de Gastos"],
+      [],
+      ["Periodo", `${fechaInicioReporte || 'N/A'} al ${fechaFinReporte || 'N/A'}`],
+    ];
+    if (solicitudVinculada) {
+      resumenData.push(["Consultor", solicitudVinculada.consultor]);
+      resumenData.push(["Solicitud", solicitudVinculada.proyecto]);
+    }
+    resumenData.push(
+      [],
+      ["Detalle Financiero"],
+      ["Importe Recibido", importeRecibido > 0 ? importeRecibido : "N/A"],
+      ["Suma Facturado", sumaFacturado],
+      ["Suma Sin Factura", sumaSinFactura],
+      ["Total General", totalGeneral],
+      [],
+      [porReembolsar > 0 ? "Por reembolsar a colaborador" : (porReintegrar > 0 ? "Por reintegrar a CECAI" : "Balance"), porReembolsar > 0 ? porReembolsar : (porReintegrar > 0 ? porReintegrar : 0)]
+    );
+
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+    // Aplicar formato de moneda
+    const celdasParaFormatear = solicitudVinculada ? ['B7', 'B8', 'B9', 'B10', 'B12'] : ['B5', 'B6', 'B7', 'B9'];
+    celdasParaFormatear.forEach(celda => {
+      if (wsResumen[celda]) {
+        wsResumen[celda].t = 'n'; wsResumen[celda].z = '$#,##0.00';
+      }
+    });
+    wsResumen['!cols'] = [{ wch: 30 }, { wch: 20 }]; // Ancho de columnas
+    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+    // --- Hoja de Gastos ---
+    const wsGastos = XLSX.utils.json_to_sheet(dataParaExcel);
+    // Añadir fila de total
+    const totalRowNumber = dataParaExcel.length + 2;
+    XLSX.utils.sheet_add_aoa(wsGastos, [["Total:", { t: 'n', f: `SUM(D2:D${totalRowNumber-1})`, z: '$#,##0.00' }]], { origin: `C${totalRowNumber}` });
+    wsGastos['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, wsGastos, "Detalle de Gastos");
+
+    // 2. Guardar y descargar
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+  };
+
+  const generarReportePdf = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
       const pdfDoc = await PDFDocument.create();
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -504,33 +631,7 @@ const ListaGastos = () => {
       // 4. Guardar y descargar el archivo final
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      saveAs(blob, `Reporte_Gastos_${new Date().toISOString().split('T')[0]}.pdf`);
-
-      // Si hay solicitud vinculada, subir reporte y actualizarla
-      if (solicitudVinculada) {
-          const reporteUrl = await subirReporteACloudinary(pdfBytes, solicitudVinculada.id);
-          const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
-          await updateDoc(solicitudRef, {
-              estado: 'Finalizada',
-              url_reporte_gastos: reporteUrl
-          });
-      }
-
-      // Marcar gastos como archivados
-      const updates = gastosFiltrados.map(gasto => {
-        const gastoRef = doc(db, "gastos", gasto.id);
-        return updateDoc(gastoRef, { archivado: true });
-      });
-      await Promise.all(updates);
-
-      alert("Reporte generado y gastos marcados como archivados.");
-
-    } catch (error) {
-      console.error("Error generando el reporte PDF:", error);
-      alert("Ocurrió un error al generar el reporte: " + error.message);
-    } finally {
-      setReporteGenerandose(false);
-    }
+      return blob;
   };
 
   const limpiarFiltros = () => {
@@ -632,7 +733,7 @@ const ListaGastos = () => {
           {/* Botón para generar reporte */}
           <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
             <FileDown size={16} />
-            <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Reporte PDF'}</span>
+            <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Generar Reporte'}</span>
           </button>
         </div>
       </div>
