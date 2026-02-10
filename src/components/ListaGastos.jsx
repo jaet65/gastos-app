@@ -155,11 +155,8 @@ const ListaGastos = () => {
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
 
-    // Usamos el endpoint 'raw' para archivos que no son multimedia (como PDF, XLSX)
-    // y 'image' para imágenes. 'auto' a veces falla en la detección.
-    // Para ZIP y Excel, es mandatorio usar 'raw'.
-    const resourceType = (formato === 'excel' || formato === 'zip') ? 'raw' : 'auto';
-    const uploadEndpoint = `${resourceType}/upload`;
+    // Usamos el endpoint 'raw' para archivos que no son multimedia (como PDF, XLSX, ZIP).
+    const uploadEndpoint = `raw/upload`;
     const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${uploadEndpoint}`, { method: "POST", body: data });
     const fileData = await response.json();
 
