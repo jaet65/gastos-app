@@ -6,8 +6,8 @@ import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import ExcelJS from 'exceljs';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { 
   Card, 
@@ -148,9 +148,10 @@ const ListaGastos = () => {
     }
 
     const data = new FormData();
-    const finalExtension = formato === 'zip' ? 'zip' : fileExtension;
-    const fileName = `reporte_gastos_${solicitudId}.${finalExtension}`;
-    data.append("file", blob, fileName);
+    // El nombre del archivo en Cloudinary se pasa ahora como parámetro
+    // const finalExtension = formato === 'zip' ? 'zip' : fileExtension;
+    // const fileName = `reporte_gastos_${solicitudId}.${finalExtension}`;
+    data.append("file", blob, solicitudId); // solicitudId ahora contiene el nombre completo del archivo
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
 
@@ -239,6 +240,9 @@ const ListaGastos = () => {
         return; // No es necesario cambiar el estado aquí, se hace en el finally
       }
 
+      const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
+      const baseFileName = `Comprobacion gastos ${ultimaFechaGasto}`;
+
       // 2. Generar ambos reportes y obtener sus blobs
       const [excelBlob, pdfBlob] = await Promise.all([
         generarReporteExcel(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada),
@@ -247,18 +251,18 @@ const ListaGastos = () => {
 
       // 3. Crear el archivo ZIP
       const zip = new JSZip();
-      const reportDate = new Date().toISOString().split('T')[0];
-      zip.file(`Reporte_Gastos_${reportDate}.xlsx`, excelBlob);
-      zip.file(`Reporte_Gastos_${reportDate}.pdf`, pdfBlob);
+      zip.file(`${baseFileName}.xlsx`, excelBlob);
+      zip.file(`${baseFileName}.pdf`, pdfBlob);
 
       const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
 
       // 4. Descargar el ZIP
-      saveAs(zipBlob, `Reporte_Compilado_${reportDate}.zip`);
+      saveAs(zipBlob, `${baseFileName}.zip`);
 
       // 5. Subir a Cloudinary si hay solicitud
       if (solicitudVinculada) {
-        const reporteUrl = await subirReporteACloudinary(zipBlob, solicitudVinculada.id, 'zip');
+        const cloudinaryFileName = `${baseFileName} (Solicitud ${solicitudVinculada.id}).zip`;
+        const reporteUrl = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
         await updateDoc(solicitudRef, { estado: 'Finalizada', url_reporte_gastos: reporteUrl });
       }
@@ -275,73 +279,163 @@ const ListaGastos = () => {
   };
 
   const generarReporteExcel = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
-    // 1. Preparar los datos
-    const dataParaExcel = gastosFiltrados.map(gasto => ({
-      Fecha: gasto.fecha,
-      Concepto: gasto.concepto,
-      Categoria: gasto.categoria,
-      Monto: parseFloat(gasto.monto),
-      Factura: gasto.url_factura ? 'Sí' : 'No',
-      'URL Factura': gasto.url_factura || ''
-    }));
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Reporte de Gastos');
 
-    const wb = XLSX.utils.book_new();
+    // --- 1. Añadir Imagen ---
+    try {
+      const logoUrl = '/CECAI.png'; // Asegúrate que este archivo exista en tu carpeta /public
+      const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
+      const logoImageId = workbook.addImage({
+        buffer: logoImageBytes,
+        extension: 'png',
+      });
+      // Colocar la imagen en la celda A1, ajustando su tamaño
+      worksheet.addImage(logoImageId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: 100, height: 40 } // Ajusta el tamaño como necesites
+      });
+    } catch (error) {
+      console.warn("No se pudo cargar el logo 'CECAI.png'. El reporte se generará sin él.");
+    }
+    worksheet.getRow(1).height = 35; // Aumentar altura de la primera fila
 
-    // --- Hoja de Resumen ---
+    // --- 2. Sección de Resumen ---
+    const titleStyle = { font: { bold: true, size: 16 } };
+    
+    const resumenTitleCell = worksheet.getCell('A3');
+    resumenTitleCell.value = "Resumen de Gastos";
+    resumenTitleCell.style = titleStyle;
+    worksheet.mergeCells('A3:E3');
+
+    let currentRow = 4;
+    if (solicitudVinculada) {
+      worksheet.getCell(`A${currentRow}`).value = "Consultor:";
+      worksheet.getCell(`B${currentRow}`).value = solicitudVinculada.consultor;
+      currentRow++;
+      worksheet.getCell(`A${currentRow}`).value = "Solicitud:";
+      worksheet.getCell(`B${currentRow}`).value = solicitudVinculada.proyecto;
+      currentRow++;
+    }
+    worksheet.getCell(`A${currentRow}`).value = "Periodo:";
+    worksheet.getCell(`B${currentRow}`).value = `${fechaInicioReporte || 'N/A'} al ${fechaFinReporte || 'N/A'}`;
+    currentRow += 2;
+
+    // Detalle Financiero
+    const detalleTitleCell = worksheet.getCell(`A${currentRow}`);
+    detalleTitleCell.value = "Detalle Financiero";
+    detalleTitleCell.style = titleStyle;
+    worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+    currentRow++;
+
     const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
     const sumaSinFactura = gastosFiltrados.filter(g => !g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
     const totalGeneral = sumaFacturado + sumaSinFactura;
     const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
     let porReembolsar = 0;
     let porReintegrar = 0;
-
     if (importeRecibido > 0) {
-        if (sumaFacturado > importeRecibido) porReembolsar = sumaFacturado - importeRecibido;
-        else if (importeRecibido > sumaFacturado) porReintegrar = importeRecibido - sumaFacturado;
+      if (sumaFacturado > importeRecibido) porReembolsar = sumaFacturado - importeRecibido;
+      else if (importeRecibido > sumaFacturado) porReintegrar = importeRecibido - sumaFacturado;
     }
 
-    const resumenData = [
-      ["Resumen de Gastos"],
-      [],
-      ["Periodo", `${fechaInicioReporte || 'N/A'} al ${fechaFinReporte || 'N/A'}`],
-    ];
-    if (solicitudVinculada) {
-      resumenData.push(["Consultor", solicitudVinculada.consultor]);
-      resumenData.push(["Solicitud", solicitudVinculada.proyecto]);
-    }
-    resumenData.push(
-      [],
-      ["Detalle Financiero"],
-      ["Importe Recibido", importeRecibido > 0 ? importeRecibido : "N/A"],
-      ["Suma Facturado", sumaFacturado],
-      ["Suma Sin Factura", sumaSinFactura],
-      ["Total General", totalGeneral],
-      [],
-      [porReembolsar > 0 ? "Por reembolsar a colaborador" : (porReintegrar > 0 ? "Por reintegrar a CECAI" : "Balance"), porReembolsar > 0 ? porReembolsar : (porReintegrar > 0 ? porReintegrar : 0)]
-    );
+    const addFinancialRow = (label, value) => {
+      const labelCell = worksheet.getCell(`A${currentRow}`);
+      labelCell.value = label;
+      worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
+      const valueCell = worksheet.getCell(`C${currentRow}`);
+      valueCell.value = value;
+      valueCell.numFmt = '$#,##0.00';
+      currentRow++;
+    };
 
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
-    // Aplicar formato de moneda
-    const celdasParaFormatear = solicitudVinculada ? ['B7', 'B8', 'B9', 'B10', 'B12'] : ['B5', 'B6', 'B7', 'B9'];
-    celdasParaFormatear.forEach(celda => {
-      if (wsResumen[celda]) {
-        wsResumen[celda].t = 'n'; wsResumen[celda].z = '$#,##0.00';
-      }
+    addFinancialRow("Importe Recibido", importeRecibido > 0 ? importeRecibido : "N/A");
+    addFinancialRow("Suma Facturado", sumaFacturado);
+    addFinancialRow("Suma Sin Factura", sumaSinFactura);
+    addFinancialRow("Total General", totalGeneral);
+    currentRow++;
+    addFinancialRow(porReembolsar > 0 ? ">> Por reembolsar a colaborador" : (porReintegrar > 0 ? ">> Por reintegrar a CECAI" : "Balance"), porReembolsar > 0 ? porReembolsar : (porReintegrar > 0 ? porReintegrar : 0));
+    currentRow += 2;
+
+    // --- 3. Sección de Detalle de Gastos ---
+    const detalleGastosTitle = worksheet.getCell(`A${currentRow}`);
+    detalleGastosTitle.value = "Detalle de Gastos";
+    detalleGastosTitle.style = titleStyle;
+    worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+    currentRow += 2;
+
+    const gastosOrdenados = [...gastosFiltrados].sort((a, b) => {
+      const aTieneFactura = a.url_factura ? 1 : 0;
+      const bTieneFactura = b.url_factura ? 1 : 0;
+      if (aTieneFactura !== bTieneFactura) return bTieneFactura - aTieneFactura;
+      const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
+      const catA = order[a.categoria] || 99;
+      const catB = order[b.categoria] || 99;
+      if (catA !== catB) return catA - catB;
+      return new Date(a.fecha) - new Date(b.fecha);
     });
-    wsResumen['!cols'] = [{ wch: 30 }, { wch: 20 }]; // Ancho de columnas
-    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
 
-    // --- Hoja de Gastos ---
-    const wsGastos = XLSX.utils.json_to_sheet(dataParaExcel);
-    // Añadir fila de total
-    const totalRowNumber = dataParaExcel.length + 2;
-    XLSX.utils.sheet_add_aoa(wsGastos, [["Total:", { t: 'n', f: `SUM(D2:D${totalRowNumber-1})`, z: '$#,##0.00' }]], { origin: `C${totalRowNumber}` });
-    wsGastos['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 50 }];
-    XLSX.utils.book_append_sheet(wb, wsGastos, "Detalle de Gastos");
+    const gastosConFactura = gastosOrdenados.filter(g => g.url_factura);
+    const gastosSinFactura = gastosOrdenados.filter(g => !g.url_factura);
 
-    // 2. Guardar y descargar
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+    const addGastosSection = (title, gastos, color) => {
+      if (gastos.length === 0) return;
+      
+      const sectionTitleCell = worksheet.getCell(`A${currentRow}`);
+      sectionTitleCell.value = title;
+      sectionTitleCell.style = { font: { bold: true, size: 14 }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: color } } };
+      worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+      currentRow++;
+
+      const headerRow = worksheet.getRow(currentRow);
+      headerRow.values = ['Fecha', 'Categoría', 'Concepto', 'Monto', 'URL Factura'];
+      headerRow.font = { bold: true };
+      currentRow++;
+
+      const startRowForSubtotal = currentRow;
+
+      gastos.forEach(gasto => {
+        const row = worksheet.getRow(currentRow);
+        row.getCell(1).value = gasto.fecha;
+        row.getCell(2).value = gasto.categoria;
+        row.getCell(3).value = gasto.concepto;
+        row.getCell(4).value = parseFloat(gasto.monto);
+        row.getCell(4).numFmt = '$#,##0.00';
+        if (gasto.url_factura) {
+            row.getCell(5).value = { text: 'Link', hyperlink: gasto.url_factura };
+            row.getCell(5).font = { color: { argb: 'FF0000FF' }, underline: true };
+        }
+        currentRow++;
+      });
+
+      // Añadir fila de subtotal
+      const subtotalRow = worksheet.getRow(currentRow);
+      subtotalRow.getCell(3).value = "Subtotal:";
+      subtotalRow.getCell(3).font = { bold: true };
+      subtotalRow.getCell(3).alignment = { horizontal: 'right' };
+      
+      const subtotalCell = subtotalRow.getCell(4);
+      subtotalCell.value = { formula: `SUM(D${startRowForSubtotal}:D${currentRow - 1})` };
+      subtotalCell.numFmt = '$#,##0.00';
+      subtotalCell.font = { bold: true };
+      currentRow++; // Espacio después de la sección
+    };
+
+    addGastosSection('Gastos con Factura', gastosConFactura, 'E9F5EC');
+    addGastosSection('Gastos sin Factura', gastosSinFactura, 'FEF3E7');
+
+    // --- 4. Ajustar anchos de columna ---
+    worksheet.columns = [
+      { key: 'A', width: 15 },
+      { key: 'B', width: 15 },
+      { key: 'C', width: 40 },
+      { key: 'D', width: 15 },
+      { key: 'E', width: 50 },
+    ];
+
+    // --- 5. Generar el buffer del archivo ---
+    const buffer = await workbook.xlsx.writeBuffer();
+    return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   };
 
   const generarReportePdf = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
@@ -449,7 +543,7 @@ const ListaGastos = () => {
           // Suma Sin Factura
           const sumaSinFacturaTexto = formatoMoneda(sumaSinFactura);
           const sumaSinFacturaAncho = boldFont.widthOfTextAtSize(sumaSinFacturaTexto, 12);
-          page.drawText('Sin factura:', { x: margin, y: currentY, font: font, size: 12 });
+          page.drawText('>> Suma sin factura:', { x: margin, y: currentY, font: font, size: 12 });
           page.drawText(sumaSinFacturaTexto, { x: width - margin - sumaSinFacturaAncho, y: currentY, font: boldFont, size: 12 });
           currentY -= 30;
 
@@ -458,12 +552,12 @@ const ListaGastos = () => {
           if (porReembolsar > 0) {
               const porReembolsarTexto = formatoMoneda(porReembolsar);
               const porReembolsarAncho = boldFont.widthOfTextAtSize(porReembolsarTexto, 12);
-              page.drawText('Por reembolsar a colaborador:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
+              page.drawText('>> Por reembolsar a colaborador:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
               page.drawText(porReembolsarTexto, { x: width - margin - porReembolsarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
           } else if (porReintegrar > 0) {
               const porReintegrarTexto = formatoMoneda(porReintegrar);
               const porReintegrarAncho = boldFont.widthOfTextAtSize(porReintegrarTexto, 12);
-              page.drawText('Por reintegrar a CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
+              page.drawText('>> Por reintegrar a CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
               page.drawText(porReintegrarTexto, { x: width - margin - porReintegrarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
           }
       }
