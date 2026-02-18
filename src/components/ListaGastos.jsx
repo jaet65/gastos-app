@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { db } from '../firebase';
+import { useAuth } from './AuthContext';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
 import EditGastoModal from './EditGastoModal';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
@@ -8,7 +9,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { 
   Card, 
   Title, 
@@ -24,6 +25,7 @@ import {
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 
 const ListaGastos = () => {
+  const { user } = useAuth();
   const [gastos, setGastos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -44,7 +46,13 @@ const ListaGastos = () => {
   };
 
   useEffect(() => {
-    const q = query(collection(db, "gastos"), orderBy("creado_en", "desc"));
+    if (!user) return;
+
+    const q = query(
+      collection(db, "gastos"), 
+      where("userId", "==", user.uid),
+      orderBy("creado_en", "desc")
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -101,7 +109,8 @@ const ListaGastos = () => {
                 // La propina no existía, se crea una nueva
                 const nuevaPropinaRef = await addDoc(collection(db, "gastos"), {
                     ...datosPropina,
-                    creado_en: Timestamp.now()
+                    creado_en: Timestamp.now(),
+                    userId: user.uid
                 });
                 updateData.idPropina = nuevaPropinaRef.id;
             }
@@ -644,7 +653,7 @@ const ListaGastos = () => {
               const montoTexto = formatoMoneda(gasto.monto);
               const montoAncho = boldFont.widthOfTextAtSize(montoTexto, 10);
               page.drawText(gasto.concepto.substring(0, 50), { x: margin + 45, y, font, size: 10 });
-              page.drawText(montoTexto, { x: width - margin - montoAncho, y, font, size: 10, font: boldFont });
+              page.drawText(montoTexto, { x: width - margin - montoAncho, y, font: boldFont, size: 10 });
               y -= 15;
             }
           }

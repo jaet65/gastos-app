@@ -1,11 +1,14 @@
 import FormularioGasto from './components/FormularioGasto';
 import ListaGastos from './components/ListaGastos';
 import ListaSolicitudes from './components/ListaSolicitudes';
-import { LayoutDashboard, Menu, X } from 'lucide-react';
+import Login from './components/Login';
+import { LayoutDashboard, Menu, X, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { useSwipeable } from 'react-swipeable';
+import { useAuth } from './components/AuthContext';
 
 function App() {
+  const { user, logout, loading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('gastos');
 
@@ -14,6 +17,29 @@ function App() {
     onSwipedLeft: () => setIsSidebarOpen(false), // Cierra el sidebar
     onSwipedRight: () => setIsSidebarOpen(true), // Abre el sidebar
   });
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     // CONTENEDOR MAESTRO
@@ -39,14 +65,26 @@ function App() {
               Gastos <span className="text-orange-500">MAF</span>
             </h1>
           </div>
-          {/* Botón de menú hamburguesa (solo móvil) */}
-          <button 
-            className="lg:hidden p-2 text-slate-500 hover:text-blue-600"
-            onClick={() => setIsSidebarOpen(true)}
-            aria-label="Abrir lista de gastos"
-          >
-            <Menu size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-600 hidden lg:block">
+              {user.displayName || user.email}
+            </span>
+            <button 
+              onClick={handleLogout}
+              className="p-2 text-slate-500 hover:text-red-600"
+              aria-label="Cerrar sesión"
+            >
+              <LogOut size={20} />
+            </button>
+            {/* Botón de menú hamburguesa (solo móvil) */}
+            <button 
+              className="lg:hidden p-2 text-slate-500 hover:text-blue-600"
+              onClick={() => setIsSidebarOpen(true)}
+              aria-label="Abrir lista de gastos"
+            >
+              <Menu size={24} />
+            </button>
+          </div>
         </nav>
 
         {/* Formulario Centrado */}

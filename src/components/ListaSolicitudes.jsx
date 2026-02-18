@@ -1,6 +1,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { useAuth } from './AuthContext';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
 import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown } from 'lucide-react';
@@ -20,6 +21,7 @@ const statusColors = {
 };
 
 const ListaSolicitudes = () => {
+    const { user } = useAuth();
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -48,13 +50,19 @@ const ListaSolicitudes = () => {
     };
 
     useEffect(() => {
-        const q = query(collection(db, "solicitudes"), orderBy("fechaInicio", "desc"));
+        if (!user) return;
+
+        const q = query(
+            collection(db, "solicitudes"), 
+            where("userId", "==", user.uid),
+            orderBy("fechaInicio", "desc")
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             setLoading(false);
         });
         return () => unsubscribe();
-    }, []);
+    }, [user]);
 
     if (loading) {
         return <Text className="text-center mt-8">Cargando solicitudes...</Text>;

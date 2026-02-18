@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
+import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { differenceInCalendarDays, format as formatDateFns } from 'date-fns';
@@ -15,6 +16,7 @@ const formatoMoneda = (cantidad) => {
 };
 
 const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInicial = '', onSolicitudCreada }) => {
+    const { user } = useAuth();
     const [fechaInicio, setFechaInicio] = useState(fechaInicioInicial);
     const [fechaFin, setFechaFin] = useState(fechaFinInicial);
     const [loading, setLoading] = useState(false);
@@ -140,7 +142,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 totalSolicitado: totalSolicitado,
                 url_pdf_solicitud: pdfUrl,
                 creado_en: Timestamp.now(),
-                estado: 'Enviada' // Estado por defecto al crear
+                estado: 'Enviada', // Estado por defecto al crear
+                userId: user.uid
             };
             const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
 

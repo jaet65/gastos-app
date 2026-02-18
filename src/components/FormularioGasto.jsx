@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { db } from '../firebase';
+import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -18,6 +19,7 @@ const InputGroup = ({ icon: Icon, children }) => (
 );
 
 const FormularioGasto = () => {
+  const { user } = useAuth();
   const INITIAL_STATE = {
     fecha: formatInTimeZone(new Date(), 'America/Mexico_City', 'yyyy-MM-dd'),
     concepto: '',
@@ -182,7 +184,8 @@ const FormularioGasto = () => {
         ...formData,
         monto: montoOriginal,
         url_factura: pdfUrl || '',
-        creado_en: timestamp
+        creado_en: timestamp,
+        userId: user.uid
       });
 
       if (agregarPropina && formData.categoria === 'Comida') {
@@ -194,7 +197,8 @@ const FormularioGasto = () => {
           monto: montoPropina,
           categoria: 'Comida',
           url_factura: '',
-          creado_en: timestamp
+          creado_en: timestamp,
+          userId: user.uid
         });
 
         await updateDoc(doc(db, "gastos", docRef.id), {
