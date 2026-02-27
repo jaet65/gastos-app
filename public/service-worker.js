@@ -1,7 +1,5 @@
 const CACHE_NAME = 'gastos-maf-cache-v1';
 const urlsToCache = [
-  '/',
-  '/index.html',
   '/MAF.png', // Asegúrate de que tu logo esté en public
   // Agrega aquí cualquier otro recurso estático que quieras cachear
   // por ejemplo, CSS, JS compilado (si no lo gestiona Vite/CRA automáticamente)
