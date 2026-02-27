@@ -9,7 +9,7 @@ import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
 
 const CLOUD_NAME = "didj7kuah";
-const UPLOAD_PRESET = "gastos_app";
+const UPLOAD_PRESET = "Gastos_Solicitudes";
 
 const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cantidad);

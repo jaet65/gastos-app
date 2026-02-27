@@ -40,7 +40,7 @@ const FormularioGasto = () => {
   const fileInputRef = useRef(null);
 
   const CLOUD_NAME = "didj7kuah"; 
-  const UPLOAD_PRESET = "gastos_app"; 
+  const UPLOAD_PRESET = "Gastos_Facturas";
 
   useEffect(() => {
     if (formData.categoria !== 'Comida') {

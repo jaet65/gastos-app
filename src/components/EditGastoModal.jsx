@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCircle } from 'lucide-react';
 
 const CLOUD_NAME = "didj7kuah";
-const UPLOAD_PRESET = "gastos_app";
+const UPLOAD_PRESET = "Gastos_Facturas";
 
 const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {

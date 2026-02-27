@@ -140,7 +140,7 @@ const ListaGastos = () => {
 
   const subirReporteACloudinary = async (fileBlob, solicitudId, formato) => {
     const CLOUD_NAME = "didj7kuah"; 
-    const UPLOAD_PRESET = "gastos_app"; 
+    const UPLOAD_PRESET = "Gastos_Reportes";
   
     const fileExtension = formato === 'excel' ? 'xlsx' : 'pdf';
     const mimeType = formato === 'excel' 
