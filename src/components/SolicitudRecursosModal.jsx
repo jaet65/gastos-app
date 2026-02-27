@@ -18,6 +18,7 @@ const formatoMoneda = (cantidad) => {
 const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInicial = '', onSolicitudCreada }) => {
     const { user } = useAuth();
     const [fechaInicio, setFechaInicio] = useState(fechaInicioInicial);
+    const [fechaError, setFechaError] = useState('');
     const [fechaFin, setFechaFin] = useState(fechaFinInicial);
     const [loading, setLoading] = useState(false);
 
@@ -26,7 +27,11 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         
         const inicio = new Date(`${fechaInicio}T00:00:00`); // Asegurar que se interprete como local al día
         const fin = new Date(`${fechaFin}T00:00:00`);
-        if (inicio > fin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
+        if (inicio > fin) {
+            setFechaError('La fecha de finalización no puede ser anterior a la fecha de inicio.');
+            return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
+        }
+        setFechaError('');
 
         const dias = differenceInCalendarDays(fin, inicio) + 1;
         const montoTransporte = dias * 700;
@@ -178,7 +183,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
                     <div className="grid grid-cols-2 gap-4 pt-4">
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
+                           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
                             <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
                         </div>
                         <div>
@@ -187,6 +192,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                         </div>
                     </div>
 
+                    {fechaError && <p className="text-red-500 text-sm">{fechaError}</p>}
                     {dias > 0 && (
                         <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2 mt-4">
                             <h4 className="font-bold text-center text-slate-700">Resumen de Solicitud ({dias} días)</h4>
