@@ -1,12 +1,13 @@
-const CACHE_NAME = 'gastos-maf-cache-v1';
+const CACHE_NAME = 'gastos-maf-cache-v2';
 const urlsToCache = [
-  '/MAF.png', // Asegúrate de que tu logo esté en public
-  // Agrega aquí cualquier otro recurso estático que quieras cachear
-  // por ejemplo, CSS, JS compilado (si no lo gestiona Vite/CRA automáticamente)
+'/MAF.png',
+'/CECAI.png',
+'/favicon.png'
 ];
 
 // Evento de instalación: cachea los recursos estáticos
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {

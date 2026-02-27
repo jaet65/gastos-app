@@ -15,8 +15,10 @@ createRoot(document.getElementById('root')).render(
 // Registro del Service Worker para PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => console.log('SW registered: ', registration))
-      .catch(registrationError => console.log('SW registration failed: ', registrationError));
+    navigator.serviceWorker.register('/service-worker.js').then(reg => {
+      // Revisa actualizaciones automáticamente al cargar
+      reg.update(); 
+      console.log('SW registrado');
+    });
   });
 }
