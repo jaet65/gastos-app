@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { db } from '../firebase';
+import { db } from '../firebase';import { CLOUD_NAME } from './config';
 import { useAuth } from './AuthContext';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
 import EditGastoModal from './EditGastoModal';
@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
-import ExcelJS from 'exceljs';
+import ExcelJS from 'exceljs';import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { 
   Card, 
@@ -21,7 +21,7 @@ import {
   Flex, 
   Icon,
   Divider,
-} from "@tremor/react";
+} from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 
 const ListaGastos = () => {
@@ -60,7 +60,25 @@ const ListaGastos = () => {
   }, []);
 
   const eliminarGasto = async (id, idPropina) => {
+
     if (confirm("¿Borrar este registro?")) {
+      const gastoRef = doc(db, "gastos", id);
+      const gastoDoc = await getDoc(gastoRef);
+      const gastoData = gastoDoc.data();
+
+      if (gastoData.deleteToken) {
+        try {
+          // Delete the file from Cloudinary using the delete token
+          const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
+          const response = await fetch(cloudinaryUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: gastoData.deleteToken })
+          });
+
+          if (!response.ok) console.error('Error deleting from Cloudinary:', response.statusText);
+        } catch (error) { console.error('Error deleting from Cloudinary:', error); }
+      }
       await deleteDoc(doc(db, "gastos", id));
       if (idPropina) {
         try {
@@ -122,6 +140,7 @@ const ListaGastos = () => {
         }
 
         await updateDoc(refPrincipal, updateData);
+
 
         alert("Gasto actualizado correctamente");
         // El modal se cerrará desde su propio componente

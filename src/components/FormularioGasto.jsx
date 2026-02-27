@@ -155,7 +155,7 @@ const FormularioGasto = () => {
       throw new Error(fileData.error?.message || "Error desconocido al subir a Cloudinary");
     }
 
-    return fileData.secure_url;
+    return fileData;
   };
 
   const handleSubmit = async (e) => {
@@ -164,10 +164,11 @@ const FormularioGasto = () => {
 
     try {
       let pdfUrl = '';
-      
+      let fileData = null; // Declarar fileData aquí
+
       if (archivo) {
         try {
-          pdfUrl = await subirACloudinary(archivo);
+          fileData = await subirACloudinary(archivo);
         } catch (uploadError) {
           console.error(uploadError);
           // 2. Alert con el mensaje real del error
@@ -183,7 +184,8 @@ const FormularioGasto = () => {
       const docRef = await addDoc(collection(db, "gastos"), {
         ...formData,
         monto: montoOriginal,
-        url_factura: pdfUrl || '',
+        url_factura: fileData?.secure_url || '', 
+        deleteToken: fileData?.delete_token || '',
         creado_en: timestamp,
         userId: user.uid
       });

@@ -119,7 +119,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         if (!response.ok || !fileData.secure_url) {
             throw new Error(fileData.error?.message || "Error al subir el PDF a Cloudinary");
         }
-        return fileData.secure_url;
+        return fileData;
     };
 
     const handleSolicitar = async () => {
@@ -133,7 +133,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
             const pdfBytes = await generarPdfSolicitud();
 
             // 2. Subir a Cloudinary
-            const pdfUrl = await subirACloudinary(pdfBytes);
+            const fileData = await subirACloudinary(pdfBytes);
 
             // 3. Guardar en la nueva colección "solicitudes"
             const nuevaSolicitudData = {
@@ -145,7 +145,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 montoTransporte: montoTransporte,
                 montoComida: montoComida,
                 totalSolicitado: totalSolicitado,
-                url_pdf_solicitud: pdfUrl,
+                url_pdf_solicitud: fileData.secure_url,
+                deleteToken: fileData.delete_token,
                 creado_en: Timestamp.now(),
                 estado: 'Enviada', // Estado por defecto al crear
                 userId: user.uid

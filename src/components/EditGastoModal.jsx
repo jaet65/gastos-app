@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCircle } from 'lucide-react';
+import { db } from '../firebase';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";
@@ -61,30 +62,95 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
       console.error("Error subiendo a Cloudinary (Edición):", fileData);
       throw new Error(fileData.error?.message || "Error al subir el archivo");
     }
-    return fileData.secure_url;
+    return fileData;
   };
 
-  const handleGuardar = async (e) => {
-    e.preventDefault();
-    setSubiendo(true);
-    try {
-      let urlFinal = gastoEditado.url_factura || "";
-      if (nuevoArchivo) {
-        urlFinal = await subirACloudinary(nuevoArchivo);
-      }
-      // Llama a la función onSave pasada por props con todos los datos necesarios
-      await onSave({ ...gastoEditado, url_factura: urlFinal }, editarConPropina);
-      onClose(); // Cierra el modal en caso de éxito
-    } catch (error) {
-      alert(`Error: ${error.message}`);
-    } finally {
-      setSubiendo(false);
-    }
-  };
+    const handleGuardar = async (e) => {
+        e.preventDefault();
+        setSubiendo(true);
+
+        // 1. Extraemos los valores del gasto ORIGINAL (antes de editar)
+        const tokenABorrar = gasto.deleteToken;
+        const urlOriginal = gasto.url_factura;
+        
+        // 2. Identificamos qué acción está realizando el usuario
+        const seQuitoFactura = gastoEditado.url_factura === "" && nuevoArchivo === null;
+        const tieneNuevoArchivo = nuevoArchivo !== null;
+
+        try {
+            let fileData = null; 
+
+            // Caso A: El usuario seleccionó un nuevo PDF para reemplazar el anterior
+            if (tieneNuevoArchivo) {
+                fileData = await subirACloudinary(nuevoArchivo);
+                
+                // Intentamos borrar la anterior si existía (sin await para no bloquear si falla el token)
+                if (urlOriginal && tokenABorrar) {
+                    eliminarArchivoCloudinary(tokenABorrar).catch(() => 
+                        console.log("El token expiró, el archivo viejo quedará en Cloudinary pero se actualizará en la App."));
+                }
+            } 
+            // Caso B: El usuario borró la factura (clic en basura) y no subió nada nuevo
+            else if (seQuitoFactura && urlOriginal && tokenABorrar) {
+                // Usamos await pero capturamos el error de "Stale request" para que el proceso siga
+                try {
+                    await eliminarArchivoCloudinary(tokenABorrar);
+                } catch (error) {
+                    console.warn("No se pudo borrar físicamente de Cloudinary:", error.message);
+                }
+            }
+
+            // 3. Preparamos el objeto final para Firestore
+            const gastoParaGuardar = { 
+                ...gastoEditado, 
+                // Actualizamos la URL: nueva, vacía o mantenemos la previa
+                url_factura: fileData ? fileData.secure_url : gastoEditado.url_factura, 
+                // Actualizamos el token de borrado: nuevo, vacío si se borró, o mantenemos el viejo
+                deleteToken: fileData ? fileData.delete_token : (seQuitoFactura ? "" : gasto.deleteToken) 
+            };
+
+            // 4. Guardamos los cambios en Firebase
+            await onSave(gastoParaGuardar, editarConPropina);
+            
+            onClose();
+        } catch (error) {
+            console.error("Error crítico en handleGuardar:", error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setSubiendo(false);
+        }
+    };
+
+  const eliminarArchivoCloudinary = async (deleteToken) => {
+        try {
+            const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
+            
+            const formData = new FormData();
+            formData.append("token", deleteToken);
+
+            const response = await fetch(cloudinaryUrl, {
+                method: 'POST',
+                body: formData, // SIN headers manuales
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                console.error('Error de Cloudinary:', data.error?.message || 'Error desconocido');
+            } else {
+                console.log("Archivo eliminado exitosamente");
+            }
+        } catch (error) { 
+            console.error('Error en la petición:', error); 
+        }
+    };
 
   const quitarArchivoActual = () => {
     if(confirm("¿Quitar el PDF adjunto de este gasto? (Se aplicará al Guardar)")) {
+      console.log("gasto.deleteToken:", gasto.deleteToken)
+
+
       setGastoEditado({ ...gastoEditado, url_factura: "" });
+
     }
   };
 

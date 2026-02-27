@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import { db } from '../firebase';
-import { useAuth } from './AuthContext';
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where } from 'firebase/firestore';
+import { useAuth } from './AuthContext';import { CLOUD_NAME } from './config';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc } from 'firebase/firestore';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
 import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown } from 'lucide-react';
@@ -28,6 +28,23 @@ const ListaSolicitudes = () => {
     const eliminarSolicitud = async (id) => {
         if (window.confirm("¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.")) {
             try {
+                const solicitudRef = doc(db, "solicitudes", id);
+                const solicitudDoc = await getDoc(solicitudRef);
+                const solicitudData = solicitudDoc.data();
+
+                if (solicitudData.deleteToken) {
+                    try {
+                        // Delete the file from Cloudinary using the delete token
+                        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
+                        const response = await fetch(cloudinaryUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ token: solicitudData.deleteToken })
+                        });
+
+                        if (!response.ok) console.error('Error deleting from Cloudinary:', response.statusText);
+                    } catch (error) { console.error('Error deleting from Cloudinary:', error); }
+                }
                 await deleteDoc(doc(db, "solicitudes", id));
                 // Opcional: mostrar una notificación de éxito.
             } catch (error) {
