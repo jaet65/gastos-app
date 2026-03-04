@@ -1,5 +1,6 @@
+import React from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { RefreshCw, X } from 'lucide-react';
+import { Button } from "@tremor/react";
 
 function ReloadPrompt() {
   const {
@@ -8,10 +9,10 @@ function ReloadPrompt() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      // console.log('SW Registered:', r);
+      console.log('SW Registrado:', r);
     },
     onRegisterError(error) {
-      console.log('SW registration error:', error);
+      console.log('Error en registro de SW:', error);
     },
   });
 
@@ -20,27 +21,29 @@ function ReloadPrompt() {
     setNeedRefresh(false);
   };
 
-  if (needRefresh) {
-    return (
-      <div className="fixed bottom-4 right-4 z-100000 p-4 rounded-lg shadow-2xl bg-slate-800 text-white w-80">
-        <button onClick={() => close()} className="absolute top-2 right-2 text-slate-400 hover:text-white">
-          <X size={18} />
-        </button>
-        <div className="mb-3">
-          <h3 className="font-bold">¡Nueva versión disponible!</h3>
-          <p className="text-sm text-slate-300 mt-1">Hay una actualización lista para ser instalada.</p>
-        </div>
-        <button
-          onClick={() => updateServiceWorker(true)}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full flex items-center justify-center gap-2"
-        >
-          <RefreshCw size={16} /> Recargar
-        </button>
-      </div>
-    );
+  if (!offlineReady && !needRefresh) {
+    return null;
   }
 
-  return null;
+  return (
+    <div className="fixed right-0 bottom-0 m-4 p-4 border rounded-md shadow-lg bg-white z-50 text-left">
+      <div className="mb-2">
+        {offlineReady ? (
+          <span>Aplicación lista para funcionar sin conexión.</span>
+        ) : (
+          <span>Nueva versión disponible, ¡recarga para actualizar!</span>
+        )}
+      </div>
+      {needRefresh && (
+        <Button onClick={() => updateServiceWorker(true)} size="xs" className="mr-2">
+          Recargar
+        </Button>
+      )}
+      <Button onClick={() => close()} size="xs" variant="secondary">
+        Cerrar
+      </Button>
+    </div>
+  );
 }
 
 export default ReloadPrompt;
