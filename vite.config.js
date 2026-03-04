@@ -27,6 +27,11 @@ export default defineConfig({
           },
         ],
       },
+      workbox: {
+        // Aumenta el límite de tamaño de archivo para el precaching.
+        // El valor está en bytes. 5000000 bytes son ~4.76 MiB.
+        maximumFileSizeToCacheInBytes: 5000000,
+      }
     })
   ],
 })
