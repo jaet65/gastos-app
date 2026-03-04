@@ -3,7 +3,6 @@ import ListaGastos from './components/ListaGastos';
 import ListaSolicitudes from './components/ListaSolicitudes';
 import Login from './components/Login';
 import { LayoutDashboard, Menu, X, LogOut } from 'lucide-react';
-import ReloadPrompt from './components/ReloadPrompt';
 import { useState } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
@@ -51,8 +50,6 @@ function App() {
     // - Móvil/Tablet: flex-col, h-auto (scroll global)
     // - Desktop (lg+): flex-row, h-screen (pantalla fija sin scroll global)
     <>
-      <ReloadPrompt />
-
     <div className="w-full min-h-screen lg:h-screen bg-slate-50 flex flex-col lg:flex-row font-sans selection:bg-blue-200 selection:text-blue-900 overflow-x-hidden">
       
       {/* ------------------------------------------------------------
