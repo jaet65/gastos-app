@@ -81,6 +81,39 @@ const ListaSolicitudes = () => {
         return () => unsubscribe();
     }, [user]);
 
+    useEffect(() => {
+        if (loading || solicitudes.length === 0) return;
+
+        const solicitudesRecibidas = solicitudes.filter(s => s.estado === 'Recibida');
+
+        if (solicitudesRecibidas.length > 0) {
+            const AHORA = new Date().getTime();
+            const HACE_24_HORAS = AHORA - (24 * 60 * 60 * 1000);
+            const ultimaNotificacion = localStorage.getItem('ultimaNotificacionSolicitudesRecibidas');
+
+            if (!ultimaNotificacion || parseInt(ultimaNotificacion) < HACE_24_HORAS) {
+                const mostrarNotificacion = () => {
+                    const cuerpo = `Tienes ${solicitudesRecibidas.length} solicitud(es) de recursos recibidas. ¡No olvides registrar tus gastos!`;
+                    new Notification('Recordatorio de Gastos MAF', {
+                        body: cuerpo,
+                        icon: '/MAF.png'
+                    });
+                    localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
+                };
+
+                if (Notification.permission === 'granted') {
+                    mostrarNotificacion();
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            mostrarNotificacion();
+                        }
+                    });
+                }
+            }
+        }
+    }, [solicitudes, loading]);
+
     if (loading) {
         return <Text className="text-center mt-8">Cargando solicitudes...</Text>;
     }

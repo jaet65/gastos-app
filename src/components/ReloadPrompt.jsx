@@ -22,7 +22,7 @@ function ReloadPrompt() {
 
   if (needRefresh) {
     return (
-      <div className="fixed bottom-4 right-4 z-[100000] p-4 rounded-lg shadow-2xl bg-slate-800 text-white w-80">
+      <div className="fixed bottom-4 right-4 z-100000 p-4 rounded-lg shadow-2xl bg-slate-800 text-white w-80">
         <button onClick={() => close()} className="absolute top-2 right-2 text-slate-400 hover:text-white">
           <X size={18} />
         </button>
