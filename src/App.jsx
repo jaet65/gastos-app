@@ -12,10 +12,14 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('gastos');
 
-  const handlers = useSwipeable({
-    // No abrir/cerrar con swipe si estamos en desktop
-    onSwipedLeft: () => setIsSidebarOpen(false), // Cierra el sidebar
+  // Handlers para abrir el sidebar (swipe a la derecha en el contenido principal)
+  const openHandlers = useSwipeable({
     onSwipedRight: () => setIsSidebarOpen(true), // Abre el sidebar
+  });
+
+  // Handlers para cerrar el sidebar (swipe a la izquierda sobre el sidebar)
+  const closeHandlers = useSwipeable({
+    onSwipedLeft: () => setIsSidebarOpen(false), // Cierra el sidebar
   });
 
   const handleLogout = async () => {
@@ -53,7 +57,7 @@ function App() {
           - Móvil: h-[100dvh] (Pantalla completa real)
           - Desktop (lg): Ancho fijo 450px, Altura 100%
       */}
-      <div {...handlers} className="w-full lg:w-[450px] xl:w-[500px] shrink-0 h-[100dvh] lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100">
+      <div {...openHandlers} className="w-full lg:w-112.5 xl:w-125 shrink-0 h-dvh lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100">
         
         {/* Navbar */}
         <nav className="w-full pt-4 px-4 pb-0 flex justify-between items-center">
@@ -101,7 +105,7 @@ function App() {
       */}
 
       <div 
-        {...handlers}
+        {...closeHandlers}
         className={`
           fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out
           lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0
