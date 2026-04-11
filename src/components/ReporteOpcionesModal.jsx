@@ -11,19 +11,31 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
 
     useEffect(() => {
         if (view === 'seleccionarSolicitud') {
-            setLoading(true);
+            let isMounted = true;
             const q = query(
                 collection(db, "solicitudes"), 
                 where("estado", "!=", "Finalizada"),
-                orderBy("fechaInicio", "desc")       // ¡Segundo ordenado en otro campo!
+                orderBy("fechaInicio", "desc")
             );
             const unsubscribe = onSnapshot(q, (snapshot) => {
-                setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                setLoading(false);
+                if (isMounted) {
+                    setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    setLoading(false);
+                }
             });
-            return () => unsubscribe();
+            return () => {
+                isMounted = false;
+                unsubscribe();
+            };
         }
     }, [view]);
+
+    const handleSetView = (newView) => {
+        if (newView === 'seleccionarSolicitud') {
+            setLoading(true);
+        }
+        setView(newView);
+    };
 
     const handleSelectSolicitud = (solicitud) => {
         onGenerarConSolicitud(solicitud);
@@ -48,7 +60,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                 {view === 'initial' && (
                     <div className="space-y-4">
                         <p className="text-sm text-slate-600">Elige cómo quieres filtrar los gastos para tu reporte:</p>
-                        <button onClick={() => setView('seleccionarSolicitud')} className="w-full flex items-center justify-between text-left p-4 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors">
+                        <button onClick={() => handleSetView('seleccionarSolicitud')} className="w-full flex items-center justify-between text-left p-4 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors">
                             <div>
                                 <p className="font-bold text-slate-800 flex items-center gap-2"><LinkIcon size={16} /> Vincular a Solicitud</p>
                                 <p className="text-xs text-slate-500">Usa las fechas de una solicitud de recursos existente.</p>
@@ -67,7 +79,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
 
                 {view === 'seleccionarSolicitud' && (
                     <div>
-                        <button onClick={() => setView('initial')} className="text-xs font-bold text-blue-600 mb-4">← Volver</button>
+                        <button onClick={() => handleSetView('initial')} className="text-xs font-bold text-blue-600 mb-4">← Volver</button>
                         <h4 className="font-bold text-slate-800 mb-2">Selecciona una solicitud</h4>
                         {loading ? (
                             <p>Cargando solicitudes...</p>

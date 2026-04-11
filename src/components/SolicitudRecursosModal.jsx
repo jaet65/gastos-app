@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { differenceInCalendarDays, format as formatDateFns } from 'date-fns';
+import { differenceInCalendarDays } from 'date-fns';
 import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
 
@@ -25,20 +25,33 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const { dias, montoTransporte, montoComida, totalSolicitado } = useMemo(() => {
         if (!fechaInicio || !fechaFin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
         
-        const inicio = new Date(`${fechaInicio}T00:00:00`); // Asegurar que se interprete como local al día
+        const inicio = new Date(`${fechaInicio}T00:00:00`); 
         const fin = new Date(`${fechaFin}T00:00:00`);
+        
         if (inicio > fin) {
-            setFechaError('La fecha de finalización no puede ser anterior a la fecha de inicio.');
             return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
         }
-        setFechaError('');
 
-        const dias = differenceInCalendarDays(fin, inicio) + 1;
-        const montoTransporte = dias * 700;
-        const montoComida = dias * 600;
-        const totalSolicitado = montoTransporte + montoComida;
+        const diasCalculados = differenceInCalendarDays(fin, inicio) + 1;
+        const mt = diasCalculados * 700;
+        const mc = diasCalculados * 600;
+        const total = mt + mc;
 
-        return { dias, montoTransporte, montoComida, totalSolicitado };
+        return { dias: diasCalculados, montoTransporte: mt, montoComida: mc, totalSolicitado: total };
+    }, [fechaInicio, fechaFin]);
+
+    useEffect(() => {
+        if (fechaInicio && fechaFin) {
+            const inicio = new Date(`${fechaInicio}T00:00:00`);
+            const fin = new Date(`${fechaFin}T00:00:00`);
+            if (inicio > fin) {
+                setFechaError('La fecha de finalización no puede ser anterior a la fecha de inicio.');
+            } else {
+                setFechaError('');
+            }
+        } else {
+            setFechaError('');
+        }
     }, [fechaInicio, fechaFin]);
 
     const generarPdfSolicitud = async () => {
@@ -61,8 +74,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 width: logoDims.width,
                 height: logoDims.height,
             });
-        } catch (error) {
-            console.warn("No se pudo cargar el logo. Asegúrate que 'CECAI.png' esté en la carpeta /public.");
+        } catch (err) {
+            console.warn("No se pudo cargar el logo. Asegúrate que 'CECAI.png' esté en la carpeta /public.", err);
         }
         
         page.drawText('Solicitud de Recursos', { x: margin, y: height - margin - 100, font: boldFont, size: 24 });
