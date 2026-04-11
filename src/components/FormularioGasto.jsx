@@ -30,6 +30,7 @@ const FormularioGasto = () => {
   const [formData, setFormData] = useState(INITIAL_STATE);
   const [archivo, setArchivo] = useState(null);
   const [agregarPropina, setAgregarPropina] = useState(false);
+  const [casetas, setCasetas] = useState([]); // Nuevo estado para casetas
   const [loading, setLoading] = useState(false);
   const [modalRecursosAbierto, setModalRecursosAbierto] = useState(false);
   
@@ -45,6 +46,9 @@ const FormularioGasto = () => {
   useEffect(() => {
     if (formData.categoria !== 'Comida') {
       setAgregarPropina(false);
+    }
+    if (formData.categoria !== 'Transporte') {
+      setCasetas([]);
     }
   }, [formData.categoria]);
 
@@ -114,6 +118,22 @@ const FormularioGasto = () => {
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const addCaseta = () => {
+    setCasetas([...casetas, { monto: '', archivo: null }]);
+  };
+
+  const removeCaseta = (index) => {
+    const newCasetas = [...casetas];
+    newCasetas.splice(index, 1);
+    setCasetas(newCasetas);
+  };
+
+  const handleCasetaChange = (index, field, value) => {
+    const newCasetas = [...casetas];
+    newCasetas[index][field] = value;
+    setCasetas(newCasetas);
+  };
+
   const subirACloudinary = async (file) => {
     // 1. Validación previa del archivo
     if (!file) throw new Error("El archivo no es válido.");
@@ -163,18 +183,16 @@ const FormularioGasto = () => {
     setLoading(true);
 
     try {
-      let pdfUrl = '';
-      let fileData = null; // Declarar fileData aquí
+      let fileData = null; 
 
       if (archivo) {
         try {
           fileData = await subirACloudinary(archivo);
         } catch (uploadError) {
           console.error(uploadError);
-          // 2. Alert con el mensaje real del error
           alert(`No se pudo subir el archivo: ${uploadError.message}`);
           setLoading(false);
-          return; // Detenemos todo si falla la subida
+          return; 
         }
       }
 
@@ -190,6 +208,7 @@ const FormularioGasto = () => {
         userId: user.uid
       });
 
+      // LÓGICA DE PROPINA (Comida)
       if (agregarPropina && formData.categoria === 'Comida') {
         const montoPropina = montoOriginal * 0.10;
         
@@ -208,9 +227,35 @@ const FormularioGasto = () => {
         });
       }
 
+      // LÓGICA DE CASETAS (Transporte)
+      if (formData.categoria === 'Transporte' && casetas.length > 0) {
+        for (const caseta of casetas) {
+          if (!caseta.monto || !caseta.archivo) continue;
+
+          try {
+            const fileDataCaseta = await subirACloudinary(caseta.archivo);
+            await addDoc(collection(db, "gastos"), {
+              fecha: formData.fecha,
+              concepto: `Caseta`,
+              monto: parseFloat(caseta.monto),
+              categoria: 'Transporte',
+              url_factura: fileDataCaseta.secure_url,
+              deleteToken: fileDataCaseta.delete_token,
+              creado_en: timestamp,
+              userId: user.uid,
+              idPadre: docRef.id // Vinculamos al gasto principal
+            });
+          } catch (uploadError) {
+            console.error("Error subiendo caseta:", uploadError);
+            alert(`Error al subir caseta: ${uploadError.message}`);
+          }
+        }
+      }
+
       alert("¡Guardado correctamente!");
       setFormData(INITIAL_STATE);
       setAgregarPropina(false);
+      setCasetas([]);
       removeFile();
 
     } catch (error) {
@@ -243,7 +288,6 @@ const FormularioGasto = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-0">
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
             <InputGroup icon={Calendar}>
               <input type="date" name="fecha" required value={formData.fecha} onChange={handleChange}
@@ -291,15 +335,13 @@ const FormularioGasto = () => {
             </div>
           )}
 
-          <br/><br/>
-
-          {/* ZONA DE ARCHIVO */}
-          <div>
+          {/* ZONA DE ARCHIVO (Compacta) */}
+          <div className="mt-2 mb-2">
             {!archivo ? (
               <div 
                 onClick={() => fileInputRef.current.click()}
                 className={`
-                  p-0 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-1 group border-1 border-none
+                  p-1 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-1 group border-1 border-none
                   ${isDragging 
                     ? 'border-none bg-white/50 scale-105 shadow-xl ring-4 ring-blue-100 rounded-full' 
                     : 'border-none bg-white/50 hover:bg-white/80'
@@ -311,40 +353,95 @@ const FormularioGasto = () => {
                   ${isDragging ? 'bg-transparent text-blue-700 scale-110' : 'bg-white text-blue-500 group-hover:scale-110'}
                 `}>
                   {isDragging ? (
-                    <ArrowDownCircle size={30} className="animate-bounce" strokeWidth={2.5} />
+                    <ArrowDownCircle size={22} className="animate-bounce" strokeWidth={2.5} />
                   ) : (
-                    <UploadCloud size={30} />
+                    <UploadCloud size={22} />
                   )}
                 </div>
-                
-                <span className={`text-sm font-bold uppercase tracking-widest transition-colors ${isDragging ? 'text-blue-700' : 'text-slate-500 group-hover:text-blue-600'}`}>
-                  {isDragging ? '¡SUELTA EL PDF AQUÍ!' : 'ARRASTRA O CLICK PARA ADJUNTAR PDF'}
+                <span className={`text-[10px] font-black uppercase tracking-tight transition-colors ${isDragging ? 'text-blue-700' : 'text-slate-500 group-hover:text-blue-600'}`}>
+                  {isDragging ? '¡SUELTA EL PDF AQUÍ!' : 'ADJUNTAR FACTURA (PDF)'}
                 </span>
-                
                 <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
               </div>
             ) : (
-              <div className="flex items-center gap-6 bg-slate-100 p-6 rounded-xl border border-slate-200">
-                <div className="bg-slate-800 text-white p-4 rounded-lg">
-                  <FileCheck size={24} />
+              <div className="flex items-center gap-4 bg-slate-100 p-3 rounded-xl border border-slate-200">
+                <div className="bg-slate-800 text-white p-2 rounded-lg">
+                  <FileCheck size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-base font-bold text-slate-800 truncate">{archivo.name}</p>
+                  <p className="text-sm font-bold text-slate-800 truncate">{archivo.name}</p>
                 </div>
-                <button type="button" onClick={removeFile} className="p-4 text-slate-400 hover:text-red-500 transition-colors">
-                  <X size={24} />
+                <button type="button" onClick={removeFile} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                  <X size={20} />
                 </button>
               </div>
             )}
           </div>
 
-          <br/><br/>
+          {/* SECCIÓN DE CASETAS */}
+          {formData.categoria === 'Transporte' && (
+            <div className="bg-slate-50/80 p-4 space-y-3 border-y border-slate-200 mb-4 rounded-xl">
+              <div className="flex justify-between items-center">
+                <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Casetas (Tolls)</h3>
+                <button 
+                  type="button" 
+                  onClick={addCaseta}
+                  className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-bold hover:bg-blue-700 transition-colors"
+                >
+                  + Agregar
+                </button>
+              </div>
+              
+              {casetas.map((caseta, index) => (
+                <div key={index} className="flex flex-col md:flex-row gap-2 items-start md:items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                  <div className="md:w-32 w-full flex-shrink-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-400 font-bold font-mono text-sm">$</span>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="0.00"
+                        value={caseta.monto}
+                        onChange={(e) => handleCasetaChange(index, 'monto', e.target.value)}
+                        className="w-full bg-transparent border-none outline-none text-slate-800 font-bold text-sm"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 w-full min-w-0">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                       <input 
+                          type="file" 
+                          accept=".pdf"
+                          onChange={(e) => handleCasetaChange(index, 'archivo', e.target.files[0])}
+                          className="text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 w-full truncate"
+                       />
+                       {caseta.archivo && (
+                         <span className="text-green-500 flex-shrink-0 ml-1"><FileCheck size={14} /></span>
+                       )}
+                    </div>
+                  </div>
+
+                  <button 
+                    type="button" 
+                    onClick={() => removeCaseta(index)}
+                    className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+              {casetas.length === 0 && (
+                <p className="text-center text-slate-400 text-[10px] italic">Sin casetas</p>
+              )}
+            </div>
+          )}
 
           <button 
             type="submit" 
             disabled={loading}
-            style={{ height: '50px', fontSize: '20px' }}
-            className="w-full mt-2 mb-4 rounded-full bg-green-700 text-white font-black shadow-2xl hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 touch-manipulation flex items-center justify-center uppercase tracking-widest"
+            style={{ height: '48px', fontSize: '18px' }}
+            className="w-full mb-2 rounded-full bg-green-700 text-white font-black shadow-lg hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 flex items-center justify-center uppercase tracking-widest"
           >
             {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
           </button>
@@ -353,5 +450,6 @@ const FormularioGasto = () => {
     </div>
   );
 };
+
 
 export default FormularioGasto;
