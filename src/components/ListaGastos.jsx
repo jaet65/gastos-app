@@ -39,6 +39,12 @@ const ListaGastos = () => {
   const [modalSolicitudParaReporteAbierto, setModalSolicitudParaReporteAbierto] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
 
+  const formatearFecha = (fechaStr) => {
+    if (!fechaStr) return '';
+    const [year, month, day] = fechaStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
   const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -245,7 +251,7 @@ const ListaGastos = () => {
     page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
     y -= 20;
     page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
-    page.drawText(`${formatDateTZ(new Date(`${fInicio}T00:00:00`), 'dd/MM/yyyy')} al ${formatDateTZ(new Date(`${fFin}T00:00:00`), 'dd/MM/yyyy')} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
+    page.drawText(`${formatearFecha(fInicio)} al ${formatearFecha(fFin)} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
     y -= 40;
     page.drawText('Desglose de Gastos:', { x: margin, y, font: boldFont, size: 14 });
     y -= 30;
@@ -260,7 +266,7 @@ const ListaGastos = () => {
     page.drawText('Total Solicitado:', { x: margin, y, font: boldFont, size: 14 });
     page.drawText('$0.00', { x: margin + 150, y, font: boldFont, size: 14 });
 
-    const footerText = `Solicitud generada automáticamente para comprobación de gastos: ${fInicio} al ${fFin}`;
+    const footerText = `Solicitud generada automáticamente para comprobación de gastos: ${formatearFecha(fInicio)} al ${formatearFecha(fFin)}`;
     page.drawText(footerText, { x: margin, y: 30, size: 8, font: font, color: rgb(0.5, 0.5, 0.5) });
 
     return await pdfDoc.save();
@@ -394,7 +400,7 @@ const ListaGastos = () => {
       }
 
       const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
-      const baseFileName = `Comprobacion gastos ${ultimaFechaGasto}`;
+      const baseFileName = `Comprobacion gastos ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
 
       // 2. Generar ambos reportes y obtener sus blobs
       const [excelBlob, pdfBlob] = await Promise.all([
@@ -549,7 +555,7 @@ const ListaGastos = () => {
 
       gastos.forEach(gasto => {
         const row = worksheet.getRow(currentRow);
-        row.getCell(1).value = gasto.fecha;
+        row.getCell(1).value = formatearFecha(gasto.fecha);
         row.getCell(2).value = gasto.categoria;
         row.getCell(3).value = gasto.concepto;
         row.getCell(4).value = parseFloat(gasto.monto);
@@ -668,7 +674,7 @@ const ListaGastos = () => {
       page.drawText(`Solicitud: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
     }
-    page.drawText(`Periodo: ${fechaInicioReporte || 'N/A'} al ${fechaFinReporte || 'N/A'}`, { x: margin, y: currentY, font: font, size: 12 });
+    page.drawText(`Periodo: ${formatearFecha(fechaInicioReporte) || 'N/A'} al ${formatearFecha(fechaFinReporte) || 'N/A'}`, { x: margin, y: currentY, font: font, size: 14 });
     currentY -= 40;
 
     page.drawText('Detalle Financiero:', { x: margin, y: currentY, font: boldFont, size: 16 });
@@ -734,7 +740,7 @@ const ListaGastos = () => {
 
     // Rango de fechas
     const rangoFechas = (fechaInicioReporte || fechaFinReporte)
-      ? `Periodo: ${fechaInicioReporte || 'N/A'} a ${fechaFinReporte || 'N/A'}`
+      ? `Periodo: ${formatearFecha(fechaInicioReporte) || 'N/A'} a ${formatearFecha(fechaFinReporte) || 'N/A'}`
       : 'Periodo: Todos los gastos';
     page.drawText(rangoFechas, { x: margin, y, font, size: 12, color: rgb(0.3, 0.3, 0.3) });
     y -= 40;
@@ -789,7 +795,7 @@ const ListaGastos = () => {
 
         for (const fecha of fechasOrdenadas) {
           checkPageBreak();
-          page.drawText(fecha, { x: margin + 30, y, font, size: 10, color: rgb(0.2, 0.5, 0.2) });
+          page.drawText(formatearFecha(fecha), { x: margin + 30, y, font, size: 10, color: rgb(0.2, 0.5, 0.2) });
           y -= 18;
 
           const items = datosCategoria.fechas[fecha];
@@ -856,7 +862,7 @@ const ListaGastos = () => {
       for (const gasto of gastosConFactura) {
         checkPageBreak(); // Comprobar si se necesita una nueva página para el índice
         page.drawText(gasto.concepto.substring(0, 70), { x: margin, y, font, size: 10 });
-        page.drawText(gasto.fecha, { x: width - margin - 100, y, font, size: 10 });
+        page.drawText(formatearFecha(gasto.fecha), { x: width - margin - 100, y, font, size: 10 });
         y -= 20;
       }
     }
@@ -1082,7 +1088,7 @@ const ListaGastos = () => {
                               return (
                                 <div key={fecha} className="px-0">
                                   <div className="flex items-center gap-4 mb-0 ml-0">
-                                    <Text className="text-xs font-bold text-green-700 uppercase">{fecha}</Text>
+                                    <Text className="text-xs font-bold text-green-700 uppercase">{formatearFecha(fecha)}</Text>
                                   </div>
                                   <List className="mt-0 space-y-0">
                                     {items.map((gasto) => {
