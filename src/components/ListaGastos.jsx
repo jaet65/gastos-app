@@ -493,10 +493,8 @@ const ListaGastos = () => {
     const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
     let porReembolsar = 0;
     let porReintegrar = 0;
-    if (importeRecibido > 0) {
-      if (sumaFacturado > importeRecibido) porReembolsar = sumaFacturado - importeRecibido;
-      else if (importeRecibido > sumaFacturado) porReintegrar = importeRecibido - sumaFacturado;
-    }
+    if (sumaFacturado > importeRecibido) porReembolsar = sumaFacturado - importeRecibido;
+    else porReintegrar = importeRecibido - sumaFacturado;
 
     const addFinancialRow = (label, value) => {
       const labelCell = worksheet.getCell(`A${currentRow}`);
@@ -508,12 +506,12 @@ const ListaGastos = () => {
       currentRow++;
     };
 
-    addFinancialRow("Importe Recibido", importeRecibido > 0 ? importeRecibido : "N/A");
+    addFinancialRow("Importe Recibido", importeRecibido);
     addFinancialRow("Suma Facturado", sumaFacturado);
-    addFinancialRow("Suma Sin Factura", sumaSinFactura);
+    addFinancialRow("<< Suma sin factura", sumaSinFactura);
     addFinancialRow("Total General", totalGeneral);
     currentRow++;
-    addFinancialRow(porReembolsar > 0 ? "<< Por reintegrar desde CECAI" : (porReintegrar > 0 ? ">> Por reintegrar a CECAI" : "Balance"), porReembolsar > 0 ? porReembolsar : (porReintegrar > 0 ? porReintegrar : 0));
+    addFinancialRow(sumaFacturado > importeRecibido ? "<< Por reintegrar desde CECAI" : ">> Por reintegrar a CECAI", sumaFacturado > importeRecibido ? porReembolsar : porReintegrar);
     currentRow += 2;
 
     // --- 3. Sección de Detalle de Gastos ---
@@ -632,13 +630,12 @@ const ListaGastos = () => {
       .reduce((sum, g) => sum + parseFloat(g.monto), 0);
 
     const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
-
     let porReembolsar = 0;
     let porReintegrar = 0;
 
     if (sumaFacturado > importeRecibido) {
       porReembolsar = sumaFacturado - importeRecibido;
-    } else if (importeRecibido > sumaFacturado) {
+    } else {
       porReintegrar = importeRecibido - sumaFacturado;
     }
 
@@ -706,12 +703,12 @@ const ListaGastos = () => {
 
     if (solicitudVinculada) {
       // Por reembolsar / Por reintegrar
-      if (porReembolsar > 0) {
+      if (sumaFacturado > importeRecibido) {
         const porReembolsarTexto = formatoMoneda(porReembolsar);
         const porReembolsarAncho = boldFont.widthOfTextAtSize(porReembolsarTexto, 12);
         page.drawText('<< Por reintegrar desde CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
         page.drawText(porReembolsarTexto, { x: width - margin - porReembolsarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
-      } else if (porReintegrar > 0) {
+      } else {
         const porReintegrarTexto = formatoMoneda(porReintegrar);
         const porReintegrarAncho = boldFont.widthOfTextAtSize(porReintegrarTexto, 12);
         page.drawText('>> Por reintegrar a CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
