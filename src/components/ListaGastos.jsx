@@ -10,6 +10,8 @@ import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs'; import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
+import { differenceInCalendarDays } from 'date-fns';
+import { format as formatDateTZ } from 'date-fns-tz';
 import {
   Card,
   Title,
@@ -216,13 +218,118 @@ const ListaGastos = () => {
     return fileData.secure_url;
   };
 
-  const handleAbrirModalSolicitudParaReporte = () => {
-    if (!fechaInicio || !fechaFin) {
-      alert("Por favor, selecciona un rango de fechas en los filtros antes de continuar.");
+  // --- Automatización de Solicitud de Recursos ($0.00) ---
+  const generarPdfSolicitudCero = async (fInicio, fFin) => {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage();
+    const { width, height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const margin = 50;
+    const dias = differenceInCalendarDays(new Date(`${fFin}T00:00:00`), new Date(`${fInicio}T00:00:00`)) + 1;
+
+    try {
+      const logoUrl = '/CECAI.png';
+      const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
+      const logoImage = await pdfDoc.embedPng(logoImageBytes);
+      const logoDims = logoImage.scale(0.05);
+      page.drawImage(logoImage, { x: margin, y: height - margin - logoDims.height, width: logoDims.width, height: logoDims.height });
+    } catch (e) { console.warn("Logo no cargado"); }
+
+    page.drawText('Solicitud de Recursos', { x: margin, y: height - margin - 100, font: boldFont, size: 24 });
+    let y = height - margin - 140;
+    page.drawText('Consultor:', { x: margin, y, font: boldFont, size: 12 });
+    page.drawText('Mario Alberto Agraz Martínez', { x: margin + 100, y, font, size: 12 });
+    y -= 20;
+    page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
+    page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
+    y -= 20;
+    page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
+    page.drawText(`${formatDateTZ(new Date(`${fInicio}T00:00:00`), 'dd/MM/yyyy')} al ${formatDateTZ(new Date(`${fFin}T00:00:00`), 'dd/MM/yyyy')} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
+    y -= 40;
+    page.drawText('Desglose de Gastos:', { x: margin, y, font: boldFont, size: 14 });
+    y -= 30;
+    page.drawText('Transporte:', { x: margin + 20, y, font, size: 12 });
+    page.drawText('$0.00', { x: margin + 150, y, font, size: 12 });
+    y -= 20;
+    page.drawText('Comida:', { x: margin + 20, y, font, size: 12 });
+    page.drawText('$0.00', { x: margin + 150, y, font, size: 12 });
+    y -= 10;
+    page.drawLine({ start: { x: margin, y }, end: { x: margin + 250, y }, thickness: 1 });
+    y -= 20;
+    page.drawText('Total Solicitado:', { x: margin, y, font: boldFont, size: 14 });
+    page.drawText('$0.00', { x: margin + 150, y, font: boldFont, size: 14 });
+
+    const footerText = `Solicitud generada automáticamente para comprobación de gastos: ${fInicio} al ${fFin}`;
+    page.drawText(footerText, { x: margin, y: 30, size: 8, font: font, color: rgb(0.5, 0.5, 0.5) });
+
+    return await pdfDoc.save();
+  };
+
+  const subirSolicitudCeroACloudinary = async (pdfBytes, fInicio) => {
+    const data = new FormData();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    data.append("file", blob, `Solicitud_${fInicio}.pdf`);
+    data.append("upload_preset", "Gastos_Solicitudes");
+    data.append("cloud_name", CLOUD_NAME);
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, { method: "POST", body: data });
+    const fileData = await response.json();
+    if (!response.ok || !fileData.secure_url) throw new Error(fileData.error?.message || "Error al subir PDF");
+    return fileData;
+  };
+
+  const handleAbrirModalSolicitudParaReporte = async () => {
+    // 1. Obtener gastos actualmente filtrados para determinar el rango de fechas real
+    const gastosFiltrados = gastos.filter(g => {
+      if (fechaInicio && g.fecha < fechaInicio) return false;
+      if (fechaFin && g.fecha > fechaFin) return false;
+      if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return false;
+      if (!mostrarArchivados && g.archivado) return false;
+      return true;
+    });
+
+    if (gastosFiltrados.length === 0) {
+      alert("No hay gastos filtrados para generar un reporte.");
       return;
     }
+
+    // 2. Determinar rango de fechas para la solicitud (usar filtros o extremos de los gastos)
+    const fInicio = fechaInicio || gastosFiltrados.reduce((min, g) => g.fecha < min ? g.fecha : min, gastosFiltrados[0].fecha);
+    const fFin = fechaFin || gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
+
     setModalReporteAbierto(false);
-    setModalSolicitudParaReporteAbierto(true);
+    setReporteGenerandose(true);
+
+    try {
+      // 3. Crear Solicitud Automática con $0.00
+      const pdfBytes = await generarPdfSolicitudCero(fInicio, fFin);
+      const fileData = await subirSolicitudCeroACloudinary(pdfBytes, fInicio);
+
+      const nuevaSolicitudData = {
+        consultor: 'Mario Alberto Agraz Martínez',
+        proyecto: 'Rally TrackSIM',
+        fechaInicio: fInicio,
+        fechaFin: fFin,
+        dias: differenceInCalendarDays(new Date(`${fFin}T00:00:00`), new Date(`${fInicio}T00:00:00`)) + 1,
+        montoTransporte: 0,
+        montoComida: 0,
+        totalSolicitado: 0,
+        url_pdf_solicitud: fileData.secure_url,
+        deleteToken: fileData.delete_token,
+        creado_en: Timestamp.now(),
+        estado: 'Finalizada',
+        userId: user.uid
+      };
+      const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
+
+      // 4. Proceder a generar el reporte con la solicitud creada
+      await generarReporte(fInicio, fFin, { id: docRef.id, ...nuevaSolicitudData });
+    } catch (error) {
+      console.error("Error en solicitud automática:", error);
+      alert("Error al automatizar la solicitud: " + error.message);
+    } finally {
+      setReporteGenerandose(false);
+    }
   };
 
 
@@ -400,7 +507,7 @@ const ListaGastos = () => {
     addFinancialRow("Suma Sin Factura", sumaSinFactura);
     addFinancialRow("Total General", totalGeneral);
     currentRow++;
-    addFinancialRow(porReembolsar > 0 ? ">> Por reembolsar a colaborador" : (porReintegrar > 0 ? ">> Por reintegrar a CECAI" : "Balance"), porReembolsar > 0 ? porReembolsar : (porReintegrar > 0 ? porReintegrar : 0));
+    addFinancialRow(porReembolsar > 0 ? "<< Por reintegrar desde CECAI" : (porReintegrar > 0 ? ">> Por reintegrar a CECAI" : "Balance"), porReembolsar > 0 ? porReembolsar : (porReintegrar > 0 ? porReintegrar : 0));
     currentRow += 2;
 
     // --- 3. Sección de Detalle de Gastos ---
@@ -523,12 +630,10 @@ const ListaGastos = () => {
     let porReembolsar = 0;
     let porReintegrar = 0;
 
-    if (importeRecibido > 0) {
-      if (sumaFacturado > importeRecibido) {
-        porReembolsar = sumaFacturado - importeRecibido;
-      } else if (importeRecibido > sumaFacturado) {
-        porReintegrar = importeRecibido - sumaFacturado;
-      }
+    if (sumaFacturado > importeRecibido) {
+      porReembolsar = sumaFacturado - importeRecibido;
+    } else if (importeRecibido > sumaFacturado) {
+      porReintegrar = importeRecibido - sumaFacturado;
     }
 
     // --- Portada de Resumen Financiero (se genera siempre) ---
@@ -589,7 +694,7 @@ const ListaGastos = () => {
     // Suma Sin Factura
     const sumaSinFacturaTexto = formatoMoneda(sumaSinFactura);
     const sumaSinFacturaAncho = boldFont.widthOfTextAtSize(sumaSinFacturaTexto, 12);
-    page.drawText('>> Suma sin factura:', { x: margin, y: currentY, font: font, size: 12 });
+    page.drawText('<< Suma sin factura:', { x: margin, y: currentY, font: font, size: 12 });
     page.drawText(sumaSinFacturaTexto, { x: width - margin - sumaSinFacturaAncho, y: currentY, font: boldFont, size: 12 });
     currentY -= 30;
 
@@ -598,7 +703,7 @@ const ListaGastos = () => {
       if (porReembolsar > 0) {
         const porReembolsarTexto = formatoMoneda(porReembolsar);
         const porReembolsarAncho = boldFont.widthOfTextAtSize(porReembolsarTexto, 12);
-        page.drawText('>> Por reembolsar a colaborador:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
+        page.drawText('<< Por reintegrar desde CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
         page.drawText(porReembolsarTexto, { x: width - margin - porReembolsarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
       } else if (porReintegrar > 0) {
         const porReintegrarTexto = formatoMoneda(porReintegrar);
@@ -1021,7 +1126,7 @@ const ListaGastos = () => {
                                                     <FileText size={20} />
                                                   </a>
                                                 )}
-                                                
+
                                                 <button
                                                   type="button"
                                                   onClick={() => abrirEdicion(gasto)}
@@ -1041,7 +1146,7 @@ const ListaGastos = () => {
                                           {misCasetas.length > 0 && misCasetas.some(c => c.url_factura) && (
                                             <div className="flex flex-wrap gap-2 ml-10 mb-2 mt-0.5">
                                               {misCasetas.map((caseta, idx) => caseta.url_factura && (
-                                                <a key={caseta.id} href={caseta.url_factura} target="_blank" rel="noreferrer" 
+                                                <a key={caseta.id} href={caseta.url_factura} target="_blank" rel="noreferrer"
                                                   className="flex items-center gap-1.5 text-[9px] bg-blue-50/50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors">
                                                   <FileText size={12} />
                                                   <span className="font-black uppercase">Factura Caseta {idx + 1}</span>
