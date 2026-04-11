@@ -323,7 +323,7 @@ const ListaGastos = () => {
         url_pdf_solicitud: fileData.secure_url,
         deleteToken: fileData.delete_token,
         creado_en: Timestamp.now(),
-        estado: 'Finalizada',
+        estado: 'Esperando...',
         userId: user.uid
       };
       const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
@@ -423,7 +423,7 @@ const ListaGastos = () => {
         const cloudinaryFileName = `${baseFileName} (Solicitud ${solicitudVinculada.id}).zip`;
         const reporteUrl = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
-        await updateDoc(solicitudRef, { estado: 'Finalizada', url_reporte_gastos: reporteUrl });
+        await updateDoc(solicitudRef, { estado: 'Esperando...', url_reporte_gastos: reporteUrl });
       }
 
       // Marcar gastos como archivados
@@ -1112,7 +1112,7 @@ const ListaGastos = () => {
                                                   </div>
                                                 )}
                                                 {misCasetas.length > 0 && (
-                                                  <Badge size="xs" color="slate" className="px-1 py-0 text-[9px] uppercase font-bold">+{misCasetas.length} Casetas</Badge>
+                                                  <Badge size="xs" color="slate-400" className="px-1 py-0 text-[9px] uppercase font-bold">+{misCasetas.length} Casetas</Badge>
                                                 )}
                                               </div>
 

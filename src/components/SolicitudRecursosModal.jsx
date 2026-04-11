@@ -161,7 +161,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 url_pdf_solicitud: fileData.secure_url,
                 deleteToken: fileData.delete_token,
                 creado_en: Timestamp.now(),
-                estado: 'Enviada', // Estado por defecto al crear
+                estado: 'Solicitada', // Estado por defecto al crear
                 userId: user.uid
             };
             const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);

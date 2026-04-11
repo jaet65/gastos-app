@@ -15,9 +15,10 @@ const formatoMoneda = (cantidad) => {
 };
 
 const statusColors = {
-    'Enviada': { badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-500', tremor: 'warning' },
+    'Solicitada': { badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-500', tremor: 'warning' },
     'Recibida': { badge: 'bg-blue-500 text-white', dot: 'bg-blue-500', tremor: 'info' },
-    'Finalizada': { badge: 'bg-green-500 text-white', dot: 'bg-green-500', tremor: 'success' },
+    'Esperando...': { badge: 'bg-green-500 text-white', dot: 'bg-green-500', tremor: 'success' },
+    'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
 };
 
 const ListaSolicitudes = () => {
@@ -75,8 +76,24 @@ const ListaSolicitudes = () => {
             orderBy("fechaInicio", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setSolicitudes(data);
             setLoading(false);
+
+            // Migración automática de estados antiguos
+            data.forEach(async (s) => {
+                let nuevoEstado = null;
+                if (s.estado === 'Enviada') nuevoEstado = 'Solicitada';
+                if (s.estado === 'Finalizada') nuevoEstado = 'Esperando...';
+                
+                if (nuevoEstado) {
+                    try {
+                        await updateDoc(doc(db, "solicitudes", s.id), { estado: nuevoEstado });
+                    } catch (e) {
+                        console.error("Error migrando solicitud:", s.id, e);
+                    }
+                }
+            });
         });
         return () => unsubscribe();
     }, [user]);
@@ -151,7 +168,12 @@ const ListaSolicitudes = () => {
                                         <span className="text-xs font-bold">Reporte</span>
                                     </a>
                                 )}
-                                <button onClick={() => eliminarSolicitud(solicitud.id)} className="flex items-center gap-1 p-2 text-slate-500 hover:text-red-600 transition-colors" title="Eliminar solicitud">
+                                <button
+                                    onClick={() => eliminarSolicitud(solicitud.id)}
+                                    disabled={solicitud.estado === 'Cerrada'}
+                                    className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Cerrada' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
+                                    title={solicitud.estado === 'Cerrada' ? 'No se puede eliminar una solicitud cerrada' : 'Eliminar solicitud'}
+                                >
                                     <Trash2 size={16} />
                                     <span className="text-xs font-bold">Eliminar</span>
                                 </button>
@@ -164,7 +186,7 @@ const ListaSolicitudes = () => {
                                 <div className="relative w-fit">
                                     <Menu as="div" className="relative inline-block text-left">
                                         <Menu.Button className={`inline-flex items-center justify-center w-full rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
-                                            {solicitud.estado || 'Enviada'}
+                                            {solicitud.estado || 'Solicitada'}
                                             <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
                                         </Menu.Button>
 
