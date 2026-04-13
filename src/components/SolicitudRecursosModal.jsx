@@ -20,7 +20,10 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const [fechaInicio, setFechaInicio] = useState(fechaInicioInicial);
     const [fechaError, setFechaError] = useState('');
     const [fechaFin, setFechaFin] = useState(fechaFinInicial);
+    const [cantidadPersonas, setCantidadPersonas] = useState(1);
     const [loading, setLoading] = useState(false);
+
+    const personas = Math.max(1, Number(cantidadPersonas) || 1);
 
     const { dias, montoTransporte, montoComida, totalSolicitado } = useMemo(() => {
         if (!fechaInicio || !fechaFin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
@@ -33,12 +36,12 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         }
 
         const diasCalculados = differenceInCalendarDays(fin, inicio) + 1;
-        const mt = diasCalculados * 700;
-        const mc = diasCalculados * 600;
+        const mt = diasCalculados * 700 * personas;
+        const mc = diasCalculados * 600 * personas;
         const total = mt + mc;
 
         return { dias: diasCalculados, montoTransporte: mt, montoComida: mc, totalSolicitado: total };
-    }, [fechaInicio, fechaFin]);
+    }, [fechaInicio, fechaFin, personas]);
 
     useEffect(() => {
         if (fechaInicio && fechaFin) {
@@ -90,19 +93,22 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         y -= 20;
         page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText(`${format(new Date(`${fechaInicio}T00:00:00`), 'dd/MM/yyyy')} al ${format(new Date(`${fechaFin}T00:00:00`), 'dd/MM/yyyy')} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
+        y -= 20;
+        page.drawText('Personas:', { x: margin, y, font: boldFont, size: 12 });
+        page.drawText(`${personas}`, { x: margin + 100, y, font, size: 12 });
         y -= 40;
         page.drawText('Desglose de Gastos:', { x: margin, y, font: boldFont, size: 14 });
         y -= 30;
-        page.drawText('Transporte:', { x: margin + 20, y, font, size: 12 });
-        page.drawText(formatoMoneda(montoTransporte), { x: margin + 150, y, font, size: 12 });
+        page.drawText(`Transporte ($700/día x ${personas}):`, { x: margin + 20, y, font, size: 12 });
+        page.drawText(formatoMoneda(montoTransporte), { x: margin + 220, y, font, size: 12 });
         y -= 20;
-        page.drawText('Comida:', { x: margin + 20, y, font, size: 12 });
-        page.drawText(formatoMoneda(montoComida), { x: margin + 150, y, font, size: 12 });
+        page.drawText(`Comida ($600/día x ${personas}):`, { x: margin + 20, y, font, size: 12 });
+        page.drawText(formatoMoneda(montoComida), { x: margin + 220, y, font, size: 12 });
         y -= 10;
-        page.drawLine({ start: { x: margin, y }, end: { x: margin + 250, y }, thickness: 1 });
+        page.drawLine({ start: { x: margin, y }, end: { x: margin + 280, y }, thickness: 1 });
         y -= 20;
         page.drawText('Total Solicitado:', { x: margin, y, font: boldFont, size: 14 });
-        page.drawText(formatoMoneda(totalSolicitado), { x: margin + 150, y, font: boldFont, size: 14 });
+        page.drawText(formatoMoneda(totalSolicitado), { x: margin + 220, y, font: boldFont, size: 14 });
 
         // --- Pie de página ---
         const footerText = `Solicitud de recursos por comisión a para el proyecto de TrackSIM comprendido de las fechas de: ${fechaInicio} hasta ${fechaFin}`;
@@ -155,6 +161,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 dias: dias,
+                cantidadPersonas: personas,
                 montoTransporte: montoTransporte,
                 montoComida: montoComida,
                 totalSolicitado: totalSolicitado,
@@ -195,7 +202,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                     <div><p className="text-sm"><span className="font-bold">Consultor:</span> Mario Alberto Agraz Martínez</p></div>
                     <div><p className="text-sm"><span className="font-bold">Proyecto:</span> Rally TrackSIM</p></div>
 
-                    <div className="grid grid-cols-2 gap-4 pt-4">
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-4 pt-4 items-end">
                         <div>
                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
                             <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
@@ -204,14 +211,27 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                             <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Finalización</label>
                             <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
                         </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Personas</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={cantidadPersonas}
+                                onChange={e => {
+                                    const val = parseInt(e.target.value, 10);
+                                    setCantidadPersonas(isNaN(val) || val < 1 ? 1 : val);
+                                }}
+                                className="w-20 p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 text-center focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                            />
+                        </div>
                     </div>
 
                     {fechaError && <p className="text-red-500 text-sm">{fechaError}</p>}
                     {dias > 0 && (
                         <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2 mt-4">
                             <h4 className="font-bold text-center text-slate-700">Resumen de Solicitud ({dias} días)</h4>
-                            <div className="flex justify-between text-sm"><p>Transporte ($700/día):</p><p className="font-bold">{formatoMoneda(montoTransporte)}</p></div>
-                            <div className="flex justify-between text-sm"><p>Comida ($600/día):</p><p className="font-bold">{formatoMoneda(montoComida)}</p></div>
+                            <div className="flex justify-between text-sm"><p>Transporte ($700/día × {personas}):</p><p className="font-bold">{formatoMoneda(montoTransporte)}</p></div>
+                            <div className="flex justify-between text-sm"><p>Comida ($600/día × {personas}):</p><p className="font-bold">{formatoMoneda(montoComida)}</p></div>
                             <hr className="my-1"/>
                             <div className="flex justify-between text-base"><p className="font-bold">Total Solicitado:</p><p className="font-black text-blue-600">{formatoMoneda(totalSolicitado)}</p></div>
                         </div>

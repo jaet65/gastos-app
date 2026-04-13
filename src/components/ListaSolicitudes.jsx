@@ -1,6 +1,6 @@
 import { useEffect, useState, Fragment } from 'react';
 import { db } from '../firebase';
-import { useAuth } from './AuthContext';import { CLOUD_NAME } from './config';
+import { useAuth } from './AuthContext'; import { CLOUD_NAME } from './config';
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc } from 'firebase/firestore';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
@@ -8,9 +8,9 @@ import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDo
 
 const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2
     }).format(cantidad);
 };
 
@@ -71,7 +71,7 @@ const ListaSolicitudes = () => {
         if (!user) return;
 
         const q = query(
-            collection(db, "solicitudes"), 
+            collection(db, "solicitudes"),
             where("userId", "==", user.uid),
             orderBy("fechaInicio", "desc")
         );
@@ -85,7 +85,7 @@ const ListaSolicitudes = () => {
                 let nuevoEstado = null;
                 if (s.estado === 'Enviada') nuevoEstado = 'Solicitada';
                 if (s.estado === 'Finalizada') nuevoEstado = 'Esperando...';
-                
+
                 if (nuevoEstado) {
                     try {
                         await updateDoc(doc(db, "solicitudes", s.id), { estado: nuevoEstado });
@@ -145,7 +145,7 @@ const ListaSolicitudes = () => {
                         <Flex alignItems="start" className="border-none">
                             <div className="truncate">
                                 <Flex alignItems='center' className='gap-2 mb-2'>
-                                    <Briefcase size={14} className='text-slate-500'/>
+                                    <Briefcase size={14} className='text-slate-500' />
                                     <Title>{solicitud.proyecto}</Title>
                                 </Flex>
                                 <Flex alignItems='center' className='gap-2'>
@@ -170,9 +170,18 @@ const ListaSolicitudes = () => {
                                 )}
                                 <button
                                     onClick={() => eliminarSolicitud(solicitud.id)}
-                                    disabled={solicitud.estado === 'Cerrada'}
-                                    className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Cerrada' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
-                                    title={solicitud.estado === 'Cerrada' ? 'No se puede eliminar una solicitud cerrada' : 'Eliminar solicitud'}
+                                    disabled={
+                                        solicitud.estado === 'Recibida' ||
+                                        solicitud.estado === 'Esperando...' ||
+                                        solicitud.estado === 'Cerrada'
+                                    }
+                                    className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Recibida' ||
+                                            solicitud.estado === 'Esperando...' ||
+                                            solicitud.estado === 'Cerrada' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
+                                    title={
+                                        solicitud.estado === 'Recibida' ||
+                                            solicitud.estado === 'Esperando...' ||
+                                            solicitud.estado === 'Cerrada' ? 'No se puede eliminar una solicitud que haya sido RECIBIDA' : 'Eliminar solicitud'}
                                 >
                                     <Trash2 size={16} />
                                     <span className="text-xs font-bold">Eliminar</span>
