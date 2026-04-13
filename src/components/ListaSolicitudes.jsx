@@ -26,6 +26,24 @@ const ListaSolicitudes = () => {
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    const descargarPdf = async (url, nombreArchivo) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = nombreArchivo || 'solicitud.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+            console.error('Error al descargar el PDF:', error);
+            alert('No se pudo descargar el archivo.');
+        }
+    };
+
     const eliminarSolicitud = async (id) => {
         if (window.confirm("¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.")) {
             try {
@@ -158,15 +176,23 @@ const ListaSolicitudes = () => {
                                 </Flex>
                             </div>
                             <div className="flex flex-col items-end">
-                                <a href={solicitud.url_pdf_solicitud} target="_blank" rel="noreferrer" className="flex items-center gap-1 p-2 text-slate-500 hover:text-blue-600 transition-colors" title="Ver PDF de la solicitud">
+                                <button
+                                    onClick={() => descargarPdf(solicitud.url_pdf_solicitud, solicitud.nombre_archivo)}
+                                    className="flex items-center gap-1 p-2 text-slate-500 hover:text-blue-600 transition-colors"
+                                    title="Descargar PDF de la solicitud"
+                                >
                                     <FileText size={16} />
                                     <span className="text-xs font-bold">Solicitud</span>
-                                </a>
+                                </button>
                                 {solicitud.url_reporte_gastos && (
-                                    <a href={solicitud.url_reporte_gastos} target="_blank" rel="noreferrer" className="flex items-center gap-1 p-2 text-slate-500 hover:text-emerald-600 transition-colors" title="Ver Reporte de Gastos Final">
+                                    <button
+                                        onClick={() => descargarPdf(solicitud.url_reporte_gastos, solicitud.nombre_archivo_reporte)}
+                                        className="flex items-center gap-1 p-2 text-slate-500 hover:text-emerald-600 transition-colors"
+                                        title="Descargar Reporte de Gastos Final"
+                                    >
                                         <FileDown size={16} />
                                         <span className="text-xs font-bold">Reporte</span>
-                                    </a>
+                                    </button>
                                 )}
                                 <button
                                     onClick={() => eliminarSolicitud(solicitud.id)}

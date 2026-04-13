@@ -195,8 +195,6 @@ const ListaGastos = () => {
       ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       : 'application/pdf';
 
-    // La función ahora recibe un Blob directamente, no los bytes.
-    // Si por alguna razón se pasan bytes, lo convertimos a Blob.
     let blob;
     if (formato === 'zip') {
       blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob], { type: 'application/zip' });
@@ -204,15 +202,13 @@ const ListaGastos = () => {
       blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob], { type: mimeType });
     }
 
+    const nombreArchivo = solicitudId; // solicitudId ya contiene el nombre completo del archivo
     const data = new FormData();
-    // El nombre del archivo en Cloudinary se pasa ahora como parámetro
-    // const finalExtension = formato === 'zip' ? 'zip' : fileExtension;
-    // const fileName = `reporte_gastos_${solicitudId}.${finalExtension}`;
-    data.append("file", blob, solicitudId); // solicitudId ahora contiene el nombre completo del archivo
+    data.append("file", blob, nombreArchivo);
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
+    data.append("filename_override", nombreArchivo);
 
-    // Usamos el endpoint 'raw' para archivos que no son multimedia (como PDF, XLSX, ZIP).
     const uploadEndpoint = `raw/upload`;
     const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${uploadEndpoint}`, { method: "POST", body: data });
     const fileData = await response.json();
@@ -221,7 +217,7 @@ const ListaGastos = () => {
       console.error("Error subiendo reporte a Cloudinary:", fileData);
       throw new Error(fileData.error?.message || "Error al subir el reporte a Cloudinary");
     }
-    return fileData.secure_url;
+    return { url: fileData.secure_url, nombreArchivo };
   };
 
   // --- Automatización de Solicitud de Recursos ($0.00) ---
@@ -273,15 +269,17 @@ const ListaGastos = () => {
   };
 
   const subirSolicitudCeroACloudinary = async (pdfBytes, fInicio) => {
+    const nombreArchivo = `Solicitud ${fInicio}.pdf`;
     const data = new FormData();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    data.append("file", blob, `Solicitud_${fInicio}.pdf`);
+    data.append("file", blob, nombreArchivo);
     data.append("upload_preset", "Gastos_Solicitudes");
     data.append("cloud_name", CLOUD_NAME);
+    data.append("filename_override", nombreArchivo);
     const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, { method: "POST", body: data });
     const fileData = await response.json();
     if (!response.ok || !fileData.secure_url) throw new Error(fileData.error?.message || "Error al subir PDF");
-    return fileData;
+    return { ...fileData, nombreArchivo };
   };
 
   const handleAbrirModalSolicitudParaReporte = async () => {
@@ -321,6 +319,7 @@ const ListaGastos = () => {
         montoComida: 0,
         totalSolicitado: 0,
         url_pdf_solicitud: fileData.secure_url,
+        nombre_archivo: fileData.nombreArchivo,
         deleteToken: fileData.delete_token,
         creado_en: Timestamp.now(),
         estado: 'Esperando...',
@@ -420,10 +419,10 @@ const ListaGastos = () => {
 
       // 5. Subir a Cloudinary si hay solicitud
       if (solicitudVinculada) {
-        const cloudinaryFileName = `${baseFileName} (Solicitud ${solicitudVinculada.id}).zip`;
-        const reporteUrl = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
+        const cloudinaryFileName = `${baseFileName} (Solicitud ${solicitudVinculada.fechaInicio}).zip`;
+        const { url: reporteUrl, nombreArchivo: nombreReporte } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
-        await updateDoc(solicitudRef, { estado: 'Esperando...', url_reporte_gastos: reporteUrl });
+        await updateDoc(solicitudRef, { estado: 'Esperando...', url_reporte_gastos: reporteUrl, nombre_archivo_reporte: nombreReporte });
       }
 
       // Marcar gastos como archivados

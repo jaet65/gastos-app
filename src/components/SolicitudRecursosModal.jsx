@@ -131,6 +131,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         data.append("file", blob, nombreArchivo);
         data.append("upload_preset", UPLOAD_PRESET);
         data.append("cloud_name", CLOUD_NAME);
+        data.append("filename_override", nombreArchivo);
 
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, { method: "POST", body: data });
         const fileData = await response.json();
@@ -138,7 +139,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         if (!response.ok || !fileData.secure_url) {
             throw new Error(fileData.error?.message || "Error al subir el PDF a Cloudinary");
         }
-        return fileData;
+        return { ...fileData, nombreArchivo };
     };
 
     const handleSolicitar = async () => {
@@ -166,6 +167,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 montoComida: montoComida,
                 totalSolicitado: totalSolicitado,
                 url_pdf_solicitud: fileData.secure_url,
+                nombre_archivo: fileData.nombreArchivo,
                 deleteToken: fileData.delete_token,
                 creado_en: Timestamp.now(),
                 estado: 'Solicitada', // Estado por defecto al crear
