@@ -252,6 +252,32 @@ const ListaSolicitudes = () => {
                                 </span>
                             </div>
                         </Flex>
+
+                        {solicitud.url_reporte_gastos && (
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                                {solicitud.resumen_sumaSinFactura > 0 && (
+                                    <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                                        <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
+                                        <span className="text-xs text-amber-700 font-medium">Sin factura:</span>
+                                        <span className="text-xs font-black text-amber-800">{formatoMoneda(solicitud.resumen_sumaSinFactura)}</span>
+                                    </div>
+                                )}
+                                {solicitud.resumen_porReembolsar > 0 && (
+                                    <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1">
+                                        <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+                                        <span className="text-xs text-green-700 font-medium">Reembolso de CECAI:</span>
+                                        <span className="text-xs font-black text-green-800">{formatoMoneda(solicitud.resumen_porReembolsar)}</span>
+                                    </div>
+                                )}
+                                {solicitud.resumen_porReintegrar > 0 && (
+                                    <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-full px-3 py-1">
+                                        <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></span>
+                                        <span className="text-xs text-orange-700 font-medium">Reintegro a CECAI:</span>
+                                        <span className="text-xs font-black text-orange-800">{formatoMoneda(solicitud.resumen_porReintegrar)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </Card>
                 ))
             )}

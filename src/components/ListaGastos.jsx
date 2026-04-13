@@ -419,10 +419,25 @@ const ListaGastos = () => {
 
       // 5. Subir a Cloudinary si hay solicitud
       if (solicitudVinculada) {
+        // Calcular resumen financiero para guardar en la solicitud
+        const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
+        const sumaSinFactura = gastosFiltrados.filter(g => !g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
+        const importeRecibido = solicitudVinculada.totalSolicitado || 0;
+        const porReembolsar = sumaFacturado > importeRecibido ? sumaFacturado - importeRecibido : 0;
+        const porReintegrar = importeRecibido > sumaFacturado ? importeRecibido - sumaFacturado : 0;
+
         const cloudinaryFileName = `${baseFileName} (Solicitud ${solicitudVinculada.fechaInicio}).zip`;
         const { url: reporteUrl, nombreArchivo: nombreReporte } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
-        await updateDoc(solicitudRef, { estado: 'Esperando...', url_reporte_gastos: reporteUrl, nombre_archivo_reporte: nombreReporte });
+        await updateDoc(solicitudRef, {
+          estado: 'Esperando...',
+          url_reporte_gastos: reporteUrl,
+          nombre_archivo_reporte: nombreReporte,
+          resumen_sumaFacturado: sumaFacturado,
+          resumen_sumaSinFactura: sumaSinFactura,
+          resumen_porReembolsar: porReembolsar,
+          resumen_porReintegrar: porReintegrar,
+        });
       }
 
       // Marcar gastos como archivados
