@@ -25,8 +25,10 @@ import {
 } from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 
-const ListaGastos = () => {
+const ListaGastos = ({ adminViewUid = null }) => {
   const { user } = useAuth();
+  const esVistaAdmin = !!adminViewUid;
+  const targetUid = adminViewUid || user?.uid;
   const [gastos, setGastos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -57,7 +59,7 @@ const ListaGastos = () => {
 
     const q = query(
       collection(db, "gastos"),
-      where("userId", "==", user.uid),
+      where("userId", "==", targetUid),
       orderBy("fecha", "asc"),
       orderBy("creado_en", "asc")
     );
@@ -65,7 +67,7 @@ const ListaGastos = () => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user, targetUid]);
 
   const eliminarGasto = async (id, idPropina) => {
     if (confirm("¿Borrar este registro?")) {
@@ -956,7 +958,7 @@ const ListaGastos = () => {
                 : <Archive size={16} />
               }
             </button>
-            {mostrarArchivados && gastos.some(g => g.archivado) && (
+            {mostrarArchivados && gastos.some(g => g.archivado) && !esVistaAdmin && (
               <button onClick={handleUnarchiveVisible} disabled={isUnarchiving} className="flex items-center gap-1 p-2 rounded-full border transition-all shadow-sm flex-shrink-0 bg-yellow-100 border-yellow-200 text-yellow-700 hover:bg-yellow-200" title="Desarchivar todos los visibles">
                 {isUnarchiving ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
                 <span className="text-xs font-bold">Desarchivar</span>
@@ -1149,17 +1151,21 @@ const ListaGastos = () => {
                                                   </a>
                                                 )}
 
-                                                <button
-                                                  type="button"
-                                                  onClick={() => abrirEdicion(gasto)}
-                                                  className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                >
-                                                  <Pencil size={20} />
-                                                </button>
+                                                {!esVistaAdmin && (
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => abrirEdicion(gasto)}
+                                                      className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                    >
+                                                      <Pencil size={20} />
+                                                    </button>
 
-                                                <button onClick={() => eliminarGasto(gasto.id, gasto.idPropina)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
-                                                  <Trash2 size={20} color="#ef4444" strokeWidth={2.5} />
-                                                </button>
+                                                    <button onClick={() => eliminarGasto(gasto.id, gasto.idPropina)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
+                                                      <Trash2 size={20} color="#ef4444" strokeWidth={2.5} />
+                                                    </button>
+                                                  </>
+                                                )}
                                               </div>
                                             </div>
                                           </ListItem>

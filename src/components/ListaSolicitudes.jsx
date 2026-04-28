@@ -21,8 +21,10 @@ const statusColors = {
     'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
 };
 
-const ListaSolicitudes = () => {
+const ListaSolicitudes = ({ adminViewUid = null }) => {
     const { user } = useAuth();
+    const esVistaAdmin = !!adminViewUid;
+    const targetUid = adminViewUid || user?.uid;
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -90,7 +92,7 @@ const ListaSolicitudes = () => {
 
         const q = query(
             collection(db, "solicitudes"),
-            where("userId", "==", user.uid),
+            where("userId", "==", targetUid),
             orderBy("fechaInicio", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -114,7 +116,7 @@ const ListaSolicitudes = () => {
             });
         });
         return () => unsubscribe();
-    }, [user]);
+    }, [user, targetUid]);
 
     useEffect(() => {
         if (loading || solicitudes.length === 0) return;
@@ -194,24 +196,26 @@ const ListaSolicitudes = () => {
                                         <span className="text-xs font-bold">Reporte</span>
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => eliminarSolicitud(solicitud.id)}
-                                    disabled={
-                                        solicitud.estado === 'Recibida' ||
-                                        solicitud.estado === 'Esperando...' ||
-                                        solicitud.estado === 'Cerrada'
-                                    }
-                                    className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Recibida' ||
+                                {!esVistaAdmin && (
+                                    <button
+                                        onClick={() => eliminarSolicitud(solicitud.id)}
+                                        disabled={
+                                            solicitud.estado === 'Recibida' ||
                                             solicitud.estado === 'Esperando...' ||
-                                            solicitud.estado === 'Cerrada' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
-                                    title={
-                                        solicitud.estado === 'Recibida' ||
-                                            solicitud.estado === 'Esperando...' ||
-                                            solicitud.estado === 'Cerrada' ? 'No se puede eliminar una solicitud que haya sido RECIBIDA' : 'Eliminar solicitud'}
-                                >
-                                    <Trash2 size={16} />
-                                    <span className="text-xs font-bold">Eliminar</span>
-                                </button>
+                                            solicitud.estado === 'Cerrada'
+                                        }
+                                        className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Recibida' ||
+                                                solicitud.estado === 'Esperando...' ||
+                                                solicitud.estado === 'Cerrada' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
+                                        title={
+                                            solicitud.estado === 'Recibida' ||
+                                                solicitud.estado === 'Esperando...' ||
+                                                solicitud.estado === 'Cerrada' ? 'No se puede eliminar una solicitud que haya sido RECIBIDA' : 'Eliminar solicitud'}
+                                    >
+                                        <Trash2 size={16} />
+                                        <span className="text-xs font-bold">Eliminar</span>
+                                    </button>
+                                )}
                             </div>
                         </Flex>
                         <Flex className="mt-4 pt-4 border-t border-slate-200">
@@ -219,30 +223,36 @@ const ListaSolicitudes = () => {
                                 <Text className="font-bold text-xs text-slate-500 uppercase mb-2">Estado</Text>
                                 {/* Selector de Estado Personalizado con Headless UI */}
                                 <div className="relative w-fit">
-                                    <Menu as="div" className="relative inline-block text-left">
-                                        <Menu.Button className={`inline-flex items-center justify-center w-full rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
+                                    {esVistaAdmin ? (
+                                        <div className={`inline-flex items-center justify-center w-full rounded-full border border-gray-300 px-4 py-1.5 text-sm font-black shadow-sm transition-colors ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
                                             {solicitud.estado || 'Solicitada'}
-                                            <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
-                                        </Menu.Button>
+                                        </div>
+                                    ) : (
+                                        <Menu as="div" className="relative inline-block text-left">
+                                            <Menu.Button className={`inline-flex items-center justify-center w-full rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
+                                                {solicitud.estado || 'Solicitada'}
+                                                <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
+                                            </Menu.Button>
 
-                                        <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
-                                            <Menu.Items className="absolute left-0 z-10 mt-2 w-56 origin-top-left rounded-md bg-white shadow-lg focus:outline-none">
-                                                <div className="py-1">
-                                                    {Object.keys(statusColors).map((estado) => (
-                                                        <Menu.Item key={estado}>
-                                                            {({ active }) => (
-                                                                <button onClick={() => handleStatusChange(solicitud.id, estado)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}>
-                                                                    <span className={`w-2 h-2 rounded-full mr-3 ${statusColors[estado].dot}`}></span>
-                                                                    {estado}
-                                                                    {solicitud.estado === estado && <Check className="ml-auto h-5 w-5 text-blue-600" />}
-                                                                </button>
-                                                            )}
-                                                        </Menu.Item>
-                                                    ))}
-                                                </div>
-                                            </Menu.Items>
-                                        </Transition>
-                                    </Menu>
+                                            <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
+                                                <Menu.Items className="absolute left-0 z-10 mt-2 w-56 origin-top-left rounded-md bg-white shadow-lg focus:outline-none">
+                                                    <div className="py-1">
+                                                        {Object.keys(statusColors).map((estado) => (
+                                                            <Menu.Item key={estado}>
+                                                                {({ active }) => (
+                                                                    <button onClick={() => handleStatusChange(solicitud.id, estado)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}>
+                                                                        <span className={`w-2 h-2 rounded-full mr-3 ${statusColors[estado].dot}`}></span>
+                                                                        {estado}
+                                                                        {solicitud.estado === estado && <Check className="ml-auto h-5 w-5 text-blue-600" />}
+                                                                    </button>
+                                                                )}
+                                                            </Menu.Item>
+                                                        ))}
+                                                    </div>
+                                                </Menu.Items>
+                                            </Transition>
+                                        </Menu>
+                                    )}
                                 </div>
                             </div>
                             <div className="text-right">

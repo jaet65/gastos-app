@@ -15,11 +15,37 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      if (user) {
+        // Verificar/Crear perfil en Firestore
+        const { doc, getDoc, setDoc } = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          setUserData(userSnap.data());
+        } else {
+          // Crear perfil por defecto
+          const newProfile = {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || 'Usuario',
+            role: 'user', // Por defecto todos son user
+            creado_en: new Date().toISOString()
+          };
+          await setDoc(userRef, newProfile);
+          setUserData(newProfile);
+        }
+      } else {
+        setUserData(null);
+      }
       setLoading(false);
     });
 
@@ -37,6 +63,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    userData, // Contiene el rol y perfil extendido
     login,
     logout,
     loading
