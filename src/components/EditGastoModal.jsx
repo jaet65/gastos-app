@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCircle, Plus } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";
@@ -129,9 +129,12 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
             // b) Guardar casetas nuevas
             for (const caseta of misCasetas) {
                 if (!caseta.id) { // Es una caseta nueva (sin ID de Firestore)
-                    if (!caseta.monto || !caseta.archivo) continue;
+                    if (!caseta.monto) continue;
 
-                    const fileDataCaseta = await subirACloudinary(caseta.archivo);
+                    let fileDataCaseta = { secure_url: '', delete_token: '' };
+                    if (caseta.archivo) {
+                        fileDataCaseta = await subirACloudinary(caseta.archivo);
+                    }
                     await addDoc(collection(db, "gastos"), {
                         fecha: gastoEditado.fecha,
                         concepto: `Caseta`,
@@ -142,6 +145,24 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                         creado_en: Timestamp.now(),
                         userId: gasto.userId,
                         idPadre: gasto.id // Vinculamos al gasto principal
+                    });
+                } else {
+                    // c) Actualizar casetas existentes (si cambiaron)
+                    const casetaRef = doc(db, "gastos", caseta.id);
+                    let url_factura = caseta.url_factura || "";
+                    let deleteToken = caseta.deleteToken || "";
+
+                    if (caseta.archivo) { // Se subió una factura para una caseta que no tenía o se cambió
+                        const fileData = await subirACloudinary(caseta.archivo);
+                        url_factura = fileData.secure_url;
+                        deleteToken = fileData.delete_token;
+                    }
+
+                    await updateDoc(casetaRef, {
+                        monto: parseFloat(caseta.monto),
+                        fecha: gastoEditado.fecha, // Sincronizar fecha con el gasto principal
+                        url_factura,
+                        deleteToken
                     });
                 }
             }
@@ -273,22 +294,24 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                                                     type="number"
                                                     step="0.01"
                                                     value={caseta.monto}
-                                                    readOnly={!!caseta.id} // Por ahora solo permitimos borrar existentes y agregar nuevas
                                                     onChange={(e) => handleCasetaChange(idx, 'monto', e.target.value)}
                                                     placeholder="Monto"
-                                                    className={`w-24 bg-transparent border-none outline-none font-bold text-slate-800 ${caseta.id ? 'opacity-50' : ''}`}
+                                                    className="w-24 bg-transparent border-none outline-none font-bold text-slate-800 focus:bg-slate-100 rounded px-1 transition-all"
                                                 />
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {caseta.id ? (
+                                                {(caseta.id && caseta.url_factura) ? (
                                                     <a href={caseta.url_factura} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><FileText size={18} /></a>
                                                 ) : (
-                                                    <input
-                                                        type="file"
-                                                        accept=".pdf"
-                                                        onChange={(e) => handleCasetaChange(idx, 'archivo', e.target.files[0])}
-                                                        className="w-50 text-[10px] text-slate-400"
-                                                    />
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="file"
+                                                            accept=".pdf"
+                                                            onChange={(e) => handleCasetaChange(idx, 'archivo', e.target.files[0])}
+                                                            className="w-40 text-[10px] text-slate-400"
+                                                        />
+                                                        {caseta.archivo && <FileCheck size={14} className="text-green-500" />}
+                                                    </div>
                                                 )}
                                                 <button type="button" onClick={() => removeSubCaseta(idx, caseta.id)} className="text-red-400 hover:text-red-600 transition-colors">
                                                     <Trash2 size={18} />

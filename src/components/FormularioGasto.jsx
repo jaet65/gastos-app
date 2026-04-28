@@ -230,25 +230,31 @@ const FormularioGasto = () => {
       // LÓGICA DE CASETAS (Transporte)
       if (formData.categoria === 'Transporte' && casetas.length > 0) {
         for (const caseta of casetas) {
-          if (!caseta.monto || !caseta.archivo) continue;
+          if (!caseta.monto) continue;
 
-          try {
-            const fileDataCaseta = await subirACloudinary(caseta.archivo);
-            await addDoc(collection(db, "gastos"), {
-              fecha: formData.fecha,
-              concepto: `Caseta`,
-              monto: parseFloat(caseta.monto),
-              categoria: 'Transporte',
-              url_factura: fileDataCaseta.secure_url,
-              deleteToken: fileDataCaseta.delete_token,
-              creado_en: timestamp,
-              userId: user.uid,
-              idPadre: docRef.id // Vinculamos al gasto principal
-            });
-          } catch (uploadError) {
-            console.error("Error subiendo caseta:", uploadError);
-            alert(`Error al subir caseta: ${uploadError.message}`);
+          let fileDataCaseta = { secure_url: '', delete_token: '' };
+          if (caseta.archivo) {
+            try {
+              fileDataCaseta = await subirACloudinary(caseta.archivo);
+            } catch (uploadError) {
+              console.error("Error subiendo caseta:", uploadError);
+              alert(`Error al subir caseta: ${uploadError.message}`);
+              // Continuamos guardando el monto aunque falle la subida? 
+              // Por ahora seguiremos con la caseta sin factura si falla
+            }
           }
+
+          await addDoc(collection(db, "gastos"), {
+            fecha: formData.fecha,
+            concepto: `Caseta`,
+            monto: parseFloat(caseta.monto),
+            categoria: 'Transporte',
+            url_factura: fileDataCaseta.secure_url,
+            deleteToken: fileDataCaseta.delete_token,
+            creado_en: timestamp,
+            userId: user.uid,
+            idPadre: docRef.id // Vinculamos al gasto principal
+          });
         }
       }
 

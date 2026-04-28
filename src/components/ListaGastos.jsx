@@ -181,9 +181,12 @@ const ListaGastos = () => {
   };
 
   const abrirEdicion = (gasto) => {
-    const gastoPadre = gastos.find(g => g.idPropina === gasto.id);
-    // Si se hace clic en una propina, abre la edición del gasto padre
-    setGastoAEditar(gastoPadre || gasto);
+    // Caso 1: Es una propina (buscamos al padre que la contiene)
+    const gastoPadreDePropina = gastos.find(g => g.idPropina === gasto.id);
+    // Caso 2: Es una caseta (buscamos al padre vinculado por idPadre)
+    const gastoPadreDeCaseta = gasto.idPadre ? gastos.find(g => g.id === gasto.idPadre) : null;
+    
+    setGastoAEditar(gastoPadreDePropina || gastoPadreDeCaseta || gasto);
   };
 
   const subirReporteACloudinary = async (fileBlob, solicitudId, formato) => {
@@ -387,8 +390,15 @@ const ListaGastos = () => {
         if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
         if (fechaFinReporte && g.fecha > fechaFinReporte) return false;
         if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
-          const gastoPadre = gastos.find(padre => padre.idPropina === g.id);
-          return gastoPadre && gastoPadre.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase());
+          // Si es una propina, ver si el padre coincide
+          const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
+          if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
+          
+          // Si es una caseta, ver si el padre coincide
+          const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
+          if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
+
+          return false;
         }
         return true;
       });
@@ -919,10 +929,15 @@ const ListaGastos = () => {
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
       if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
-        // Si hay un término de búsqueda y el concepto no lo incluye, no lo muestres.
-        // Pero si este gasto es una propina, debemos verificar si el concepto del gasto padre lo incluye.
-        const gastoPadre = gastos.find(padre => padre.idPropina === g.id);
-        return gastoPadre && gastoPadre.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase());
+        // Propina -> buscar si el padre coincide
+        const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
+        if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
+
+        // Caseta -> buscar si el padre coincide
+        const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
+        if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
+
+        return false;
       }
       return true;
     });
@@ -1103,10 +1118,18 @@ const ListaGastos = () => {
                                   </div>
                                   <List className="mt-0 space-y-0">
                                     {items.map((gasto) => {
-                                      // No renderizar subgastos en el loop principal
-                                      if (gasto.idPadre) return null;
+                                      // Lógica de anidamiento:
+                                      // 1. Si es un gasto principal, se renderiza normal.
+                                      // 2. Si es un subgasto (idPadre), solo se renderiza como fila principal si su estado 
+                                      //    de factura (Con/Sin) es DISTINTO al de su padre.
+                                      const padreGasto = gasto.idPadre ? gastos.find(p => p.id === gasto.idPadre) : null;
+                                      if (gasto.idPadre) {
+                                        const mismoEstadoQuePadre = (!!gasto.url_factura === !!padreGasto?.url_factura);
+                                        if (mismoEstadoQuePadre) return null;
+                                      }
 
                                       const misCasetas = gastos.filter(g => g.idPadre === gasto.id);
+                                      const casetasVisibles = misCasetas.filter(c => !!c.url_factura === !!gasto.url_factura);
 
                                       return (
                                         <div key={gasto.id} className="border-b border-slate-100 last:border-0">
@@ -1119,7 +1142,9 @@ const ListaGastos = () => {
                                                     <Archive size={12} strokeWidth={2.5} />
                                                   </div>
                                                 )}
-                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>{gasto.concepto}</Text>
+                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>
+                                                  {gasto.idPadre ? `Caseta de: ${padreGasto?.concepto || 'Gasto Eliminado'}` : gasto.concepto}
+                                                </Text>
                                                 {gasto.idPropina && (
                                                   <div className="bg-transparent text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
                                                     <Coins size={10} strokeWidth={2.5} />
@@ -1132,7 +1157,7 @@ const ListaGastos = () => {
 
                                               <div className="col-span-3 text-right">
                                                 <Text className="font-mono font-bold text-slate-900 text-sm">
-                                                  {formatoMoneda(parseFloat(gasto.monto) + misCasetas.reduce((acc, c) => acc + parseFloat(c.monto), 0))}
+                                                  {formatoMoneda(parseFloat(gasto.monto))}
                                                 </Text>
                                               </div>
 
@@ -1159,18 +1184,32 @@ const ListaGastos = () => {
                                             </div>
                                           </ListItem>
 
-                                          {/* Facturas de Casetas (Debajo) */}
-                                          {misCasetas.length > 0 && misCasetas.some(c => c.url_factura) && (
-                                            <div className="flex flex-wrap gap-2 ml-10 mb-2 mt-0.5">
-                                              {misCasetas.map((caseta, idx) => caseta.url_factura && (
-                                                <a key={caseta.id} href={caseta.url_factura} target="_blank" rel="noreferrer"
-                                                  className="flex items-center gap-1.5 text-[9px] bg-blue-50/50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors">
-                                                  <FileText size={12} />
-                                                  <span className="font-black uppercase">Factura Caseta {idx + 1}</span>
-                                                </a>
-                                              ))}
-                                            </div>
-                                          )}
+                                           {/* Desglose de Casetas (Solo las que coinciden con el estado actual de factura) */}
+                                           {casetasVisibles.length > 0 && (
+                                             <div className="ml-10 mb-2 mt-0.5 space-y-1">
+                                               {casetasVisibles.map((caseta, idx) => (
+                                                 <div key={caseta.id} className="flex items-center justify-between pr-4 bg-slate-50/30 py-0.5 px-2 rounded border border-slate-100/50">
+                                                   <div className="flex items-center gap-3">
+                                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Caseta {idx + 1}</span>
+                                                     {caseta.url_factura && (
+                                                       <a href={caseta.url_factura} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center gap-1.5 no-underline">
+                                                         <FileText size={12} />
+                                                         <span className="text-[9px] font-black uppercase">Ver Factura</span>
+                                                       </a>
+                                                     )}
+                                                   </div>
+                                                   <span className="text-[10px] font-mono font-bold text-slate-600">{formatoMoneda(caseta.monto)}</span>
+                                                 </div>
+                                               ))}
+                                               {/* Fila de Total de este Gasto + sus Casetas del mismo estado */}
+                                               <div className="flex items-center justify-between pr-4 bg-blue-50/50 py-1 px-2 rounded border border-blue-100/50 mt-1">
+                                                 <span className="text-[10px] font-black text-blue-700 uppercase">Total con Casetas</span>
+                                                 <span className="text-[10px] font-mono font-black text-blue-800">
+                                                   {formatoMoneda(parseFloat(gasto.monto) + casetasVisibles.reduce((acc, c) => acc + parseFloat(c.monto), 0))}
+                                                 </span>
+                                               </div>
+                                             </div>
+                                           )}
                                         </div>
                                       );
                                     })}
