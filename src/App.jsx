@@ -3,19 +3,34 @@ import ListaGastos from './components/ListaGastos';
 import ListaSolicitudes from './components/ListaSolicitudes';
 import ListaUsuarios from './components/ListaUsuarios';
 import Login from './components/Login';
-import { LayoutDashboard, Menu, X, LogOut } from 'lucide-react';
-import { useState } from 'react';
+import { LayoutDashboard, Menu, X, LogOut, Bell } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
 import { Badge } from "@tremor/react";
+import { db } from './firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 function App() {
   const { user, userData, logout, loading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('gastos');
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
+  const [pendingSolicitudes, setPendingSolicitudes] = useState(0);
 
   const isAdmin = userData?.role === 'admin';
+
+  useEffect(() => {
+    if (!user) return;
+    const targetUid = adminSelectedUser?.uid || user.uid;
+    const q = query(
+      collection(db, "solicitudes"),
+      where("userId", "==", targetUid),
+      where("estado", "==", "Esperando...")
+    );
+    const unsub = onSnapshot(q, (snap) => setPendingSolicitudes(snap.size));
+    return () => unsub();
+  }, [user, adminSelectedUser]);
 
   // Handlers para abrir el sidebar (swipe a la derecha en el contenido principal)
   const openHandlers = useSwipeable({
@@ -132,7 +147,7 @@ function App() {
 
           <div className="flex border-b border-slate-200 mb-4">
             <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => setActiveTab('gastos')} />
-            <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => setActiveTab('solicitudes')} />
+            <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { setActiveTab('solicitudes'); }} badge={pendingSolicitudes} />
             {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => setActiveTab('usuarios')} />}
           </div>
 
@@ -150,9 +165,17 @@ function App() {
   );
 }
 
-const TabButton = ({ label, isActive, onClick }) => (
-  <button onClick={onClick} className={`px-4 py-2 text-sm font-bold transition-colors ${isActive ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
+const TabButton = ({ label, isActive, onClick, badge = 0 }) => (
+  <button onClick={onClick} className={`relative px-4 py-2 text-sm font-bold transition-colors ${isActive ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
     {label}
+    {badge > 0 && (
+      <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 items-center justify-center">
+          <span className="text-white text-[9px] font-black leading-none">{badge > 9 ? '9+' : badge}</span>
+        </span>
+      </span>
+    )}
   </button>
 );
 
