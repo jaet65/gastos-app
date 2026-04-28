@@ -1,17 +1,16 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { db } from '../firebase'; import { CLOUD_NAME } from './config';
 import { useAuth } from './AuthContext';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
 import EditGastoModal from './EditGastoModal';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs'; import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { differenceInCalendarDays } from 'date-fns';
-import { format as formatDateTZ } from 'date-fns-tz';
 import {
   Card,
   Title,
@@ -65,7 +64,7 @@ const ListaGastos = () => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const eliminarGasto = async (id, idPropina) => {
     if (confirm("¿Borrar este registro?")) {
@@ -185,7 +184,7 @@ const ListaGastos = () => {
     const gastoPadreDePropina = gastos.find(g => g.idPropina === gasto.id);
     // Caso 2: Es una caseta (buscamos al padre vinculado por idPadre)
     const gastoPadreDeCaseta = gasto.idPadre ? gastos.find(g => g.id === gasto.idPadre) : null;
-    
+
     setGastoAEditar(gastoPadreDePropina || gastoPadreDeCaseta || gasto);
   };
 
@@ -193,7 +192,6 @@ const ListaGastos = () => {
     const CLOUD_NAME = "didj7kuah";
     const UPLOAD_PRESET = "Gastos_Reportes";
 
-    const fileExtension = formato === 'excel' ? 'xlsx' : 'pdf';
     const mimeType = formato === 'excel'
       ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       : 'application/pdf';
@@ -227,7 +225,7 @@ const ListaGastos = () => {
   const generarPdfSolicitudCero = async (fInicio, fFin) => {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage();
-    const { width, height } = page.getSize();
+    const { height } = page.getSize();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const margin = 50;
@@ -239,7 +237,7 @@ const ListaGastos = () => {
       const logoImage = await pdfDoc.embedPng(logoImageBytes);
       const logoDims = logoImage.scale(0.05);
       page.drawImage(logoImage, { x: margin, y: height - margin - logoDims.height, width: logoDims.width, height: logoDims.height });
-    } catch (e) { console.warn("Logo no cargado"); }
+    } catch { console.warn("Logo no cargado"); }
 
     page.drawText('Solicitud de Recursos', { x: margin, y: height - margin - 100, font: boldFont, size: 24 });
     let y = height - margin - 140;
@@ -343,7 +341,6 @@ const ListaGastos = () => {
 
   const handleUnarchiveVisible = async () => {
     const archivedVisibleGastos = [];
-    // Aplanar dataAgrupada para obtener todos los elementos archivados visibles
     Object.values(dataAgrupada).forEach(estado => {
       Object.values(estado.categorias).forEach(cat => {
         Object.values(cat.fechas).forEach(items => {
@@ -384,17 +381,13 @@ const ListaGastos = () => {
   const generarReporte = async (fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
     setReporteGenerandose(true);
     try {
-      // 1. Filtrar todos los gastos según los filtros actuales (no solo los que tienen factura)
-      // Usaremos dataAgrupada que ya tiene los filtros y la agrupación aplicados.
       const gastosFiltrados = gastos.filter(g => {
         if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
         if (fechaFinReporte && g.fecha > fechaFinReporte) return false;
         if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
-          // Si es una propina, ver si el padre coincide
           const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
           if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
-          
-          // Si es una caseta, ver si el padre coincide
+
           const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
           if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
 
@@ -405,31 +398,26 @@ const ListaGastos = () => {
 
       if (gastosFiltrados.length === 0) {
         alert("No hay gastos en el periodo seleccionado para generar un reporte.");
-        return; // No es necesario cambiar el estado aquí, se hace en el finally
+        return;
       }
 
       const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
       const baseFileName = `Comprobacion gastos ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
 
-      // 2. Generar ambos reportes y obtener sus blobs
       const [excelBlob, pdfBlob] = await Promise.all([
         generarReporteExcel(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada),
         generarReportePdf(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada)
       ]);
 
-      // 3. Crear el archivo ZIP
       const zip = new JSZip();
       zip.file(`${baseFileName}.xlsx`, excelBlob);
       zip.file(`${baseFileName}.pdf`, pdfBlob);
 
       const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
 
-      // 4. Descargar el ZIP
       saveAs(zipBlob, `${baseFileName}.zip`);
 
-      // 5. Subir a Cloudinary si hay solicitud
       if (solicitudVinculada) {
-        // Calcular resumen financiero para guardar en la solicitud
         const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
         const sumaSinFactura = gastosFiltrados.filter(g => !g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
         const importeRecibido = solicitudVinculada.totalSolicitado || 0;
@@ -450,7 +438,6 @@ const ListaGastos = () => {
         });
       }
 
-      // Marcar gastos como archivados
       const updates = gastosFiltrados.map(gasto => updateDoc(doc(db, "gastos", gasto.id), { archivado: true }));
       await Promise.all(updates); alert("Reporte generado y gastos marcados como archivados.");
     } catch (error) {
@@ -465,27 +452,23 @@ const ListaGastos = () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Reporte de Gastos');
 
-    // --- 1. Añadir Imagen ---
     try {
-      const logoUrl = '/CECAI.png'; // Asegúrate que este archivo exista en tu carpeta /public
+      const logoUrl = '/CECAI.png';
       const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
       const logoImageId = workbook.addImage({
         buffer: logoImageBytes,
         extension: 'png',
       });
-      // Colocar la imagen en la celda A1, ajustando su tamaño
       worksheet.addImage(logoImageId, {
         tl: { col: 0, row: 0 },
-        ext: { width: 100, height: 40 } // Ajusta el tamaño como necesites
+        ext: { width: 100, height: 40 }
       });
-    } catch (error) {
-      console.warn("No se pudo cargar el logo 'CECAI.png'. El reporte se generará sin él.");
+    } catch {
+      console.warn("No se pudo cargar el logo 'CECAI.png'.");
     }
-    worksheet.getRow(1).height = 35; // Aumentar altura de la primera fila
+    worksheet.getRow(1).height = 35;
 
-    // --- 2. Sección de Resumen ---
     const titleStyle = { font: { bold: true, size: 16 } };
-
     const resumenTitleCell = worksheet.getCell('A3');
     resumenTitleCell.value = "Resumen de Gastos";
     resumenTitleCell.style = titleStyle;
@@ -504,7 +487,6 @@ const ListaGastos = () => {
     worksheet.getCell(`B${currentRow}`).value = `${fechaInicioReporte || 'N/A'} al ${fechaFinReporte || 'N/A'}`;
     currentRow += 2;
 
-    // Detalle Financiero
     const detalleTitleCell = worksheet.getCell(`A${currentRow}`);
     detalleTitleCell.value = "Detalle Financiero";
     detalleTitleCell.style = titleStyle;
@@ -538,7 +520,6 @@ const ListaGastos = () => {
     addFinancialRow(sumaFacturado > importeRecibido ? "<< Por reintegrar desde CECAI" : ">> Por reintegrar a CECAI", sumaFacturado > importeRecibido ? porReembolsar : porReintegrar);
     currentRow += 2;
 
-    // --- 3. Sección de Detalle de Gastos ---
     const detalleGastosTitle = worksheet.getCell(`A${currentRow}`);
     detalleGastosTitle.value = "Detalle de Gastos";
     detalleGastosTitle.style = titleStyle;
@@ -589,7 +570,6 @@ const ListaGastos = () => {
         currentRow++;
       });
 
-      // Añadir fila de subtotal
       const subtotalRow = worksheet.getRow(currentRow);
       subtotalRow.getCell(3).value = "Subtotal:";
       subtotalRow.getCell(3).font = { bold: true };
@@ -599,13 +579,12 @@ const ListaGastos = () => {
       subtotalCell.value = { formula: `SUM(D${startRowForSubtotal}:D${currentRow - 1})` };
       subtotalCell.numFmt = '$#,##0.00';
       subtotalCell.font = { bold: true };
-      currentRow++; // Espacio después de la sección
+      currentRow++;
     };
 
     addGastosSection('Gastos con Factura', gastosConFactura, 'E9F5EC');
     addGastosSection('Gastos sin Factura', gastosSinFactura, 'FEF3E7');
 
-    // --- 4. Ajustar anchos de columna ---
     worksheet.columns = [
       { key: 'A', width: 15 },
       { key: 'B', width: 15 },
@@ -614,7 +593,6 @@ const ListaGastos = () => {
       { key: 'E', width: 50 },
     ];
 
-    // --- 5. Generar el buffer del archivo ---
     const buffer = await workbook.xlsx.writeBuffer();
     return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   };
@@ -625,13 +603,11 @@ const ListaGastos = () => {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const margin = 50;
 
-    // Variables para controlar la página actual y la posición Y
     let page;
     let y;
     let width;
     let height;
 
-    // Si hay una solicitud vinculada, adjuntar su PDF primero
     if (solicitudVinculada) {
       try {
         const solicitudPdfBytes = await fetch(solicitudVinculada.url_pdf_solicitud).then(res => res.arrayBuffer());
@@ -644,7 +620,6 @@ const ListaGastos = () => {
       }
     }
 
-    // Calcular valores para la portada de resumen
     const sumaFacturado = gastosFiltrados
       .filter(g => g.url_factura)
       .reduce((sum, g) => sum + parseFloat(g.monto), 0);
@@ -663,12 +638,10 @@ const ListaGastos = () => {
       porReintegrar = importeRecibido - sumaFacturado;
     }
 
-    // --- Portada de Resumen Financiero (se genera siempre) ---
     page = pdfDoc.addPage();
     ({ width, height } = page.getSize());
     let currentY = height - margin;
 
-    // Encabezado con logo
     try {
       const logoUrl = '/CECAI.png';
       const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
@@ -680,12 +653,11 @@ const ListaGastos = () => {
         width: logoDims.width,
         height: logoDims.height,
       });
-    } catch (error) {
-      console.warn("No se pudo cargar el logo 'CECAI.png' desde la carpeta /public.");
+    } catch {
+      console.warn("No se pudo cargar el logo 'CECAI.png'.");
     }
     currentY -= 100;
 
-    // Título y detalles de la portada
     page.drawText('Resumen de Gastos', { x: margin, y: currentY, font: boldFont, size: 24, color: rgb(0, 0, 0) });
     currentY -= 40;
 
@@ -701,9 +673,7 @@ const ListaGastos = () => {
     page.drawText('Detalle Financiero:', { x: margin, y: currentY, font: boldFont, size: 16 });
     currentY -= 30;
 
-    // --- Campos del detalle financiero ---
     if (solicitudVinculada) {
-      // Importe recibido
       const importeRecibidoTexto = formatoMoneda(importeRecibido);
       const importeRecibidoAncho = boldFont.widthOfTextAtSize(importeRecibidoTexto, 12);
       page.drawText('Importe recibido:', { x: margin, y: currentY, font: font, size: 12 });
@@ -711,14 +681,12 @@ const ListaGastos = () => {
       currentY -= 20;
     }
 
-    // Suma Facturado
     const sumaFacturadoTexto = formatoMoneda(sumaFacturado);
     const sumaFacturadoAncho = boldFont.widthOfTextAtSize(sumaFacturadoTexto, 12);
     page.drawText('Suma Facturado:', { x: margin, y: currentY, font: font, size: 12 });
     page.drawText(sumaFacturadoTexto, { x: width - margin - sumaFacturadoAncho, y: currentY, font: boldFont, size: 12 });
     currentY -= 20;
 
-    // Suma Sin Factura
     const sumaSinFacturaTexto = formatoMoneda(sumaSinFactura);
     const sumaSinFacturaAncho = boldFont.widthOfTextAtSize(sumaSinFacturaTexto, 12);
     page.drawText('<< Suma sin factura:', { x: margin, y: currentY, font: font, size: 12 });
@@ -726,7 +694,6 @@ const ListaGastos = () => {
     currentY -= 30;
 
     if (solicitudVinculada) {
-      // Por reembolsar / Por reintegrar
       if (sumaFacturado > importeRecibido) {
         const porReembolsarTexto = formatoMoneda(porReembolsar);
         const porReembolsarAncho = boldFont.widthOfTextAtSize(porReembolsarTexto, 12);
@@ -750,23 +717,19 @@ const ListaGastos = () => {
       return false;
     };
 
-    // --- 2. Crear la página de listado de gastos ---
     page = pdfDoc.addPage();
     ({ width, height } = page.getSize());
     y = height - margin;
 
-    // Título
     page.drawText('Reporte de Gastos', { x: margin, y, font: boldFont, size: 24, color: rgb(0, 0, 0) });
     y -= 30;
 
-    // Rango de fechas
     const rangoFechas = (fechaInicioReporte || fechaFinReporte)
       ? `Periodo: ${formatearFecha(fechaInicioReporte) || 'N/A'} a ${formatearFecha(fechaFinReporte) || 'N/A'}`
       : 'Periodo: Todos los gastos';
     page.drawText(rangoFechas, { x: margin, y, font, size: 12, color: rgb(0.3, 0.3, 0.3) });
     y -= 40;
 
-    // Agrupar los datos filtrados para el reporte
     const dataAgrupadaReporte = gastosFiltrados.reduce((acc, gasto) => {
       const estado = gasto.url_factura ? 'Con Factura' : 'Sin Factura';
       const categoria = gasto.categoria || 'Otros';
@@ -784,7 +747,6 @@ const ListaGastos = () => {
     }, {});
 
 
-    // --- Iterar sobre la estructura agrupada y ordenada ---
     const sortedEstados = Object.entries(dataAgrupadaReporte).sort(([estadoA], [estadoB]) => {
       if (estadoA === 'Con Factura') return -1;
       if (estadoB === 'Con Factura') return 1;
@@ -796,7 +758,6 @@ const ListaGastos = () => {
       const isFactura = estado === 'Con Factura';
       const subtotalTexto = formatoMoneda(datosEstado.totalEstado);
       const subtotalAncho = boldFont.widthOfTextAtSize(subtotalTexto, 16);
-      // Dibuja el título del estado a la izquierda y su subtotal a la derecha, en la misma línea.
       page.drawText(estado, { x: margin, y, font: boldFont, size: 16, color: isFactura ? rgb(0.05, 0.4, 0.11) : rgb(0.72, 0.38, 0.02) });
       page.drawText(subtotalTexto, { x: width - margin - subtotalAncho, y, font: boldFont, size: 16, color: isFactura ? rgb(0.05, 0.4, 0.11) : rgb(0.72, 0.38, 0.02) });
 
@@ -829,16 +790,14 @@ const ListaGastos = () => {
             y -= 15;
           }
         }
-        y -= 10; // Espacio entre categorías
+        y -= 10;
       }
-      y -= 15; // Espacio entre estados (Con/Sin Factura)
+      y -= 15;
     }
 
-    // --- Total General ---
     checkPageBreak();
     y -= 10;
 
-    // Total
     const totalGeneral = Object.values(dataAgrupadaReporte).reduce((sum, e) => sum + e.totalEstado, 0);
     const totalTexto = formatoMoneda(totalGeneral);
     const totalAncho = boldFont.widthOfTextAtSize(totalTexto, 14);
@@ -846,42 +805,36 @@ const ListaGastos = () => {
     page.drawText('TOTAL GENERAL:', { x: margin, y: y - 5, font: boldFont, size: 14 });
     page.drawText(totalTexto, { x: width - margin - totalAncho, y: y - 5, font: boldFont, size: 14 });
 
-    // --- 3. Adjuntar los PDFs de las facturas ---
     const gastosConFactura = gastosFiltrados
-      .filter(g => g.url_factura) // Solo los que tienen factura
+      .filter(g => g.url_factura)
       .sort((a, b) => {
-        // Ordenar por categoría primero
         const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
         const categoriaA = order[a.categoria] || 99;
         const categoriaB = order[b.categoria] || 99;
         if (categoriaA !== categoriaB) {
           return categoriaA - categoriaB;
         }
-        // Si la categoría es la misma, ordenar por fecha
         return a.fecha.localeCompare(b.fecha);
       });
 
 
     if (gastosConFactura.length > 0) {
-      // Añadir una página de índice para las facturas
       page = pdfDoc.addPage();
-      y = height - margin; // Resetear 'y' para la nueva página
+      y = height - margin;
 
       page.drawText('Índice de Facturas Adjuntas', {
         x: margin, y, font: boldFont, size: 24, color: rgb(0, 0, 0)
       });
       y -= 40;
 
-      // Cabeceras del índice
       page.drawText('Concepto del Gasto', { x: margin, y, font: boldFont, size: 10 });
       page.drawText('Fecha', { x: width - margin - 100, y, font: boldFont, size: 10 });
       y -= 15;
       page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
       y -= 20;
 
-      // Listar cada factura en el índice
       for (const gasto of gastosConFactura) {
-        checkPageBreak(); // Comprobar si se necesita una nueva página para el índice
+        checkPageBreak();
         page.drawText(gasto.concepto.substring(0, 70), { x: margin, y, font, size: 10 });
         page.drawText(formatearFecha(gasto.fecha), { x: width - margin - 100, y, font, size: 10 });
         y -= 20;
@@ -900,7 +853,6 @@ const ListaGastos = () => {
       }
     }
 
-    // 4. Guardar y descargar el archivo final
     const pdfBytes = await pdfDoc.save();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     return blob;
@@ -922,18 +874,15 @@ const ListaGastos = () => {
 
   const dataAgrupada = useMemo(() => {
     const filtrados = gastos.filter(g => {
-      // Ocultar archivados si el toggle no está activo
       if (!mostrarArchivados && g.archivado) {
         return false;
       }
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
       if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
-        // Propina -> buscar si el padre coincide
         const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
         if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
 
-        // Caseta -> buscar si el padre coincide
         const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
         if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
 
@@ -965,10 +914,8 @@ const ListaGastos = () => {
 
   return (
     <div className="space-y-4 relative">
-      {/* CONTENEDOR DE FILTROS FIJO */}
       <div className="sticky top-0 z-10 bg-slate-100 pt-1 pb-4 -mt-4 -mx-4 px-4 border-b border-slate-200">
         <div className="space-y-3">
-          {/* 2. FILTROS */}
           <div className="flex gap-2 items-center">
             <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
               <Calendar size={14} className="text-gray-400 ml-1" />
@@ -984,7 +931,7 @@ const ListaGastos = () => {
                 : <Archive size={16} />
               }
             </button>
-            {mostrarArchivados && gastos.some(g => g.archivado) && ( // Solo mostrar si se están viendo archivados y hay al menos un gasto archivado en la lista general
+            {mostrarArchivados && gastos.some(g => g.archivado) && (
               <button onClick={handleUnarchiveVisible} disabled={isUnarchiving} className="flex items-center gap-1 p-2 rounded-full border transition-all shadow-sm flex-shrink-0 bg-yellow-100 border-yellow-200 text-yellow-700 hover:bg-yellow-200" title="Desarchivar todos los visibles">
                 {isUnarchiving ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
                 <span className="text-xs font-bold">Desarchivar</span>
@@ -996,7 +943,6 @@ const ListaGastos = () => {
               </button>
             )}
           </div>
-          {/* Campo de búsqueda */}
           <div className="bg-white p-2 rounded-full border border-gray-200 flex items-center gap-2 flex-1 shadow-sm">
             <Search size={14} className="text-gray-400 ml-1" />
             <input
@@ -1007,7 +953,6 @@ const ListaGastos = () => {
               className="border-none bg-transparent w-full text-xs outline-none text-gray-600"
             />
           </div>
-          {/* Botón para generar reporte */}
           <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
             <FileDown size={16} />
             <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Generar Reporte'}</span>
@@ -1015,7 +960,6 @@ const ListaGastos = () => {
         </div>
       </div>
 
-      {/* 1. TOTAL GENERAL */}
       <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0 mt-4">
         <Flex justifyContent="between" alignItems="center">
           <Text>Total Periodo</Text>
@@ -1025,7 +969,6 @@ const ListaGastos = () => {
         </Flex>
       </Card>
 
-      {/* RENDERIZADO DEL MODAL */}
       {gastoAEditar && (
         <EditGastoModal
           gasto={gastoAEditar}
@@ -1051,17 +994,15 @@ const ListaGastos = () => {
         />
       )}
 
-      {/* 3. LISTADO */}
       {Object.entries(dataAgrupada)
         .sort(([estadoA], [estadoB]) => {
-          // Ordena para que "Con Factura" siempre aparezca primero
           if (estadoA === 'Con Factura') return -1;
           if (estadoB === 'Con Factura') return 1;
           return 0;
         })
         .map(([estado, datosEstado]) => {
           const isFactura = estado === 'Con Factura';
-          const colorEstado = isFactura ? 'transparent' : 'transparent';
+          const colorEstado = 'transparent';
           const IconoEstado = isFactura ? FileCheck : AlertTriangle;
 
           return (
@@ -1081,13 +1022,12 @@ const ListaGastos = () => {
               <div className="p-4 space-y-4">
                 {Object.entries(datosEstado.categorias)
                   .sort(([catA], [catB]) => {
-                    // Ordena las categorías según el orden especificado
                     const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
                     return (order[catA] || 99) - (order[catB] || 99);
                   })
                   .map(([nombreCategoria, datosCategoria], indexCat) => {
 
-                    const { color, icon: CatIcon } = getCategoryDetails(nombreCategoria);
+                    const { icon: CatIcon } = getCategoryDetails(nombreCategoria);
                     const fechasOrdenadas = Object.keys(datosCategoria.fechas).sort((a, b) => new Date(a) - new Date(b));
 
                     return (
@@ -1118,10 +1058,6 @@ const ListaGastos = () => {
                                   </div>
                                   <List className="mt-0 space-y-0">
                                     {items.map((gasto) => {
-                                      // Lógica de anidamiento:
-                                      // 1. Si es un gasto principal, se renderiza normal.
-                                      // 2. Si es un subgasto (idPadre), solo se renderiza como fila principal si su estado 
-                                      //    de factura (Con/Sin) es DISTINTO al de su padre.
                                       const padreGasto = gasto.idPadre ? gastos.find(p => p.id === gasto.idPadre) : null;
                                       if (gasto.idPadre) {
                                         const mismoEstadoQuePadre = (!!gasto.url_factura === !!padreGasto?.url_factura);
@@ -1184,32 +1120,32 @@ const ListaGastos = () => {
                                             </div>
                                           </ListItem>
 
-                                           {/* Desglose de Casetas (Solo las que coinciden con el estado actual de factura) */}
-                                           {casetasVisibles.length > 0 && (
-                                             <div className="ml-10 mb-2 mt-0.5 space-y-1">
-                                               {casetasVisibles.map((caseta, idx) => (
-                                                 <div key={caseta.id} className="flex items-center justify-between pr-4 bg-slate-50/30 py-0.5 px-2 rounded border border-slate-100/50">
-                                                   <div className="flex items-center gap-3">
-                                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Caseta {idx + 1}</span>
-                                                     {caseta.url_factura && (
-                                                       <a href={caseta.url_factura} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center gap-1.5 no-underline">
-                                                         <FileText size={12} />
-                                                         <span className="text-[9px] font-black uppercase">Ver Factura</span>
-                                                       </a>
-                                                     )}
-                                                   </div>
-                                                   <span className="text-[10px] font-mono font-bold text-slate-600">{formatoMoneda(caseta.monto)}</span>
-                                                 </div>
-                                               ))}
-                                               {/* Fila de Total de este Gasto + sus Casetas del mismo estado */}
-                                               <div className="flex items-center justify-between pr-4 bg-blue-50/50 py-1 px-2 rounded border border-blue-100/50 mt-1">
-                                                 <span className="text-[10px] font-black text-blue-700 uppercase">Total con Casetas</span>
-                                                 <span className="text-[10px] font-mono font-black text-blue-800">
-                                                   {formatoMoneda(parseFloat(gasto.monto) + casetasVisibles.reduce((acc, c) => acc + parseFloat(c.monto), 0))}
-                                                 </span>
-                                               </div>
-                                             </div>
-                                           )}
+                                          {/* Desglose de Casetas (Solo las que coinciden con el estado actual de factura) */}
+                                          {casetasVisibles.length > 0 && (
+                                            <div className="ml-10 mb-2 mt-0.5 space-y-1">
+                                              {casetasVisibles.map((caseta, idx) => (
+                                                <div key={caseta.id} className="flex items-center justify-between pr-4 bg-slate-50/30 py-0.5 px-2 rounded border border-slate-100/50">
+                                                  <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Caseta {idx + 1}</span>
+                                                    {caseta.url_factura && (
+                                                      <a href={caseta.url_factura} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center gap-1.5 no-underline">
+                                                        <FileText size={12} />
+                                                        <span className="text-[9px] font-black uppercase">Ver Factura</span>
+                                                      </a>
+                                                    )}
+                                                  </div>
+                                                  <span className="text-[10px] font-mono font-bold text-slate-600">{formatoMoneda(caseta.monto)}</span>
+                                                </div>
+                                              ))}
+                                              {/* Fila de Total de este Gasto + sus Casetas del mismo estado */}
+                                              <div className="flex items-center justify-between pr-4 bg-blue-50/50 py-1 px-2 rounded border border-blue-100/50 mt-1">
+                                                <span className="text-[10px] font-black text-yellow-700 uppercase">Total con Casetas</span>
+                                                <span className="text-[14px] font-mono font-black text-yellow-700">
+                                                  {formatoMoneda(parseFloat(gasto.monto) + casetasVisibles.reduce((acc, c) => acc + parseFloat(c.monto), 0))}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}

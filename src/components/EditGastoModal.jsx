@@ -113,7 +113,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                 }
             }
             else if (seQuitoFactura && urlOriginal && tokenABorrar) {
-                try { await eliminarArchivoCloudinary(tokenABorrar); } catch (e) { }
+                try { await eliminarArchivoCloudinary(tokenABorrar); } catch { /* ignore */ }
             }
 
             // 2. Manejar casetas (Altas y Bajas)

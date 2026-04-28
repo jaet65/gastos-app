@@ -7,7 +7,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 
 // InputGroup: Bloque plano sin bordes
-const InputGroup = ({ icon: Icon, children }) => (
+const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
   <div className="flex items-center bg-white/50 transition-all overflow-hidden h-18 hover:bg-white/80 focus-within:bg-white backdrop-blur-md">
     <div className="pl-8 text-slate-400">
       <Icon size={16} strokeWidth={2.5} />
