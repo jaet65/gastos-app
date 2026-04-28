@@ -20,6 +20,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user && !user.email.endsWith('@corporativomaf.com')) {
+        await signOut(auth);
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+        return;
+      }
+
       setUser(user);
       if (user) {
         // Verificar/Crear perfil en Firestore
@@ -54,7 +62,12 @@ export const AuthProvider = ({ children }) => {
 
   const login = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider);
+    
+    if (result.user && !result.user.email.endsWith('@corporativomaf.com')) {
+      await signOut(auth);
+      throw new Error('Acceso restringido: Solo se permiten correos de @corporativomaf.com');
+    }
   };
 
   const logout = () => {
