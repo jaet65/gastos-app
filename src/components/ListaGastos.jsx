@@ -58,7 +58,8 @@ const ListaGastos = () => {
     const q = query(
       collection(db, "gastos"),
       where("userId", "==", user.uid),
-      orderBy("creado_en", "desc")
+      orderBy("fecha", "asc"),
+      orderBy("creado_en", "asc")
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -984,11 +985,11 @@ const ListaGastos = () => {
         </div>
       </div>
 
-        {/* 0. RESUMEN ESTADÍSTICO POR CATEGORÍA */}
+      {/* 0. RESUMEN ESTADÍSTICO POR CATEGORÍA */}
       {statsCategorias.length > 0 && (
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
           {statsCategorias.map((stat) => (
-            <div key={stat.categoria} className="flex-shrink-0 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white/50 shadow-sm min-w-[140px] flex flex-col gap-1">
+            <div key={stat.categoria} className="flex-shrink-0 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white/50 shadow-sm min-w-[100px] flex flex-col gap-1">
               <div className="flex items-center gap-2 mb-1">
                 <stat.details.icon size={14} className="text-slate-400" />
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{stat.categoria}</span>
