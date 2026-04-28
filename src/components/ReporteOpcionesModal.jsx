@@ -4,10 +4,11 @@ import { db } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { X, Calendar, Link as LinkIcon, ChevronRight } from 'lucide-react';
 
-const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud }) => {
-    const [view, setView] = useState('initial'); // 'initial' | 'seleccionarSolicitud'
+const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud, onGenerarReporteMAF }) => {
+    const [view, setView] = useState('initial'); // 'initial' | 'seleccionarSolicitud' | 'pedirMontoMAF'
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [montoMAF, setMontoMAF] = useState('');
 
     useEffect(() => {
         if (view === 'seleccionarSolicitud') {
@@ -47,6 +48,12 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
         onClose();
     }
 
+    const handleGenerarMAF = (e) => {
+        e.preventDefault();
+        onGenerarReporteMAF(parseFloat(montoMAF) || 0);
+        onClose();
+    }
+
     return createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative border border-slate-200">
@@ -74,6 +81,23 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                             </div>
                             <ChevronRight size={20} className="text-slate-400" />
                         </button>
+
+                        <div className="relative py-2">
+                            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                                <div className="w-full border-t border-slate-200"></div>
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-white px-2 text-slate-400 font-bold">Reporte Especial</span>
+                            </div>
+                        </div>
+
+                        <button onClick={() => handleSetView('pedirMontoMAF')} className="w-full flex items-center justify-between text-left p-4 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-colors">
+                            <div>
+                                <p className="font-bold text-orange-800 flex items-center gap-2">Reporte MAF</p>
+                                <p className="text-xs text-orange-600">Genera reporte con branding de MAF y solo gastos MAF.</p>
+                            </div>
+                            <ChevronRight size={20} className="text-orange-400" />
+                        </button>
                     </div>
                 )}
 
@@ -95,6 +119,31 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                             </div>
                         )}
                     </div>
+                )}
+
+                {view === 'pedirMontoMAF' && (
+                    <form onSubmit={handleGenerarMAF}>
+                        <button type="button" onClick={() => handleSetView('initial')} className="text-xs font-bold text-blue-600 mb-4">← Volver</button>
+                        <h4 className="font-bold text-slate-800 mb-4">Monto Recibido para MAF</h4>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Importe Recibido</label>
+                                <input 
+                                    type="number" 
+                                    step="0.01"
+                                    min="0"
+                                    autoFocus
+                                    value={montoMAF} 
+                                    onChange={(e) => setMontoMAF(e.target.value)} 
+                                    placeholder="0.00"
+                                    className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-orange-600 focus:ring-1 focus:ring-orange-600 transition-all outline-none" 
+                                />
+                            </div>
+                            <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-full transition-all shadow-lg shadow-orange-100">
+                                Generar Reporte MAF
+                            </button>
+                        </div>
+                    </form>
                 )}
             </div>
         </div>,

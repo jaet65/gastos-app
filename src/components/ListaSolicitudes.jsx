@@ -166,7 +166,7 @@ const ListaSolicitudes = ({ adminViewUid = null }) => {
                             <div className="truncate">
                                 <Flex alignItems='center' className='gap-2 mb-2'>
                                     <Briefcase size={14} className='text-slate-500' />
-                                    <Title>{solicitud.proyecto}</Title>
+                                    <Title>{`Rally TrackSIM - ${solicitud.esMAF ? 'MAF' : 'CECAI'}`}</Title>
                                 </Flex>
                                 <Flex alignItems='center' className='gap-2'>
                                     <User size={14} className='text-slate-500' />
@@ -178,14 +178,16 @@ const ListaSolicitudes = ({ adminViewUid = null }) => {
                                 </Flex>
                             </div>
                             <div className="flex flex-col items-end">
-                                <button
-                                    onClick={() => descargarPdf(solicitud.url_pdf_solicitud, solicitud.nombre_archivo)}
-                                    className="flex items-center gap-1 p-2 text-slate-500 hover:text-blue-600 transition-colors"
-                                    title="Descargar PDF de la solicitud"
-                                >
-                                    <FileText size={16} />
-                                    <span className="text-xs font-bold">Solicitud</span>
-                                </button>
+                                {solicitud.url_pdf_solicitud && (
+                                    <button
+                                        onClick={() => descargarPdf(solicitud.url_pdf_solicitud, solicitud.nombre_archivo)}
+                                        className="flex items-center gap-1 p-2 text-slate-500 hover:text-blue-600 transition-colors"
+                                        title="Descargar PDF de la solicitud"
+                                    >
+                                        <FileText size={16} />
+                                        <span className="text-xs font-bold">Solicitud</span>
+                                    </button>
+                                )}
                                 {solicitud.url_reporte_gastos && (
                                     <button
                                         onClick={() => descargarPdf(solicitud.url_reporte_gastos, solicitud.nombre_archivo_reporte)}
@@ -275,14 +277,14 @@ const ListaSolicitudes = ({ adminViewUid = null }) => {
                                 {solicitud.resumen_porReembolsar > 0 && (
                                     <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1">
                                         <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
-                                        <span className="text-xs text-green-700 font-medium">Reembolso de CECAI:</span>
+                                        <span className="text-xs text-green-700 font-medium">Reembolso de {solicitud.esMAF ? 'MAF' : 'CECAI'}:</span>
                                         <span className="text-xs font-black text-green-800">{formatoMoneda(solicitud.resumen_porReembolsar)}</span>
                                     </div>
                                 )}
                                 {solicitud.resumen_porReintegrar > 0 && (
                                     <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-full px-3 py-1">
                                         <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></span>
-                                        <span className="text-xs text-orange-700 font-medium">Reintegro a CECAI:</span>
+                                        <span className="text-xs text-orange-700 font-medium">Reintegro a {solicitud.esMAF ? 'MAF' : 'CECAI'}:</span>
                                         <span className="text-xs font-black text-orange-800">{formatoMoneda(solicitud.resumen_porReintegrar)}</span>
                                     </div>
                                 )}

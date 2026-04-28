@@ -33,14 +33,14 @@ const FormularioGasto = () => {
   const [casetas, setCasetas] = useState([]); // Nuevo estado para casetas
   const [loading, setLoading] = useState(false);
   const [modalRecursosAbierto, setModalRecursosAbierto] = useState(false);
-  
+
   // Estado para el Drag & Drop Global
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
-  
+
   const fileInputRef = useRef(null);
 
-  const CLOUD_NAME = "didj7kuah"; 
+  const CLOUD_NAME = "didj7kuah";
   const UPLOAD_PRESET = "Gastos_Facturas";
 
   useEffect(() => {
@@ -82,7 +82,7 @@ const FormularioGasto = () => {
       e.stopPropagation();
       setIsDragging(false);
       dragCounter.current = 0;
-      
+
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
         const file = files[0];
@@ -115,7 +115,7 @@ const FormularioGasto = () => {
 
   const removeFile = () => {
     setArchivo(null);
-    if(fileInputRef.current) fileInputRef.current.value = "";
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const addCaseta = () => {
@@ -138,37 +138,37 @@ const FormularioGasto = () => {
     // 1. Validación previa del archivo
     if (!file) throw new Error("El archivo no es válido.");
     if (file.size === 0) throw new Error("El archivo está vacío (0 bytes). Verifica que se haya descargado bien de Drive.");
-    
+
     // FUNCIÓN HELPER: Convertir File a Base64
     // Esto obliga al navegador a descargar/leer el archivo real del sistema
     const toBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
     });
 
     // 1. Intentamos leer el archivo primero
     let fileDataUrl;
     try {
-        fileDataUrl = await toBase64(file);
+      fileDataUrl = await toBase64(file);
     } catch (readError) {
-        console.error("Error de lectura:", readError);
-        throw new Error("No se pudo leer el archivo del dispositivo. Intenta descargarlo primero.");
+      console.error("Error de lectura:", readError);
+      throw new Error("No se pudo leer el archivo del dispositivo. Intenta descargarlo primero.");
     }
-    
+
     const data = new FormData();
     data.append("file", fileDataUrl); // Cloudinary acepta Base64
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
-    
+
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
       { method: "POST", body: data }
     );
-    
+
     const fileData = await response.json();
-    
+
     if (!response.ok || !fileData.secure_url) {
       console.error("Error subiendo a Cloudinary:", fileData);
       // Usamos el mensaje de error de Cloudinary si existe
@@ -183,7 +183,7 @@ const FormularioGasto = () => {
     setLoading(true);
 
     try {
-      let fileData = null; 
+      let fileData = null;
 
       if (archivo) {
         try {
@@ -192,17 +192,23 @@ const FormularioGasto = () => {
           console.error(uploadError);
           alert(`No se pudo subir el archivo: ${uploadError.message}`);
           setLoading(false);
-          return; 
+          return;
         }
       }
 
       const montoOriginal = parseFloat(formData.monto);
       const timestamp = Timestamp.now();
 
+      let conceptoFinal = formData.concepto;
+      if (formData.categoria === 'MAF' && !conceptoFinal.startsWith('MAF - ')) {
+        conceptoFinal = `MAF - ${conceptoFinal}`;
+      }
+
       const docRef = await addDoc(collection(db, "gastos"), {
         ...formData,
+        concepto: conceptoFinal,
         monto: montoOriginal,
-        url_factura: fileData?.secure_url || '', 
+        url_factura: fileData?.secure_url || '',
         deleteToken: fileData?.delete_token || '',
         creado_en: timestamp,
         userId: user.uid
@@ -211,7 +217,7 @@ const FormularioGasto = () => {
       // LÓGICA DE PROPINA (Comida)
       if (agregarPropina && formData.categoria === 'Comida') {
         const montoPropina = montoOriginal * 0.10;
-        
+
         const propinaRef = await addDoc(collection(db, "gastos"), {
           fecha: formData.fecha,
           concepto: `Propina => ${formData.concepto} @ ${formData.fecha}`,
@@ -281,7 +287,7 @@ const FormularioGasto = () => {
 
       {/* TARJETA PRINCIPAL */}
       <div className="bg-white/40 backdrop-blur-xl p-0">
-        
+
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-4xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
           <button type="button" onClick={() => setModalRecursosAbierto(true)} className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Generar solicitud de recursos">
@@ -306,6 +312,7 @@ const FormularioGasto = () => {
                 <option value="Transporte">Transporte</option>
                 <option value="Comida">Comida</option>
                 <option value="Otros">Otros</option>
+                <option value="MAF">MAF</option>
               </select>
             </InputGroup>
           </div>
@@ -323,8 +330,8 @@ const FormularioGasto = () => {
           {/* CHECKBOX DE PROPINA */}
           {formData.categoria === 'Comida' && (
             <div className="flex items-center gap-3 bg-blue-50/50 p-1 border-l-4 border-blue-500">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 id="checkPropina"
                 checked={agregarPropina}
                 onChange={(e) => setAgregarPropina(e.target.checked)}
@@ -344,12 +351,12 @@ const FormularioGasto = () => {
           {/* ZONA DE ARCHIVO (Compacta) */}
           <div className="mt-2 mb-2">
             {!archivo ? (
-              <div 
+              <div
                 onClick={() => fileInputRef.current.click()}
                 className={`
                   p-1 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-1 group border-1 border-none
-                  ${isDragging 
-                    ? 'border-none bg-white/50 scale-105 shadow-xl ring-4 ring-blue-100 rounded-full' 
+                  ${isDragging
+                    ? 'border-none bg-white/50 scale-105 shadow-xl ring-4 ring-blue-100 rounded-full'
                     : 'border-none bg-white/50 hover:bg-white/80'
                   }
                 `}
@@ -389,23 +396,23 @@ const FormularioGasto = () => {
             <div className="bg-slate-50/80 p-4 space-y-3 border-y border-slate-200 mb-4 rounded-xl">
               <div className="flex justify-between items-center">
                 <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Casetas (Tolls)</h3>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={addCaseta}
                   className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-bold hover:bg-blue-700 transition-colors"
                 >
                   + Agregar
                 </button>
               </div>
-              
+
               {casetas.map((caseta, index) => (
                 <div key={index} className="flex flex-col md:flex-row gap-2 items-start md:items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                   <div className="md:w-32 w-full flex-shrink-0">
                     <div className="flex items-center gap-1">
                       <span className="text-slate-400 font-bold font-mono text-sm">$</span>
-                      <input 
-                        type="number" 
-                        step="0.01" 
+                      <input
+                        type="number"
+                        step="0.01"
                         placeholder="0.00"
                         value={caseta.monto}
                         onChange={(e) => handleCasetaChange(index, 'monto', e.target.value)}
@@ -413,23 +420,23 @@ const FormularioGasto = () => {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="flex-1 w-full min-w-0">
                     <div className="flex items-center gap-2 overflow-hidden">
-                       <input 
-                          type="file" 
-                          accept=".pdf"
-                          onChange={(e) => handleCasetaChange(index, 'archivo', e.target.files[0])}
-                          className="text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 w-full truncate"
-                       />
-                       {caseta.archivo && (
-                         <span className="text-green-500 flex-shrink-0 ml-1"><FileCheck size={14} /></span>
-                       )}
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => handleCasetaChange(index, 'archivo', e.target.files[0])}
+                        className="text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 w-full truncate"
+                      />
+                      {caseta.archivo && (
+                        <span className="text-green-500 flex-shrink-0 ml-1"><FileCheck size={14} /></span>
+                      )}
                     </div>
                   </div>
 
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => removeCaseta(index)}
                     className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
                   >
@@ -443,8 +450,8 @@ const FormularioGasto = () => {
             </div>
           )}
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
             style={{ height: '48px', fontSize: '18px' }}
             className="w-full mb-2 rounded-full bg-green-700 text-white font-black shadow-lg hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 flex items-center justify-center uppercase tracking-widest"

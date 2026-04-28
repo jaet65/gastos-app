@@ -168,8 +168,14 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
             }
 
             // 3. Objeto final del gasto principal
+            let conceptoFinal = gastoEditado.concepto;
+            if (gastoEditado.categoria === 'MAF' && !conceptoFinal.startsWith('MAF - ')) {
+                conceptoFinal = `MAF - ${conceptoFinal}`;
+            }
+
             const gastoParaGuardar = {
                 ...gastoEditado,
+                concepto: conceptoFinal,
                 url_factura: fileData ? fileData.secure_url : gastoEditado.url_factura,
                 deleteToken: fileData ? fileData.delete_token : (seQuitoFactura ? "" : gasto.deleteToken)
             };
@@ -270,6 +276,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                         <select value={gastoEditado.categoria} onChange={(e) => setGastoEditado({ ...gastoEditado, categoria: e.target.value })} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all appearance-none">
                             <option value="Transporte">Transporte</option>
                             <option value="Comida">Comida</option>
+                            <option value="MAF">MAF</option>
                             <option value="Otros">Otros</option>
                         </select>
                     </div>

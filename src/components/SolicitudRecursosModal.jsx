@@ -158,7 +158,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
             // 3. Guardar en la nueva colección "solicitudes"
             const nuevaSolicitudData = {
                 consultor: 'Mario Alberto Agraz Martínez',
-                proyecto: 'Rally TrackSIM',
+                proyecto: 'Rally TrackSIM - CECAI',
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 dias: dias,

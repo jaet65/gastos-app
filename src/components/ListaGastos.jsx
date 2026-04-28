@@ -23,7 +23,7 @@ import {
   Icon,
   Divider,
 } from '@tremor/react';
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
 
 const ListaGastos = ({ adminViewUid = null }) => {
   const { user } = useAuth();
@@ -221,7 +221,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
       console.error("Error subiendo reporte a Cloudinary:", fileData);
       throw new Error(fileData.error?.message || "Error al subir el reporte a Cloudinary");
     }
-    return { url: fileData.secure_url, nombreArchivo };
+    return { url: fileData.secure_url, nombreArchivo, deleteToken: fileData.delete_token };
   };
 
   // --- Automatización de Solicitud de Recursos ($0.00) ---
@@ -248,7 +248,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     page.drawText('Mario Alberto Agraz Martínez', { x: margin + 100, y, font, size: 12 });
     y -= 20;
     page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
-    page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
+    page.drawText('Rally TrackSIM - CECAI', { x: margin + 100, y, font, size: 12 });
     y -= 20;
     page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
     page.drawText(`${formatearFecha(fInicio)} al ${formatearFecha(fFin)} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
@@ -315,7 +315,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
 
       const nuevaSolicitudData = {
         consultor: 'Mario Alberto Agraz Martínez',
-        proyecto: 'Rally TrackSIM',
+        proyecto: 'Rally TrackSIM - CECAI',
         fechaInicio: fInicio,
         fechaFin: fFin,
         dias: differenceInCalendarDays(new Date(`${fFin}T00:00:00`), new Date(`${fInicio}T00:00:00`)) + 1,
@@ -381,10 +381,17 @@ const ListaGastos = ({ adminViewUid = null }) => {
     }
   };
 
-  const generarReporte = async (fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
+  const generarReporte = async (fechaInicioReporte, fechaFinReporte, solicitudVinculada = null, esMAF = false, montoMAF = 0) => {
     setReporteGenerandose(true);
     try {
       const gastosFiltrados = gastos.filter(g => {
+        // Filtro especial para MAF
+        if (esMAF) {
+          if (g.categoria !== 'MAF') return false;
+        } else {
+          if (g.categoria === 'MAF') return false;
+        }
+
         if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
         if (fechaFinReporte && g.fecha > fechaFinReporte) return false;
         if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
@@ -405,11 +412,12 @@ const ListaGastos = ({ adminViewUid = null }) => {
       }
 
       const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
-      const baseFileName = `Comprobacion gastos ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
+      const prefix = esMAF ? "MAF - " : "";
+      const baseFileName = `${prefix}Comprobacion gastos ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
 
       const [excelBlob, pdfBlob] = await Promise.all([
-        generarReporteExcel(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada),
-        generarReportePdf(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada)
+        generarReporteExcel(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada, esMAF, montoMAF),
+        generarReportePdf(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada, esMAF, montoMAF)
       ]);
 
       const zip = new JSZip();
@@ -439,6 +447,34 @@ const ListaGastos = ({ adminViewUid = null }) => {
           resumen_porReembolsar: porReembolsar,
           resumen_porReintegrar: porReintegrar,
         });
+      } else if (esMAF) {
+        const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
+        const sumaSinFactura = gastosFiltrados.filter(g => !g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
+        const importeRecibido = montoMAF;
+        const porReembolsar = sumaFacturado > importeRecibido ? sumaFacturado - importeRecibido : 0;
+        const porReintegrar = importeRecibido > sumaFacturado ? importeRecibido - sumaFacturado : 0;
+
+        const cloudinaryFileName = `${baseFileName}.zip`;
+        const { url: reporteUrl, nombreArchivo: nombreReporte, deleteToken } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
+        
+        await addDoc(collection(db, "solicitudes"), {
+          consultor: 'Mario Alberto Agraz Martínez',
+          proyecto: 'Rally TrackSIM - MAF',
+          fechaInicio: fechaInicioReporte || '',
+          fechaFin: fechaFinReporte || '',
+          totalSolicitado: montoMAF,
+          url_reporte_gastos: reporteUrl,
+          nombre_archivo_reporte: nombreReporte,
+          deleteToken: deleteToken || '',
+          creado_en: Timestamp.now(),
+          estado: 'Esperando...',
+          userId: user.uid,
+          esMAF: true,
+          resumen_sumaFacturado: sumaFacturado,
+          resumen_sumaSinFactura: sumaSinFactura,
+          resumen_porReembolsar: porReembolsar,
+          resumen_porReintegrar: porReintegrar,
+        });
       }
 
       const updates = gastosFiltrados.map(gasto => updateDoc(doc(db, "gastos", gasto.id), { archivado: true }));
@@ -451,12 +487,32 @@ const ListaGastos = ({ adminViewUid = null }) => {
     }
   };
 
-  const generarReporteExcel = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
+  const handleGenerarReporteMAF = async (montoRecibido) => {
+    setReporteGenerandose(true);
+    try {
+      const gastosMAF = gastos.filter(g => g.categoria === 'MAF');
+      if (gastosMAF.length === 0) {
+        alert("No hay gastos MAF para generar el reporte.");
+        setReporteGenerandose(false);
+        return;
+      }
+      const fInicio = fechaInicio || gastosMAF.reduce((min, g) => g.fecha < min ? g.fecha : min, gastosMAF[0].fecha);
+      const fFin = fechaFin || gastosMAF.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosMAF[0].fecha);
+
+      await generarReporte(fInicio, fFin, null, true, montoRecibido);
+    } catch (error) {
+      console.error("Error reporte MAF:", error);
+      alert("Error: " + error.message);
+      setReporteGenerandose(false);
+    }
+  };
+
+  const generarReporteExcel = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null, esMAF = false, montoMAF = 0) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Reporte de Gastos');
 
     try {
-      const logoUrl = '/CECAI.png';
+      const logoUrl = esMAF ? '/MAFR.png' : '/CECAI.png';
       const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
       const logoImageId = workbook.addImage({
         buffer: logoImageBytes,
@@ -467,9 +523,10 @@ const ListaGastos = ({ adminViewUid = null }) => {
         ext: { width: 100, height: 40 }
       });
     } catch {
-      console.warn("No se pudo cargar el logo 'CECAI.png'.");
+      console.warn(`No se pudo cargar el logo '${esMAF ? 'MAFR.png' : 'CECAI.png'}'.`);
     }
     worksheet.getRow(1).height = 35;
+
 
     const titleStyle = { font: { bold: true, size: 16 } };
     const resumenTitleCell = worksheet.getCell('A3');
@@ -482,8 +539,15 @@ const ListaGastos = ({ adminViewUid = null }) => {
       worksheet.getCell(`A${currentRow}`).value = "Consultor:";
       worksheet.getCell(`B${currentRow}`).value = solicitudVinculada.consultor;
       currentRow++;
-      worksheet.getCell(`A${currentRow}`).value = "Solicitud:";
+      worksheet.getCell(`A${currentRow}`).value = "Proyecto:";
       worksheet.getCell(`B${currentRow}`).value = solicitudVinculada.proyecto;
+      currentRow++;
+    } else if (esMAF) {
+      worksheet.getCell(`A${currentRow}`).value = "Consultor:";
+      worksheet.getCell(`B${currentRow}`).value = 'Mario Alberto Agraz Martínez';
+      currentRow++;
+      worksheet.getCell(`A${currentRow}`).value = "Proyecto:";
+      worksheet.getCell(`B${currentRow}`).value = 'Rally TrackSIM - MAF';
       currentRow++;
     }
     worksheet.getCell(`A${currentRow}`).value = "Periodo:";
@@ -499,7 +563,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
     const sumaSinFactura = gastosFiltrados.filter(g => !g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
     const totalGeneral = sumaFacturado + sumaSinFactura;
-    const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
+    const importeRecibido = esMAF ? montoMAF : (solicitudVinculada ? solicitudVinculada.totalSolicitado : 0);
     let porReembolsar = 0;
     let porReintegrar = 0;
     if (sumaFacturado > importeRecibido) porReembolsar = sumaFacturado - importeRecibido;
@@ -520,7 +584,8 @@ const ListaGastos = ({ adminViewUid = null }) => {
     addFinancialRow("<< Suma sin factura", sumaSinFactura);
     addFinancialRow("Total General", totalGeneral);
     currentRow++;
-    addFinancialRow(sumaFacturado > importeRecibido ? "<< Por reintegrar desde CECAI" : ">> Por reintegrar a CECAI", sumaFacturado > importeRecibido ? porReembolsar : porReintegrar);
+    const entityName = esMAF ? "MAF" : "CECAI";
+    addFinancialRow(sumaFacturado > importeRecibido ? `<< Por reintegrar desde ${entityName}` : `>> Por reintegrar a ${entityName}`, sumaFacturado > importeRecibido ? porReembolsar : porReintegrar);
     currentRow += 2;
 
     const detalleGastosTitle = worksheet.getCell(`A${currentRow}`);
@@ -600,7 +665,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   };
 
-  const generarReportePdf = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null) => {
+  const generarReportePdf = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null, esMAF = false, montoMAF = 0) => {
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -631,7 +696,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
       .filter(g => !g.url_factura)
       .reduce((sum, g) => sum + parseFloat(g.monto), 0);
 
-    const importeRecibido = solicitudVinculada ? solicitudVinculada.totalSolicitado : 0;
+    const importeRecibido = esMAF ? montoMAF : (solicitudVinculada ? solicitudVinculada.totalSolicitado : 0);
     let porReembolsar = 0;
     let porReintegrar = 0;
 
@@ -646,7 +711,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     let currentY = height - margin;
 
     try {
-      const logoUrl = '/CECAI.png';
+      const logoUrl = esMAF ? '/MAFR.png' : '/CECAI.png';
       const logoImageBytes = await fetch(logoUrl).then((res) => res.arrayBuffer());
       const logoImage = await pdfDoc.embedPng(logoImageBytes);
       const logoDims = logoImage.scale(0.05);
@@ -657,7 +722,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
         height: logoDims.height,
       });
     } catch {
-      console.warn("No se pudo cargar el logo 'CECAI.png'.");
+      console.warn(`No se pudo cargar el logo '${esMAF ? 'MAFR.png' : 'CECAI.png'}'.`);
     }
     currentY -= 100;
 
@@ -667,7 +732,12 @@ const ListaGastos = ({ adminViewUid = null }) => {
     if (solicitudVinculada) {
       page.drawText(`Consultor: ${solicitudVinculada.consultor}`, { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
-      page.drawText(`Solicitud: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
+      page.drawText(`Proyecto: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
+      currentY -= 20;
+    } else if (esMAF) {
+      page.drawText('Consultor: Mario Alberto Agraz Martínez', { x: margin, y: currentY, font: font, size: 14 });
+      currentY -= 20;
+      page.drawText('Proyecto: Rally TrackSIM - MAF', { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
     }
     page.drawText(`Periodo: ${formatearFecha(fechaInicioReporte) || 'N/A'} al ${formatearFecha(fechaFinReporte) || 'N/A'}`, { x: margin, y: currentY, font: font, size: 14 });
@@ -676,7 +746,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     page.drawText('Detalle Financiero:', { x: margin, y: currentY, font: boldFont, size: 16 });
     currentY -= 30;
 
-    if (solicitudVinculada) {
+    if (solicitudVinculada || esMAF) {
       const importeRecibidoTexto = formatoMoneda(importeRecibido);
       const importeRecibidoAncho = boldFont.widthOfTextAtSize(importeRecibidoTexto, 12);
       page.drawText('Importe recibido:', { x: margin, y: currentY, font: font, size: 12 });
@@ -696,16 +766,17 @@ const ListaGastos = ({ adminViewUid = null }) => {
     page.drawText(sumaSinFacturaTexto, { x: width - margin - sumaSinFacturaAncho, y: currentY, font: boldFont, size: 12 });
     currentY -= 30;
 
-    if (solicitudVinculada) {
+    if (solicitudVinculada || esMAF) {
+      const entityName = esMAF ? "MAF" : "CECAI";
       if (sumaFacturado > importeRecibido) {
         const porReembolsarTexto = formatoMoneda(porReembolsar);
         const porReembolsarAncho = boldFont.widthOfTextAtSize(porReembolsarTexto, 12);
-        page.drawText('<< Por reintegrar desde CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
+        page.drawText(`<< Por reintegrar desde ${entityName}:`, { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
         page.drawText(porReembolsarTexto, { x: width - margin - porReembolsarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0, 0.5, 0) });
       } else {
         const porReintegrarTexto = formatoMoneda(porReintegrar);
         const porReintegrarAncho = boldFont.widthOfTextAtSize(porReintegrarTexto, 12);
-        page.drawText('>> Por reintegrar a CECAI:', { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
+        page.drawText(`>> Por reintegrar a ${entityName}:`, { x: margin, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
         page.drawText(porReintegrarTexto, { x: width - margin - porReintegrarAncho, y: currentY, font: boldFont, size: 12, color: rgb(0.8, 0.2, 0) });
       }
     }
@@ -871,6 +942,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     switch (cat) {
       case 'Transporte': return { color: 'slate', icon: Car };
       case 'Comida': return { color: 'slate', icon: Utensils };
+      case 'MAF': return { color: 'orange', icon: ShieldCheck };
       default: return { color: 'slate', icon: Layers };
     }
   };
@@ -895,7 +967,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     });
 
     const resultado = filtrados.reduce((acc, gasto) => {
-      const estado = gasto.url_factura ? 'Con Factura' : 'Sin Factura';
+      const estado = gasto.categoria === 'MAF' ? 'MAF' : (gasto.url_factura ? 'Con Factura' : 'Sin Factura');
       const categoria = gasto.categoria || 'Otros';
       const fecha = gasto.fecha;
 
@@ -913,7 +985,25 @@ const ListaGastos = ({ adminViewUid = null }) => {
     return resultado;
   }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados]);
 
-  const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
+  const totalNormal = useMemo(() => {
+    let total = 0;
+    Object.values(dataAgrupada).forEach(estado => {
+      Object.entries(estado.categorias).forEach(([cat, datos]) => {
+        if (cat !== 'MAF') total += datos.totalCategoria;
+      });
+    });
+    return total;
+  }, [dataAgrupada]);
+
+  const totalMAF = useMemo(() => {
+    let total = 0;
+    Object.values(dataAgrupada).forEach(estado => {
+      Object.entries(estado.categorias).forEach(([cat, datos]) => {
+        if (cat === 'MAF') total += datos.totalCategoria;
+      });
+    });
+    return total;
+  }, [dataAgrupada]);
 
   const statsCategorias = useMemo(() => {
     const totales = {};
@@ -1005,15 +1095,31 @@ const ListaGastos = ({ adminViewUid = null }) => {
         </div>
       )}
 
-      {/* 1. TOTAL GENERAL */}
-      <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0 mt-0">
-        <Flex justifyContent="between" alignItems="center">
-          <Text>Total Periodo</Text>
-          <Metric className="italic text-xl font-black text-slate-800">
-            {formatoMoneda(totalGeneral)}
-          </Metric>
-        </Flex>
-      </Card>
+      {/* 1. TOTALES SEPARADOS */}
+      <div className={`grid gap-3 ${totalMAF > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+        <Card decoration="top" decorationColor="blue" className="italic font-black py-1 px-0 mt-0 shadow-sm border-blue-100">
+          <Flex justifyContent="between" alignItems="center" className="px-4">
+            <Text className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Total Periodo</Text>
+            <Metric className="italic text-xl font-black text-slate-800">
+              {formatoMoneda(totalNormal)}
+            </Metric>
+          </Flex>
+        </Card>
+
+        {totalMAF > 0 && (
+          <Card decoration="top" decorationColor="orange" className="italic font-black py-1 px-0 mt-0 shadow-sm border-orange-100 bg-orange-50/30">
+            <Flex justifyContent="between" alignItems="center" className="px-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-orange-500" />
+                <Text className="text-orange-600 uppercase text-[10px] font-bold tracking-widest">Total MAF</Text>
+              </div>
+              <Metric className="italic text-xl font-black text-orange-700">
+                {formatoMoneda(totalMAF)}
+              </Metric>
+            </Flex>
+          </Card>
+        )}
+      </div>
 
       {gastoAEditar && (
         <EditGastoModal
@@ -1028,6 +1134,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
           onClose={() => setModalReporteAbierto(false)}
           onGenerarConFechasPersonalizadas={handleAbrirModalSolicitudParaReporte}
           onGenerarConSolicitud={(solicitud) => generarReporte(solicitud.fechaInicio, solicitud.fechaFin, solicitud)}
+          onGenerarReporteMAF={(monto) => handleGenerarReporteMAF(monto)}
         />
       )}
 
@@ -1042,24 +1149,26 @@ const ListaGastos = ({ adminViewUid = null }) => {
 
       {Object.entries(dataAgrupada)
         .sort(([estadoA], [estadoB]) => {
-          if (estadoA === 'Con Factura') return -1;
-          if (estadoB === 'Con Factura') return 1;
-          return 0;
+          const order = { 'Con Factura': 1, 'Sin Factura': 2, 'MAF': 3 };
+          return (order[estadoA] || 99) - (order[estadoB] || 99);
         })
         .map(([estado, datosEstado]) => {
           const isFactura = estado === 'Con Factura';
+          const isMAFState = estado === 'MAF';
           const colorEstado = 'transparent';
-          const IconoEstado = isFactura ? FileCheck : AlertTriangle;
+          const IconoEstado = isMAFState ? ShieldCheck : (isFactura ? FileCheck : AlertTriangle);
 
           return (
             <Card key={estado} className="p-0 overflow-hidden shadow-sm">
-              <div className={`py-0 px-0 border-l-4 ${isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100'}`}>
+              <div className={`py-0 px-0 border-l-4 ${isMAFState ? 'border-orange-100 bg-orange-100' : (isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100')}`}>
                 <Flex justifyContent="between" alignItems="center">
                   <div className="flex items-center gap-2">
                     <Icon icon={IconoEstado} color={colorEstado} variant="light" size="sm" />
-                    <Title className={`text-sm uppercase font-bold ${isFactura ? 'text-emerald-900' : 'text-amber-900'}`}>{estado}</Title>
+                    <Title className={`text-sm uppercase font-bold ${isMAFState ? 'text-orange-900' : (isFactura ? 'text-emerald-900' : 'text-amber-900')}`}>
+                      {isMAFState ? 'Gastos MAF' : estado}
+                    </Title>
                   </div>
-                  <Text className={`font-bold ${isFactura ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  <Text className={`font-bold ${isMAFState ? 'text-orange-700' : (isFactura ? 'text-emerald-700' : 'text-amber-700')}`}>
                     {formatoMoneda(datosEstado.totalEstado)}
                   </Text>
                 </Flex>
@@ -1068,7 +1177,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
               <div className="p-4 space-y-4">
                 {Object.entries(datosEstado.categorias)
                   .sort(([catA], [catB]) => {
-                    const order = { 'Comida': 1, 'Transporte': 2, 'Otros': 3 };
+                    const order = { 'Comida': 1, 'Transporte': 2, 'MAF': 3, 'Otros': 4 };
                     return (order[catA] || 99) - (order[catB] || 99);
                   })
                   .map(([nombreCategoria, datosCategoria], indexCat) => {
