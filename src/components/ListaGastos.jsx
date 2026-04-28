@@ -912,6 +912,30 @@ const ListaGastos = () => {
 
   const totalGeneral = Object.values(dataAgrupada).reduce((sum, e) => sum + e.totalEstado, 0);
 
+  const statsCategorias = useMemo(() => {
+    const totales = {};
+    const diasConGastos = new Set();
+
+    Object.values(dataAgrupada).forEach(estado => {
+      Object.entries(estado.categorias).forEach(([cat, datos]) => {
+        totales[cat] = (totales[cat] || 0) + datos.totalCategoria;
+        Object.keys(datos.fechas).forEach(fecha => {
+          diasConGastos.add(fecha);
+        });
+      });
+    });
+
+    const numDias = diasConGastos.size;
+    if (numDias === 0) return [];
+
+    return Object.entries(totales).map(([categoria, total]) => ({
+      categoria,
+      total,
+      promedio: total / numDias,
+      details: getCategoryDetails(categoria)
+    }));
+  }, [dataAgrupada]);
+
   return (
     <div className="space-y-4 relative">
       <div className="sticky top-0 z-10 bg-slate-100 pt-1 pb-4 -mt-4 -mx-4 px-4 border-b border-slate-200">
@@ -960,7 +984,26 @@ const ListaGastos = () => {
         </div>
       </div>
 
-      <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0 mt-4">
+        {/* 0. RESUMEN ESTADÍSTICO POR CATEGORÍA */}
+      {statsCategorias.length > 0 && (
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
+          {statsCategorias.map((stat) => (
+            <div key={stat.categoria} className="flex-shrink-0 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white/50 shadow-sm min-w-[140px] flex flex-col gap-1">
+              <div className="flex items-center gap-2 mb-1">
+                <stat.details.icon size={14} className="text-slate-400" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{stat.categoria}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-black text-slate-800">{formatoMoneda(stat.promedio)}</span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase">Promedio / día</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 1. TOTAL GENERAL */}
+      <Card decoration="top" decorationColor="blue" className="italic font-black text-xl py-1 px-0 mt-0">
         <Flex justifyContent="between" alignItems="center">
           <Text>Total Periodo</Text>
           <Metric className="italic text-xl font-black text-slate-800">
