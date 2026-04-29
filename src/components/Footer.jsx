@@ -20,12 +20,7 @@ const Footer = () => {
         if (buildTime) {
             const buildDate = new Date(buildTime);
             const formattedDate = format(buildDate, "dd/MM/yy - HH:mm", { locale: es });
-            versionInfo = `${formattedDate} hrs`;
-        }
-        
-        if (commitSha) {
-            // Si tenemos fecha y commit, los unimos. Si solo hay commit, lo mostramos solo.
-            versionInfo = buildTime ? `${versionInfo} (#${commitSha})` : `Commit: #${commitSha}`;
+            versionInfo = formattedDate;
         }
 
         return (
