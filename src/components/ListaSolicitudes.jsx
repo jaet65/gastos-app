@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment } from 'react';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext'; import { CLOUD_NAME } from './config';
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc } from 'firebase/firestore';
+import Footer from './Footer';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
 import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown } from 'lucide-react';
@@ -130,19 +131,24 @@ const ListaSolicitudes = ({ adminViewUid = null }) => {
 
             if ('Notification' in window) {
                 if (!ultimaNotificacion || parseInt(ultimaNotificacion) < HACE_24_HORAS) {
-                    const mostrarNotificacion = () => {
+                    const mostrarNotificacion = async () => {
                         const cuerpo = `Tienes ${solicitudesRecibidas.length} solicitud(es) de recursos recibidas. ¡No olvides registrar tus gastos!`;
-                        new Notification('Recordatorio de Gastos MAF', {
-                            body: cuerpo,
-                            icon: '/MAF.png'
-                        });
-                        localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
+                        try {
+                            const registration = await navigator.serviceWorker.ready;
+                            await registration.showNotification('Recordatorio de Gastos MAF', {
+                                body: cuerpo,
+                                icon: '/MAF.png'
+                            });
+                            localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
+                        } catch (err) {
+                            console.error('Error al mostrar la notificación:', err);
+                        }
                     };
 
                     if (Notification.permission === 'granted') {
                         mostrarNotificacion();
                     } else if (Notification.permission !== 'denied') {
-                        Notification.requestPermission().then(permission => {
+                        Notification.requestPermission().then((permission) => {
                             if (permission === 'granted') {
                                 mostrarNotificacion();
                             }

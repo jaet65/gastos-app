@@ -3,6 +3,7 @@ import { db } from '../firebase'; import { CLOUD_NAME } from './config';
 import { useAuth } from './AuthContext';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
 import EditGastoModal from './EditGastoModal';
+import Footer from './Footer';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -37,7 +38,6 @@ const ListaGastos = ({ adminViewUid = null }) => {
   const [reporteGenerandose, setReporteGenerandose] = useState(false);
   const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
-  const [modalSolicitudParaReporteAbierto, setModalSolicitudParaReporteAbierto] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
 
   const formatearFecha = (fechaStr) => {
@@ -1135,15 +1135,6 @@ const ListaGastos = ({ adminViewUid = null }) => {
           onGenerarConFechasPersonalizadas={handleAbrirModalSolicitudParaReporte}
           onGenerarConSolicitud={(solicitud) => generarReporte(solicitud.fechaInicio, solicitud.fechaFin, solicitud)}
           onGenerarReporteMAF={(monto) => handleGenerarReporteMAF(monto)}
-        />
-      )}
-
-      {modalSolicitudParaReporteAbierto && (
-        <SolicitudRecursosModal
-          onClose={() => setModalSolicitudParaReporteAbierto(false)}
-          fechaInicioInicial={fechaInicio}
-          fechaFinInicial={fechaFin}
-          onSolicitudCreada={(nuevaSolicitud) => generarReporte(nuevaSolicitud.fechaInicio, nuevaSolicitud.fechaFin, nuevaSolicitud)}
         />
       )}
 

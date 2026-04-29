@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
+import Footer from './Footer';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 
@@ -287,6 +288,8 @@ const FormularioGasto = () => {
 
       {/* TARJETA PRINCIPAL */}
       <div className="bg-white/40 backdrop-blur-xl p-0">
+
+        <Footer />
 
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-4xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
