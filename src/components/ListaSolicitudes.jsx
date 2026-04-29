@@ -128,24 +128,26 @@ const ListaSolicitudes = ({ adminViewUid = null }) => {
             const HACE_24_HORAS = AHORA - (24 * 60 * 60 * 1000);
             const ultimaNotificacion = localStorage.getItem('ultimaNotificacionSolicitudesRecibidas');
 
-            if (!ultimaNotificacion || parseInt(ultimaNotificacion) < HACE_24_HORAS) {
-                const mostrarNotificacion = () => {
-                    const cuerpo = `Tienes ${solicitudesRecibidas.length} solicitud(es) de recursos recibidas. ¡No olvides registrar tus gastos!`;
-                    new Notification('Recordatorio de Gastos MAF', {
-                        body: cuerpo,
-                        icon: '/MAF.png'
-                    });
-                    localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
-                };
+            if ('Notification' in window) {
+                if (!ultimaNotificacion || parseInt(ultimaNotificacion) < HACE_24_HORAS) {
+                    const mostrarNotificacion = () => {
+                        const cuerpo = `Tienes ${solicitudesRecibidas.length} solicitud(es) de recursos recibidas. ¡No olvides registrar tus gastos!`;
+                        new Notification('Recordatorio de Gastos MAF', {
+                            body: cuerpo,
+                            icon: '/MAF.png'
+                        });
+                        localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
+                    };
 
-                if (Notification.permission === 'granted') {
-                    mostrarNotificacion();
-                } else if (Notification.permission !== 'denied') {
-                    Notification.requestPermission().then(permission => {
-                        if (permission === 'granted') {
-                            mostrarNotificacion();
-                        }
-                    });
+                    if (Notification.permission === 'granted') {
+                        mostrarNotificacion();
+                    } else if (Notification.permission !== 'denied') {
+                        Notification.requestPermission().then(permission => {
+                            if (permission === 'granted') {
+                                mostrarNotificacion();
+                            }
+                        });
+                    }
                 }
             }
         }

@@ -4,7 +4,8 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { differenceInCalendarDays } from 'date-fns';
+import { differenceInCalendarDays } from 'date-fns'; // Correct import
+import { es } from 'date-fns/locale';
 import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
 
@@ -91,8 +92,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
         y -= 20;
-        page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
-        page.drawText(`${format(new Date(`${fechaInicio}T00:00:00`), 'dd/MM/yyyy')} al ${format(new Date(`${fechaFin}T00:00:00`), 'dd/MM/yyyy')} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
+        page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });        
+        page.drawText(`${format(new Date(`${fechaInicio}T00:00:00`), 'dd \'de\' MMMM \'de\' yyyy', { locale: es })} al ${format(new Date(`${fechaFin}T00:00:00`), 'dd \'de\' MMMM \'de\' yyyy', { locale: es })} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
         y -= 20;
         page.drawText('Personas:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText(`${personas}`, { x: margin + 100, y, font, size: 12 });
