@@ -7,6 +7,7 @@ import Footer from './Footer';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { useSwipeable } from 'react-swipeable';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs'; import { getDoc } from 'firebase/firestore';
@@ -1029,6 +1030,17 @@ const ListaGastos = ({ adminViewUid = null }) => {
     }));
   }, [dataAgrupada]);
 
+  // Hook para evitar que el swipe en la barra de stats cierre el sidebar
+  const swipeHandlers = useSwipeable({
+    onSwiped: (eventData) => {
+      // Detiene la propagación solo si el swipe es predominantemente horizontal
+      if (eventData.dir === 'Left' || eventData.dir === 'Right') {
+        eventData.event.stopPropagation();
+      }
+    },
+    trackMouse: true, // Permite que funcione también con el mouse para consistencia
+  });
+
   return (
     <div className="space-y-4 relative">
       <div className="sticky top-0 z-10 bg-slate-100 pt-1 pb-4 -mt-4 -mx-4 px-4 border-b border-slate-200">
@@ -1079,7 +1091,9 @@ const ListaGastos = ({ adminViewUid = null }) => {
 
       {/* 0. RESUMEN ESTADÍSTICO POR CATEGORÍA */}
       {statsCategorias.length > 0 && (
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
+        <div
+          {...swipeHandlers}
+          className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
           {statsCategorias.map((stat) => (
             <div key={stat.categoria} className="flex-shrink-0 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white/50 shadow-sm min-w-[100px] flex flex-col gap-1">
               <div className="flex items-center gap-2 mb-1">
