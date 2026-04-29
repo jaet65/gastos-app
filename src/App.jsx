@@ -3,7 +3,7 @@ import ListaGastos from './components/ListaGastos';
 import ListaSolicitudes from './components/ListaSolicitudes';
 import ListaUsuarios from './components/ListaUsuarios';
 import Login from './components/Login';
-import { LayoutDashboard, Menu, X, LogOut, Bell } from 'lucide-react';
+import { LayoutDashboard, Menu, X, LogOut, Bell, Share2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
@@ -81,6 +81,53 @@ function App() {
     setIsSidebarOpen(false);
   };
 
+  const handleShare = async () => {
+    const url = window.location.origin;
+    const shareData = {
+      title: 'Gastos MAF',
+      text: 'Accede a la aplicación de Gastos MAF aquí:',
+      url: url,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Error al compartir:', err);
+        }
+        return; // Si el usuario cancela, no intentamos copiar al portapapeles
+      }
+    } 
+    
+    // Intento con API del portapapeles
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert('¡Enlace de la aplicación copiado al portapapeles!');
+        return;
+      } catch (err) {
+        console.error('Error al copiar el enlace:', err);
+      }
+    }
+
+    // Último recurso para entornos sin HTTPS (ej. http://192.168... en red local)
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = url;
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('¡Enlace copiado al portapapeles!');
+    } catch (err) {
+      prompt('Copia el enlace manualmente:', url);
+    }
+  };
+
   
 
   if (loading) {
@@ -129,7 +176,10 @@ function App() {
               {user.displayName || user.email}
               {isAdmin && <span className="ml-2 text-amber-600 text-[10px] font-black uppercase">Admin</span>}
             </span>
-            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-600">
+            <button onClick={handleShare} className="p-2 text-slate-500 hover:text-blue-600" title="Compartir Aplicación">
+              <Share2 size={20} />
+            </button>
+            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-600" title="Cerrar Sesión">
               <LogOut size={20} />
             </button>
             <button className="lg:hidden p-2 text-slate-500 hover:text-blue-600" onClick={() => setIsSidebarOpen(true)}>
