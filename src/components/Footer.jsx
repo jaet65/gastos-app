@@ -15,7 +15,12 @@ const Footer = () => {
     }
 
     if (!buildTime) {
-        return null;
+        // Si estamos en producción pero la variable no se inyectó, mostramos un fallback.
+        return (
+            <div className="text-left mb-2">
+                <Text className="text-[10px] text-slate-400">Versión: Producción</Text>
+            </div>
+        );
     }
 
     try {
