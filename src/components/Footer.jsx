@@ -3,7 +3,6 @@ import { es } from 'date-fns/locale';
 import { Text } from '@tremor/react';
 
 const buildTime = import.meta.env.VITE_APP_BUILD_TIME;
-const commitSha = import.meta.env.VITE_APP_COMMIT_SHA;
 const isDev = import.meta.env.DEV;
 
 const Footer = () => {
@@ -15,22 +14,22 @@ const Footer = () => {
         );
     }
 
+    let versionInfo = null;
     try {
-        let versionInfo = 'Producción'; // Fallback
+        versionInfo = 'Producción'; // Fallback
         if (buildTime) {
             const buildDate = new Date(buildTime);
-            const formattedDate = format(buildDate, "dd/MM/yy - HH:mm", { locale: es });
-            versionInfo = formattedDate;
+            versionInfo = format(buildDate, "dd/MM/yy - HH:mm", { locale: es });
         }
-
-        return (
-            <div className="text-left mb-2">
-                <Text className="text-[10px] text-slate-400">Versión: {versionInfo}</Text>
-            </div>
-        );
-    } catch (error) {
+    } catch {
         return null; // No renderizar si la fecha es inválida
     }
+
+    return (
+        <div className="text-left mb-2">
+            <Text className="text-[10px] text-slate-400">Versión: {versionInfo}</Text>
+        </div>
+    );
 };
 
 export default Footer;

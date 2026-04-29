@@ -11,6 +11,9 @@ import { Badge } from "@tremor/react";
 import { db } from './firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
+// eslint-disable-next-line no-unused-vars
+import { motion, AnimatePresence } from 'framer-motion';
+
 function App() {
   const { user, userData, logout, loading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -39,7 +42,24 @@ function App() {
 
   // Handlers para cerrar el sidebar (swipe a la izquierda sobre el sidebar)
   const closeHandlers = useSwipeable({
-    onSwipedLeft: () => setIsSidebarOpen(false), // Cierra el sidebar
+    onSwipedLeft: (e) => {
+      if (e && e.event && e.event.target && typeof e.event.target.closest === 'function') {
+        if (e.event.target.closest('.tabs-container')) return;
+      }
+      setIsSidebarOpen(false);
+    }, // Cierra el sidebar
+  });
+
+  // Handlers para deslizar entre pestañas (swipe horizontal)
+  const tabSwipeHandlers = useSwipeable({
+    onSwipedLeft: () => {
+      if (activeTab === 'gastos') setActiveTab('solicitudes');
+      else if (activeTab === 'solicitudes' && isAdmin) setActiveTab('usuarios');
+    },
+    onSwipedRight: () => {
+      if (activeTab === 'usuarios') setActiveTab('solicitudes');
+      else if (activeTab === 'solicitudes') setActiveTab('gastos');
+    }
   });
 
   const clearAdminView = () => {
@@ -139,22 +159,56 @@ function App() {
       {/* COLUMNA DERECHA */}
       <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser ? 'pt-6' : ''}`}>
         <div className="h-full w-full overflow-y-auto px-4 lg:px-16 pb-32 pt-4">
-          <div className="flex justify-end lg:hidden mb-4">
-            <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-red-600">
-              <X size={24} />
-            </button>
+          <div {...tabSwipeHandlers} className="tabs-container pb-2 -mt-2 pt-2">
+            <div className="flex justify-end lg:hidden mb-4">
+              <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-red-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex border-b border-slate-200 mb-4">
+              <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => setActiveTab('gastos')} />
+              <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { setActiveTab('solicitudes'); }} badge={pendingSolicitudes} />
+              {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => setActiveTab('usuarios')} />}
+            </div>
           </div>
 
-          <div className="flex border-b border-slate-200 mb-4">
-            <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => setActiveTab('gastos')} />
-            <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { setActiveTab('solicitudes'); }} badge={pendingSolicitudes} />
-            {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => setActiveTab('usuarios')} />}
-          </div>
-
-          <div>
-            {activeTab === 'gastos' && <ListaGastos adminViewUid={adminSelectedUser?.uid} />}
-            {activeTab === 'solicitudes' && <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} />}
-            {isAdmin && activeTab === 'usuarios' && <ListaUsuarios onSelectUser={handleSelectUser} />}
+          <div className="relative">
+            <AnimatePresence mode="wait">
+              {activeTab === 'gastos' && (
+                <motion.div
+                  key="gastos"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ListaGastos adminViewUid={adminSelectedUser?.uid} />
+                </motion.div>
+              )}
+              {activeTab === 'solicitudes' && (
+                <motion.div
+                  key="solicitudes"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} />
+                </motion.div>
+              )}
+              {isAdmin && activeTab === 'usuarios' && (
+                <motion.div
+                  key="usuarios"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ListaUsuarios onSelectUser={handleSelectUser} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
