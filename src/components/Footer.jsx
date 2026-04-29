@@ -19,8 +19,8 @@ const Footer = () => {
         let versionInfo = 'Producción'; // Fallback
         if (buildTime) {
             const buildDate = new Date(buildTime);
-            const formattedDate = format(buildDate, "dd MMM yyyy, HH:mm 'hrs.'", { locale: es });
-            versionInfo = `${formattedDate} UTC`;
+            const formattedDate = format(buildDate, "dd/MM/yy - HH:mm", { locale: es });
+            versionInfo = `${formattedDate} hrs`;
         }
         
         if (commitSha) {
