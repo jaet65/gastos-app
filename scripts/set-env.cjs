@@ -1,5 +1,6 @@
-const fs = require('fs');
-const { execSync } = require('child_process');
+import fs from 'fs';
+import { execSync } from 'child_process';
+import path from 'path';
 
 try {
     console.log('Generando variables de entorno para la compilación...');
@@ -20,7 +21,9 @@ try {
 
     // 4. Escribir el contenido en el archivo .env.production.local
     // Vite cargará automáticamente este archivo en builds de producción.
-    fs.writeFileSync('d:/Proyectos/gastos-app/.env.production.local', envContent);
+    // Usamos una ruta relativa para que funcione en cualquier entorno.
+    const envFilePath = path.join(process.cwd(), '.env.production.local');
+    fs.writeFileSync(envFilePath, envContent);
 
     console.log('Variables de entorno generadas exitosamente:');
     console.log(`- VITE_APP_BUILD_TIME: ${buildTime}`);
