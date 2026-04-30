@@ -19,6 +19,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('gastos');
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
+  const [adminEditMode, setAdminEditMode] = useState(false);
   const [pendingSolicitudes, setPendingSolicitudes] = useState(0);
 
   const isAdmin = userData?.role === 'admin';
@@ -64,6 +65,7 @@ function App() {
 
   const clearAdminView = () => {
     setAdminSelectedUser(null);
+    setAdminEditMode(false);
   };
 
   const handleLogout = async () => {
@@ -77,6 +79,7 @@ function App() {
 
   const handleSelectUser = (u) => {
     setAdminSelectedUser(u);
+    setAdminEditMode(false);
     setActiveTab('gastos');
     setIsSidebarOpen(false);
   };
@@ -123,7 +126,7 @@ function App() {
       document.execCommand('copy');
       document.body.removeChild(textArea);
       alert('¡Enlace copiado al portapapeles!');
-    } catch (err) {
+    } catch {
       prompt('Copia el enlace manualmente:', url);
     }
   };
@@ -151,11 +154,16 @@ function App() {
       
       {/* Banner de Modo Administrador */}
       {adminSelectedUser && (
-        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4">
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4 flex-wrap">
           <span>Viendo datos de: {adminSelectedUser.displayName} ({adminSelectedUser.email})</span>
-          <button onClick={clearAdminView} className="bg-white text-amber-600 px-2 py-0.5 rounded-full text-[10px] hover:bg-slate-100 transition-colors">
-            Cerrar Vista Admin
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setAdminEditMode(!adminEditMode)} className={`px-3 py-1 rounded-full text-[10px] transition-all shadow-sm ${adminEditMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white text-amber-600 hover:bg-amber-50'}`}>
+              {adminEditMode ? 'Deshabilitar Edición' : 'Habilitar Edición'}
+            </button>
+            <button onClick={clearAdminView} className="bg-white text-amber-600 px-3 py-1 rounded-full text-[10px] hover:bg-amber-50 transition-colors shadow-sm">
+              Cerrar Vista
+            </button>
+          </div>
         </div>
       )}
 
@@ -194,8 +202,15 @@ function App() {
               <div className="bg-amber-100 text-amber-600 p-6 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
                 <LayoutDashboard size={40} />
               </div>
-              <h2 className="text-xl font-black text-slate-800">Modo Lectura Admin</h2>
-              <p className="text-slate-500 text-sm">Estás visualizando los registros de <b>{adminSelectedUser.displayName}</b>. No puedes crear nuevos gastos en su nombre.</p>
+              <h2 className={`text-xl font-black ${adminEditMode ? 'text-red-600' : 'text-slate-800'}`}>
+                {adminEditMode ? 'Modo Edición Admin Activo' : 'Modo Lectura Admin'}
+              </h2>
+              <p className="text-slate-500 text-sm">
+                Estás visualizando los registros de <b>{adminSelectedUser.displayName}</b>. 
+                {adminEditMode 
+                  ? ' Actualmente puedes modificar y eliminar los registros existentes de este usuario.' 
+                  : ' No puedes crear ni modificar los gastos en su nombre.'}
+              </p>
               <button onClick={clearAdminView} className="bg-slate-800 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-slate-900 transition-all">
                 Volver a mis gastos
               </button>
@@ -233,7 +248,7 @@ function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ListaGastos adminViewUid={adminSelectedUser?.uid} />
+                  <ListaGastos adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} />
                 </motion.div>
               )}
               {activeTab === 'solicitudes' && (
@@ -244,7 +259,7 @@ function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} />
+                  <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} />
                 </motion.div>
               )}
               {isAdmin && activeTab === 'usuarios' && (

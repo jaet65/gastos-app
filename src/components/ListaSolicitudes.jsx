@@ -22,9 +22,9 @@ const statusColors = {
     'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
 };
 
-const ListaSolicitudes = ({ adminViewUid = null }) => {
+const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
     const { user } = useAuth();
-    const esVistaAdmin = !!adminViewUid;
+    const esVistaAdmin = !!adminViewUid && !adminEditMode;
     const targetUid = adminViewUid || user?.uid;
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);

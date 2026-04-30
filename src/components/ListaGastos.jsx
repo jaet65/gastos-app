@@ -27,9 +27,9 @@ import {
 } from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
 
-const ListaGastos = ({ adminViewUid = null }) => {
+const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
   const { user } = useAuth();
-  const esVistaAdmin = !!adminViewUid;
+  const esVistaAdmin = !!adminViewUid && !adminEditMode;
   const targetUid = adminViewUid || user?.uid;
   const [gastos, setGastos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
