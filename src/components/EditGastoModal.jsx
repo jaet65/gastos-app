@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCircle, Plus } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { useAuth } from './AuthContext';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";
@@ -16,6 +17,7 @@ const formatoMoneda = (cantidad) => {
 };
 
 const EditGastoModal = ({ gasto, onClose, onSave }) => {
+    const { user } = useAuth();
     const [gastoEditado, setGastoEditado] = useState(gasto);
     const [nuevoArchivo, setNuevoArchivo] = useState(null);
     const [subiendo, setSubiendo] = useState(false);
@@ -77,9 +79,11 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         }
 
         const data = new FormData();
+        const nombreArchivo = `[${user?.email}] ${file.name}`;
         data.append("file", fileDataUrl);
         data.append("upload_preset", UPLOAD_PRESET);
         data.append("cloud_name", CLOUD_NAME);
+        data.append("filename_override", nombreArchivo);
 
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, { method: "POST", body: data });
         const fileData = await response.json();

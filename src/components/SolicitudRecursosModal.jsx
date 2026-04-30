@@ -130,7 +130,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const subirACloudinary = async (pdfBytes) => {
         const data = new FormData();
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const nombreArchivo = `Solicitud ${fechaInicio}.pdf`;
+        const nombreArchivo = `[${user?.email}] Solicitud ${fechaInicio}.pdf`;
         data.append("file", blob, nombreArchivo);
         data.append("upload_preset", UPLOAD_PRESET);
         data.append("cloud_name", CLOUD_NAME);

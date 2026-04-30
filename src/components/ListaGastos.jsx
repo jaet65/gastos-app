@@ -209,7 +209,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
       blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob], { type: mimeType });
     }
 
-    const nombreArchivo = solicitudId; // solicitudId ya contiene el nombre completo del archivo
+    const nombreArchivo = `[${user?.email}] ${solicitudId}`;
     const data = new FormData();
     data.append("file", blob, nombreArchivo);
     data.append("upload_preset", UPLOAD_PRESET);
@@ -276,7 +276,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
   };
 
   const subirSolicitudCeroACloudinary = async (pdfBytes, fInicio) => {
-    const nombreArchivo = `Solicitud ${fInicio}.pdf`;
+    const nombreArchivo = `[${user?.email}] Solicitud ${fInicio}.pdf`;
     const data = new FormData();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     data.append("file", blob, nombreArchivo);
