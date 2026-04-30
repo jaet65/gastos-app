@@ -8,6 +8,7 @@ import { differenceInCalendarDays } from 'date-fns'; // Correct import
 import { es } from 'date-fns/locale';
 import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
+import { saveAs } from 'file-saver';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Solicitudes";
@@ -154,6 +155,10 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         try {
             // 1. Generar PDF
             const pdfBytes = await generarPdfSolicitud();
+
+            // 1.5. Descargar en automático
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            saveAs(blob, `Solicitud ${fechaInicio}.pdf`);
 
             // 2. Subir a Cloudinary
             const fileData = await subirACloudinary(pdfBytes);
