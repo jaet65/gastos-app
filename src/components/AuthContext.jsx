@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
         // Verificar/Crear perfil en Firestore
         const { doc, getDoc, setDoc } = await import('firebase/firestore');
         const { db } = await import('../firebase');
-        
+
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
 
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
   const login = async () => {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
-    
+
     if (result.user && !result.user.email.endsWith('@corporativomaf.com')) {
       await signOut(auth);
       throw new Error('Acceso restringido: Solo se permiten correos de @corporativomaf.com');

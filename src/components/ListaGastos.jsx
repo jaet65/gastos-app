@@ -41,6 +41,8 @@ const ListaGastos = ({ adminViewUid = null }) => {
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
 
+  const nombreConsultor = user?.displayName || user?.email || 'Consultor Desconocido';
+
   const formatearFecha = (fechaStr) => {
     if (!fechaStr) return '';
     const [year, month, day] = fechaStr.split('-');
@@ -246,7 +248,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
     page.drawText('Solicitud de Recursos', { x: margin, y: height - margin - 100, font: boldFont, size: 24 });
     let y = height - margin - 140;
     page.drawText('Consultor:', { x: margin, y, font: boldFont, size: 12 });
-    page.drawText('Mario Alberto Agraz Martínez', { x: margin + 100, y, font, size: 12 });
+    page.drawText(nombreConsultor, { x: margin + 100, y, font, size: 12 });
     y -= 20;
     page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
     page.drawText('Rally TrackSIM - CECAI', { x: margin + 100, y, font, size: 12 });
@@ -315,7 +317,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
       const fileData = await subirSolicitudCeroACloudinary(pdfBytes, fInicio);
 
       const nuevaSolicitudData = {
-        consultor: 'Mario Alberto Agraz Martínez',
+        consultor: nombreConsultor,
         proyecto: 'Rally TrackSIM - CECAI',
         fechaInicio: fInicio,
         fechaFin: fFin,
@@ -459,7 +461,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
         const { url: reporteUrl, nombreArchivo: nombreReporte, deleteToken } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         
         await addDoc(collection(db, "solicitudes"), {
-          consultor: 'Mario Alberto Agraz Martínez',
+          consultor: nombreConsultor,
           proyecto: 'Rally TrackSIM - MAF',
           fechaInicio: fechaInicioReporte || '',
           fechaFin: fechaFinReporte || '',
@@ -545,7 +547,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
       currentRow++;
     } else if (esMAF) {
       worksheet.getCell(`A${currentRow}`).value = "Consultor:";
-      worksheet.getCell(`B${currentRow}`).value = 'Mario Alberto Agraz Martínez';
+      worksheet.getCell(`B${currentRow}`).value = nombreConsultor;
       currentRow++;
       worksheet.getCell(`A${currentRow}`).value = "Proyecto:";
       worksheet.getCell(`B${currentRow}`).value = 'Rally TrackSIM - MAF';
@@ -736,7 +738,7 @@ const ListaGastos = ({ adminViewUid = null }) => {
       page.drawText(`Proyecto: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
     } else if (esMAF) {
-      page.drawText('Consultor: Mario Alberto Agraz Martínez', { x: margin, y: currentY, font: font, size: 14 });
+      page.drawText(`Consultor: ${nombreConsultor}`, { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
       page.drawText('Proyecto: Rally TrackSIM - MAF', { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;

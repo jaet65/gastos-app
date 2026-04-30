@@ -24,6 +24,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const [cantidadPersonas, setCantidadPersonas] = useState(1);
     const [loading, setLoading] = useState(false);
 
+    const nombreConsultor = user?.displayName || user?.email || 'Consultor Desconocido';
+
     const personas = Math.max(1, Number(cantidadPersonas) || 1);
 
     const { dias, montoTransporte, montoComida, totalSolicitado } = useMemo(() => {
@@ -87,7 +89,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         // --- Cuerpo del documento ---
         let y = height - margin - 140;
         page.drawText('Consultor:', { x: margin, y, font: boldFont, size: 12 });
-        page.drawText('Mario Alberto Agraz Martínez', { x: margin + 100, y, font, size: 12 });
+        page.drawText(nombreConsultor, { x: margin + 100, y, font, size: 12 });
         y -= 20;
         page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
@@ -158,7 +160,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
             // 3. Guardar en la nueva colección "solicitudes"
             const nuevaSolicitudData = {
-                consultor: 'Mario Alberto Agraz Martínez',
+                consultor: nombreConsultor,
                 proyecto: 'Rally TrackSIM - CECAI',
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
@@ -202,7 +204,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 </div>
 
                 <div className="space-y-4">
-                    <div><p className="text-sm"><span className="font-bold">Consultor:</span> Mario Alberto Agraz Martínez</p></div>
+                    <div><p className="text-sm"><span className="font-bold">Consultor:</span> {nombreConsultor}</p></div>
                     <div><p className="text-sm"><span className="font-bold">Proyecto:</span> Rally TrackSIM</p></div>
 
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-4 pt-4 items-end">
