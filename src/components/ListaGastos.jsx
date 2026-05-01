@@ -1164,6 +1164,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
           onClose={() => setModalReporteAbierto(false)}
           onGenerarConFechasPersonalizadas={handleAbrirModalSolicitudParaReporte}
           onGenerarConSolicitud={(solicitud) => generarReporte(solicitud.fechaInicio, solicitud.fechaFin, solicitud)}
+          onGenerarConSolicitudYFiltros={(solicitud) => generarReporte(fechaInicio, fechaFin, solicitud)}
           onGenerarReporteMAF={(monto) => handleGenerarReporteMAF(monto)}
         />
       )}

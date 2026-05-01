@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { X, Calendar, Link as LinkIcon, ChevronRight } from 'lucide-react';
+import { X, Calendar, Link as LinkIcon, ChevronRight, Filter } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
-const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud, onGenerarReporteMAF }) => {
+const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud, onGenerarReporteMAF, onGenerarConSolicitudYFiltros }) => {
     const { user } = useAuth();
-    const [view, setView] = useState('initial'); // 'initial' | 'seleccionarSolicitud' | 'pedirMontoMAF'
+    const [view, setView] = useState('initial'); // 'initial' | 'seleccionarSolicitud' | 'pedirMontoMAF' | 'confirmarFechasSolicitud'
     const [solicitudes, setSolicitudes] = useState([]);
+    const [solicitudSeleccionada, setSolicitudSeleccionada] = useState(null);
     const [loading, setLoading] = useState(false);
     const [montoMAF, setMontoMAF] = useState('');
 
@@ -50,8 +51,8 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
     };
 
     const handleSelectSolicitud = (solicitud) => {
-        onGenerarConSolicitud(solicitud);
-        onClose();
+        setSolicitudSeleccionada(solicitud);
+        setView('confirmarFechasSolicitud');
     };
 
     const handleSelectFechasPersonalizadas = () => {
@@ -62,6 +63,16 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
     const handleGenerarMAF = (e) => {
         e.preventDefault();
         onGenerarReporteMAF(parseFloat(montoMAF) || 0);
+        onClose();
+    }
+
+    const handleGenerarConFechasSolicitud = () => {
+        onGenerarConSolicitud(solicitudSeleccionada);
+        onClose();
+    }
+
+    const handleGenerarConFechasFiltro = () => {
+        onGenerarConSolicitudYFiltros(solicitudSeleccionada);
         onClose();
     }
 
@@ -130,6 +141,28 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {view === 'confirmarFechasSolicitud' && solicitudSeleccionada && (
+                    <div>
+                        <button onClick={() => handleSetView('seleccionarSolicitud')} className="text-xs font-bold text-blue-600 mb-4">← Volver</button>
+                        <h4 className="font-bold text-slate-800 mb-2">Confirmar Rango de Fechas</h4>
+                        <p className="text-sm text-slate-600 mb-4">Has vinculado la solicitud para <span className="font-bold">{solicitudSeleccionada.proyecto}</span>. ¿Qué fechas quieres usar para el reporte?</p>
+                        <div className="space-y-3">
+                            <button onClick={handleGenerarConFechasSolicitud} className="w-full flex items-center justify-between text-left p-4 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors">
+                                <div>
+                                    <p className="font-bold text-slate-800 flex items-center gap-2"><Calendar size={16} /> Usar Fechas de la Solicitud</p>
+                                    <p className="text-xs text-slate-500">{solicitudSeleccionada.fechaInicio} al {solicitudSeleccionada.fechaFin}</p>
+                                </div>
+                            </button>
+                            <button onClick={handleGenerarConFechasFiltro} className="w-full flex items-center justify-between text-left p-4 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors">
+                                <div>
+                                    <p className="font-bold text-slate-800 flex items-center gap-2"><Filter size={16} /> Usar Fechas de Filtros Actuales</p>
+                                    <p className="text-xs text-slate-500">Genera el reporte con los gastos visibles en la lista.</p>
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 )}
 

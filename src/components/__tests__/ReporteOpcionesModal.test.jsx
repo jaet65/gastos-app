@@ -9,6 +9,7 @@ vi.mock('firebase/firestore', async (importOriginal) => {
     const mockSolicitudes = [
         { id: 'sol1', proyecto: 'Proyecto Alpha', consultor: 'Juan Perez', totalSolicitado: 1500, fechaInicio: '2026-04-01', fechaFin: '2026-04-10' },
         { id: 'sol2', proyecto: 'Proyecto Beta', consultor: 'Maria Lopez', totalSolicitado: 2500, fechaInicio: '2026-03-15', fechaFin: '2026-03-20' },
+        { id: 'sol3', proyecto: 'Proyecto Gamma', consultor: 'Pedro Gomez', totalSolicitado: 3000, fechaInicio: '2026-05-01', fechaFin: '2026-05-10' },
     ];
 
     return {
@@ -41,6 +42,7 @@ describe('ReporteOpcionesModal Component', () => {
     const mockOnClose = vi.fn();
     const mockOnGenerarConFechas = vi.fn();
     const mockOnGenerarConSolicitud = vi.fn();
+    const mockOnGenerarConSolicitudYFiltros = vi.fn();
     const mockOnGenerarReporteMAF = vi.fn();
 
     beforeEach(() => {
@@ -98,26 +100,57 @@ describe('ReporteOpcionesModal Component', () => {
         expect(screen.getByText('Monto: $2,500.00')).toBeInTheDocument();
     });
 
-    it('debería llamar a onGenerarConSolicitud al seleccionar una solicitud', async () => {
+    it('debería mostrar la confirmación de fechas y llamar a onGenerarConSolicitud', async () => {
         render(
             <ReporteOpcionesModal
                 onClose={mockOnClose}
                 onGenerarConSolicitud={mockOnGenerarConSolicitud}
+                onGenerarConSolicitudYFiltros={mockOnGenerarConSolicitudYFiltros}
             />
         );
 
         // Navegamos a la vista de selección
         fireEvent.click(screen.getByText('Vincular a Solicitud').closest('button'));
 
-        // Esperamos que se cargue y seleccionamos la primera solicitud
+        // Seleccionamos la primera solicitud
         const solicitudElement = await screen.findByText('Proyecto Alpha');
         fireEvent.click(solicitudElement.closest('div'));
+
+        // Verificamos que aparece la vista de confirmación
+        expect(await screen.findByText('Confirmar Rango de Fechas')).toBeInTheDocument();
+        expect(screen.getByText('Usar Fechas de la Solicitud')).toBeInTheDocument();
+        expect(screen.getByText('Usar Fechas de Filtros Actuales')).toBeInTheDocument();
+
+        // Hacemos clic en "Usar Fechas de la Solicitud"
+        fireEvent.click(screen.getByText('Usar Fechas de la Solicitud').closest('button'));
 
         // Verificamos que las funciones correctas fueron llamadas con los datos esperados
         expect(mockOnGenerarConSolicitud).toHaveBeenCalledTimes(1);
         expect(mockOnGenerarConSolicitud).toHaveBeenCalledWith(
             expect.objectContaining({ id: 'sol1', proyecto: 'Proyecto Alpha' })
         );
+        expect(mockOnGenerarConSolicitudYFiltros).not.toHaveBeenCalled();
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('debería llamar a onGenerarConSolicitudYFiltros al seleccionar esa opción', async () => {
+        render(
+            <ReporteOpcionesModal
+                onClose={mockOnClose}
+                onGenerarConSolicitud={mockOnGenerarConSolicitud}
+                onGenerarConSolicitudYFiltros={mockOnGenerarConSolicitudYFiltros}
+            />
+        );
+
+        fireEvent.click(screen.getByText('Vincular a Solicitud').closest('button'));
+        const solicitudElement = await screen.findByText('Proyecto Gamma');
+        fireEvent.click(solicitudElement.closest('div'));
+
+        fireEvent.click(screen.getByText('Usar Fechas de Filtros Actuales').closest('button'));
+
+        expect(mockOnGenerarConSolicitudYFiltros).toHaveBeenCalledTimes(1);
+        expect(mockOnGenerarConSolicitudYFiltros).toHaveBeenCalledWith(expect.objectContaining({ id: 'sol3' }));
+        expect(mockOnGenerarConSolicitud).not.toHaveBeenCalled();
         expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
