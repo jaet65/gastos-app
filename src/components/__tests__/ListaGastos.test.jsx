@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ListaGastos from '../ListaGastos';
-import { useAuth } from '../AuthContext';
 
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({

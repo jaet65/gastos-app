@@ -1,6 +1,6 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ListaUsuarios from '../ListaUsuarios'; // Assuming the test file will be moved to __tests__
+import ListaUsuarios from '../ListaUsuarios';
 
 // Mock del módulo de Firestore para controlar los datos que recibe el componente
 vi.mock('firebase/firestore', async (importOriginal) => {
