@@ -40,7 +40,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                 unsubscribe();
             };
         }
-    }, [view]);
+    }, [view, user.uid]);
 
     const handleSetView = (newView) => {
         if (newView === 'seleccionarSolicitud') {
