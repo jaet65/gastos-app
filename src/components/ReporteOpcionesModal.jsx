@@ -139,8 +139,9 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                         <h4 className="font-bold text-slate-800 mb-4">Monto Recibido para MAF</h4>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Importe Recibido</label>
+                                <label htmlFor="montoMAFInput" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Importe Recibido</label>
                                 <input 
+                                    id="montoMAFInput"
                                     type="number" 
                                     step="0.01"
                                     min="0"

@@ -214,16 +214,17 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-4 pt-4 items-end">
                         <div>
-                           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
-                            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
+                           <label htmlFor="fechaInicio" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
+                            <input id="fechaInicio" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Finalización</label>
-                            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
+                            <label htmlFor="fechaFin" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Finalización</label>
+                            <input id="fechaFin" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Personas</label>
+                            <label htmlFor="cantidadPersonas" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Personas</label>
                             <input
+                                id="cantidadPersonas"
                                 type="number"
                                 min="1"
                                 value={cantidadPersonas}
