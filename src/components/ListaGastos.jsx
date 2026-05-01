@@ -386,18 +386,26 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
 
   const generarReporte = async (fechaInicioReporte, fechaFinReporte, solicitudVinculada = null, esMAF = false, montoMAF = 0) => {
     setReporteGenerandose(true);
+    let gastosFiltrados;
+    let fInicio = fechaInicioReporte;
+    let fFin = fechaFinReporte;
+
     try {
-      const gastosFiltrados = gastos.filter(g => {
+      gastosFiltrados = gastos.filter(g => {
         // Filtro especial para MAF
         if (esMAF) {
           if (g.categoria !== 'MAF') return false;
         } else {
           if (g.categoria === 'MAF') return false;
         }
-
+        
+        // Si las fechas del reporte vienen definidas, las usamos para filtrar.
+        // Si no, el filtrado se basará en los gastos visibles (dataAgrupada).
         if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
         if (fechaFinReporte && g.fecha > fechaFinReporte) return false;
+
         if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
+          // Lógica para incluir gastos si su padre coincide con la búsqueda
           const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
           if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
 
@@ -406,6 +414,12 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
 
           return false;
         }
+
+        // Si se está mostrando archivados, se incluyen. Si no, se excluyen.
+        if (!mostrarArchivados && g.archivado) {
+          return false;
+        }
+
         return true;
       });
 
@@ -414,13 +428,21 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
         return;
       }
 
+      // Si las fechas no se proveyeron, las calculamos de los gastos filtrados.
+      if (!fInicio) {
+        fInicio = gastosFiltrados.reduce((min, g) => g.fecha < min ? g.fecha : min, gastosFiltrados[0].fecha);
+      }
+      if (!fFin) {
+        fFin = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
+      }
+
       const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
       const prefix = esMAF ? "MAF - " : "";
       const baseFileName = `${prefix}Comprobacion gastos ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
 
       const [excelBlob, pdfBlob] = await Promise.all([
-        generarReporteExcel(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada, esMAF, montoMAF),
-        generarReportePdf(gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada, esMAF, montoMAF)
+        generarReporteExcel(gastosFiltrados, fInicio, fFin, solicitudVinculada, esMAF, montoMAF),
+        generarReportePdf(gastosFiltrados, fInicio, fFin, solicitudVinculada, esMAF, montoMAF)
       ]);
 
       const zip = new JSZip();
