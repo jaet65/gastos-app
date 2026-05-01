@@ -490,6 +490,20 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     }
   };
 
+  const toggleArchivoGasto = async (gasto) => {
+    if (!confirm(`¿Estás seguro de que quieres ${gasto.archivado ? 'desarchivar' : 'archivar'} este gasto?`)) {
+      return;
+    }
+    try {
+      const gastoRef = doc(db, "gastos", gasto.id);
+      await updateDoc(gastoRef, { archivado: !gasto.archivado });
+      alert(`Gasto ${gasto.archivado ? 'desarchivado' : 'archivado'} correctamente.`);
+    } catch (error) {
+      console.error("Error al cambiar estado de archivo:", error);
+      alert("Ocurrió un error al actualizar el gasto.");
+    }
+  };
+
   const handleGenerarReporteMAF = async (montoRecibido) => {
     setReporteGenerandose(true);
     try {
@@ -1234,13 +1248,21 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
                                           <ListItem className="p-0 border-none">
                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
 
-                                              <div className="col-span-6 pr-2 flex items-center gap-1.5 overflow-hidden">
-                                                {gasto.archivado && (
-                                                  <div className="text-slate-400 flex-shrink-0" title="Gasto archivado">
-                                                    <Archive size={12} strokeWidth={2.5} />
-                                                  </div>
+                                              <div className="col-span-6 pr-2 flex items-center gap-2 overflow-hidden">
+                                                {!esVistaAdmin && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleArchivoGasto(gasto)}
+                                                    className="bg-transparent border-none p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0"
+                                                    title={gasto.archivado ? 'Desarchivar' : 'Archivar'}
+                                                  >
+                                                    {gasto.archivado ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                                                  </button>
                                                 )}
-                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>
+                                                {gasto.archivado && esVistaAdmin && (
+                                                  <div className="text-slate-400 flex-shrink-0" title="Gasto archivado"><Archive size={16} /></div>
+                                                )}
+                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm flex-grow" title={gasto.concepto}>
                                                   {gasto.idPadre ? `Caseta de: ${padreGasto?.concepto || 'Gasto Eliminado'}` : gasto.concepto}
                                                 </Text>
                                                 {gasto.idPropina && (
