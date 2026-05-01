@@ -3,12 +3,22 @@ import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { X, Calendar, Link as LinkIcon, ChevronRight } from 'lucide-react';
+import { useAuth } from './AuthContext';
 
 const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud, onGenerarReporteMAF }) => {
+    const { user } = useAuth();
     const [view, setView] = useState('initial'); // 'initial' | 'seleccionarSolicitud' | 'pedirMontoMAF'
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [montoMAF, setMontoMAF] = useState('');
+
+    const formatoMoneda = (cantidad) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2
+        }).format(cantidad);
+    };
 
     useEffect(() => {
         if (view === 'seleccionarSolicitud') {
@@ -16,6 +26,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
             const q = query(
                 collection(db, "solicitudes"), 
                 where("estado", "not-in", ["Esperando...", "Cerrada", "Finalizada"]),
+                where("userId", "==", user.uid), // Filter by current user
                 orderBy("fechaInicio", "desc")
             );
             const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -113,6 +124,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                                     <div key={solicitud.id} onClick={() => handleSelectSolicitud(solicitud)} className="p-3 rounded-md border border-slate-200 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors">
                                         <p className="font-bold text-sm text-slate-700">{solicitud.proyecto}</p>
                                         <p className="text-xs text-slate-500">{solicitud.consultor}</p>
+                                        <p className="text-xs text-slate-500">Monto: {formatoMoneda(solicitud.totalSolicitado)}</p>
                                         <p className="text-xs text-slate-500 mt-1">{solicitud.fechaInicio} al {solicitud.fechaFin}</p>
                                     </div>
                                 ))}
