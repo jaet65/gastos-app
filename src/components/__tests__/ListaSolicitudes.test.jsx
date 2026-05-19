@@ -65,8 +65,8 @@ describe('ListaSolicitudes Component', () => {
     it('debería permitir cambiar el estado de una solicitud', async () => {
         render(<ListaSolicitudes />);
 
-        // Abrir el menú de la primera solicitud
-        const menuButton = (await screen.findAllByRole('button', { name: /Solicitada/i }))[0];
+        // Abrir el menú de la primera solicitud (usamos RegExp exacto para evitar el botón de filtro "Solicitada (1)")
+        const menuButton = await screen.findByRole('button', { name: /^Solicitada$/ });
         fireEvent.click(menuButton);
 
         // Hacer clic en la opción "Recibida"
@@ -76,6 +76,44 @@ describe('ListaSolicitudes Component', () => {
         await waitFor(() => {
             expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
             expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { estado: 'Recibida' });
+        });
+    });
+
+    it('debería filtrar la lista de solicitudes al hacer clic en los botones de filtro', async () => {
+        render(<ListaSolicitudes />);
+
+        // Al inicio, deberían estar ambas solicitudes ("Solicitada" y "Recibida")
+        expect(await screen.findByText('Rally TrackSIM - CECAI')).toBeInTheDocument(); // Solicitada
+        expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument(); // Recibida
+
+        // Hacer clic en el botón de filtro "Recibida (1)"
+        const filtroRecibida = await screen.findByRole('button', { name: /Recibida \(1\)/i });
+        fireEvent.click(filtroRecibida);
+
+        // Debería mostrar solo la solicitud de MAF (Recibida) y ocultar la de CECAI (Solicitada)
+        await waitFor(() => {
+            expect(screen.queryByText('Rally TrackSIM - CECAI')).not.toBeInTheDocument();
+            expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument();
+        });
+
+        // Hacer clic en el botón de filtro "Solicitada (1)"
+        const filtroSolicitada = await screen.findByRole('button', { name: /Solicitada \(1\)/i });
+        fireEvent.click(filtroSolicitada);
+
+        // Debería mostrar solo la de CECAI (Solicitada) y ocultar la de MAF (Recibida)
+        await waitFor(() => {
+            expect(screen.getByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
+            expect(screen.queryByText('Rally TrackSIM - MAF')).not.toBeInTheDocument();
+        });
+
+        // Hacer clic en el botón de filtro "Todas (2)"
+        const filtroTodas = await screen.findByRole('button', { name: /Todas \(2\)/i });
+        fireEvent.click(filtroTodas);
+
+        // Debería mostrar ambas nuevamente
+        await waitFor(() => {
+            expect(screen.getByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
+            expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument();
         });
     });
 

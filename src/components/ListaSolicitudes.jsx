@@ -28,6 +28,11 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
     const targetUid = adminViewUid || user?.uid;
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [estadoFiltro, setEstadoFiltro] = useState('Todos');
+
+    const solicitudesFiltradas = estadoFiltro === 'Todos'
+        ? solicitudes
+        : solicitudes.filter(s => s.estado === estadoFiltro);
 
     const descargarPdf = async (url, nombreArchivo) => {
         try {
@@ -165,10 +170,47 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
 
     return (
         <div className="space-y-4">
+            {solicitudes.length > 0 && (
+                <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-thin select-none">
+                    <button
+                        onClick={() => setEstadoFiltro('Todos')}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shadow-sm border ${
+                            estadoFiltro === 'Todos'
+                                ? 'bg-slate-800 text-white border-slate-800'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                        Todas ({solicitudes.length})
+                    </button>
+                    {Object.keys(statusColors).map((estado) => {
+                        const count = solicitudes.filter(s => s.estado === estado).length;
+                        const activeClass = statusColors[estado].badge;
+                        const isSelected = estadoFiltro === estado;
+                        
+                        return (
+                            <button
+                                key={estado}
+                                onClick={() => setEstadoFiltro(estado)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shadow-sm border flex items-center gap-1.5 ${
+                                    isSelected
+                                        ? `${activeClass} border-transparent`
+                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                }`}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : statusColors[estado].dot}`}></span>
+                                {estado} ({count})
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             {solicitudes.length === 0 ? (
                 <Text className="text-center mt-8">No hay solicitudes de recursos todavía.</Text>
+            ) : solicitudesFiltradas.length === 0 ? (
+                <Text className="text-center mt-8">No hay solicitudes en este estado.</Text>
             ) : (
-                solicitudes.map(solicitud => (
+                solicitudesFiltradas.map(solicitud => (
                     <Card key={solicitud.id}>
                         <Flex alignItems="start" className="border-none">
                             <div className="truncate">
