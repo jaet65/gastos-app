@@ -184,6 +184,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
                     </button>
                     {Object.keys(statusColors).map((estado) => {
                         const count = solicitudes.filter(s => s.estado === estado).length;
+                        if (count === 0) return null;
                         const activeClass = statusColors[estado].badge;
                         const isSelected = estadoFiltro === estado;
                         
