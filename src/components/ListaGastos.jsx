@@ -40,8 +40,17 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
   const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
+  const [selectedCategories, setSelectedCategories] = useState([]); // Nuevo estado
 
   const nombreConsultor = user?.displayName || user?.email || 'Consultor Desconocido';
+
+  const handleCategoryClick = (categoria) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoria)
+        ? prev.filter(c => c !== categoria)
+        : [...prev, categoria]
+    );
+  };
 
   const formatearFecha = (fechaStr) => {
     if (!fechaStr) return '';
@@ -986,6 +995,26 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     }
   };
 
+  const filteredGastosForStats = useMemo(() => {
+    return gastos.filter(g => {
+      if (!mostrarArchivados && g.archivado) {
+        return false;
+      }
+      if (fechaInicio && g.fecha < fechaInicio) return false;
+      if (fechaFin && g.fecha > fechaFin) return false;
+      if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
+        const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
+        if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
+
+        const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
+        if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
+
+        return false;
+      }
+      return true;
+    });
+  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados]);
+
   const dataAgrupada = useMemo(() => {
     const filtrados = gastos.filter(g => {
       if (!mostrarArchivados && g.archivado) {
@@ -1000,6 +1029,10 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
         const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
         if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
 
+        return false;
+      }
+      // Nueva lógica de filtrado por categoría
+      if (selectedCategories.length > 0 && !selectedCategories.includes(g.categoria)) {
         return false;
       }
       return true;
@@ -1022,7 +1055,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     }, {});
 
     return resultado;
-  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados]);
+  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados, selectedCategories]);
 
   const totalNormal = useMemo(() => {
     let total = 0;
@@ -1048,25 +1081,28 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     const totales = {};
     const diasConGastos = new Set();
 
-    Object.values(dataAgrupada).forEach(estado => {
-      Object.entries(estado.categorias).forEach(([cat, datos]) => {
-        totales[cat] = (totales[cat] || 0) + datos.totalCategoria;
-        Object.keys(datos.fechas).forEach(fecha => {
-          diasConGastos.add(fecha);
-        });
-      });
-    });
+    const groupedForStats = filteredGastosForStats.reduce((acc, gasto) => {
+      const categoria = gasto.categoria || 'Otros';
+      const fecha = gasto.fecha;
+
+      if (!acc[categoria]) acc[categoria] = { totalCategoria: 0, fechas: new Set() };
+
+      acc[categoria].totalCategoria += parseFloat(gasto.monto);
+      acc[categoria].fechas.add(fecha);
+      diasConGastos.add(fecha);
+      return acc;
+    }, {});
 
     const numDias = diasConGastos.size;
     if (numDias === 0) return [];
 
-    return Object.entries(totales).map(([categoria, total]) => ({
+    return Object.entries(groupedForStats).map(([categoria, data]) => ({
       categoria,
-      total,
-      promedio: total / numDias,
+      total: data.totalCategoria,
+      promedio: data.totalCategoria / numDias,
       details: getCategoryDetails(categoria)
     }));
-  }, [dataAgrupada]);
+  }, [filteredGastosForStats]);
 
   // Hook para evitar que el swipe en la barra de stats cierre el sidebar
   const swipeHandlers = useSwipeable({
@@ -1092,20 +1128,20 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
               <Calendar size={14} className="text-gray-400 ml-1" />
               <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600" />
             </div>
-            <button onClick={() => setMostrarArchivados(!mostrarArchivados)} className={`p-2 rounded-full border transition-all shadow-sm flex-shrink-0 ${mostrarArchivados ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-transparent border-gray-200 text-slate-400 hover:bg-slate-50'}`} title={mostrarArchivados ? "Ocultar archivados" : "Mostrar archivados"}>
+            <button onClick={() => setMostrarArchivados(!mostrarArchivados)} className={`p-2 rounded-full border transition-all shadow-sm shrink-0 ${mostrarArchivados ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-transparent border-gray-200 text-slate-400 hover:bg-slate-50'}`} title={mostrarArchivados ? "Ocultar archivados" : "Mostrar archivados"}>
               {mostrarArchivados
                 ? <ArchiveRestore size={16} />
                 : <Archive size={16} />
               }
             </button>
             {mostrarArchivados && gastos.some(g => g.archivado) && !esVistaAdmin && (
-              <button onClick={handleUnarchiveVisible} disabled={isUnarchiving} className="flex items-center gap-1 p-2 rounded-full border transition-all shadow-sm flex-shrink-0 bg-yellow-100 border-yellow-200 text-yellow-700 hover:bg-yellow-200" title="Desarchivar todos los visibles">
+              <button onClick={handleUnarchiveVisible} disabled={isUnarchiving} className="flex items-center gap-1 p-2 rounded-full border transition-all shadow-sm shrink-0 bg-yellow-100 border-yellow-200 text-yellow-700 hover:bg-yellow-200" title="Desarchivar todos los visibles">
                 {isUnarchiving ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
                 <span className="text-xs font-bold">Desarchivar</span>
               </button>
             )}
             {(fechaInicio || fechaFin || terminoBusqueda) && (
-              <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm flex-shrink-0" title="Limpiar filtros">
+              <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm shrink-0" title="Limpiar filtros">
                 <RotateCcw size={16} />
               </button>
             )}
@@ -1133,7 +1169,11 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
           {...swipeHandlers}
           className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
           {statsCategorias.map((stat) => (
-            <div key={stat.categoria} className="flex-shrink-0 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white/50 shadow-sm min-w-[100px] flex flex-col gap-1">
+            <div 
+              key={stat.categoria} 
+              className={`shrink-0 p-3 rounded-2xl border shadow-sm min-w-25 flex flex-col gap-1 cursor-pointer transition-all ${selectedCategories.includes(stat.categoria) ? 'border-emerald-500 bg-emerald-50' : 'border-white/50 bg-white/60 backdrop-blur-sm'}`}
+              onClick={() => handleCategoryClick(stat.categoria)}
+            >
               <div className="flex items-center gap-2 mb-1">
                 <stat.details.icon size={14} className="text-slate-400" />
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{stat.categoria}</span>
@@ -1276,20 +1316,20 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
                                                   <button
                                                     type="button"
                                                     onClick={() => toggleArchivoGasto(gasto)}
-                                                    className="bg-transparent border-none p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0"
+                                                    className="bg-transparent border-none p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors shrink-0"
                                                     title={gasto.archivado ? 'Desarchivar' : 'Archivar'}
                                                   >
                                                     {gasto.archivado ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                                                   </button>
                                                 )}
                                                 {gasto.archivado && esVistaAdmin && (
-                                                  <div className="text-slate-400 flex-shrink-0" title="Gasto archivado"><Archive size={16} /></div>
+                                                  <div className="text-slate-400 shrink-0" title="Gasto archivado"><Archive size={16} /></div>
                                                 )}
-                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm flex-grow" title={gasto.concepto}>
+                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm grow" title={gasto.concepto}>
                                                   {gasto.idPadre ? `Caseta de: ${padreGasto?.concepto || 'Gasto Eliminado'}` : gasto.concepto}
                                                 </Text>
                                                 {gasto.idPropina && (
-                                                  <div className="bg-transparent text-yellow-600 p-0.5 rounded flex-shrink-0" title="Tiene propina asignada">
+                                                  <div className="bg-transparent text-yellow-600 p-0.5 rounded shrink-0" title="Tiene propina asignada">
                                                     <Coins size={10} strokeWidth={2.5} />
                                                   </div>
                                                 )}
