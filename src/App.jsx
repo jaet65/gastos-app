@@ -1,3 +1,4 @@
+import AuditoriaView from './components/AuditoriaView';
 import FormularioGasto from './components/FormularioGasto';
 import ListaGastos from './components/ListaGastos';
 import ListaSolicitudes from './components/ListaSolicitudes';
@@ -21,6 +22,7 @@ function App() {
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [pendingSolicitudes, setPendingSolicitudes] = useState(0);
+  const [showAuditoriaTab, setShowAuditoriaTab] = useState(false);
 
   const isAdmin = userData?.role === 'admin';
 
@@ -51,21 +53,36 @@ function App() {
     }, // Cierra el sidebar
   });
 
+  const changeTab = (tab) => {
+    if (tab !== 'auditoria' && tab !== 'usuarios') {
+        setShowAuditoriaTab(false);
+        setAdminSelectedUser(null); 
+    }
+    setActiveTab(tab);
+  }
+
+  const selectAudit = () => {
+      setShowAuditoriaTab(true);
+      setActiveTab('auditoria');
+      setIsSidebarOpen(false);
+  }
+
   // Handlers para deslizar entre pestañas (swipe horizontal)
   const tabSwipeHandlers = useSwipeable({
     onSwipedLeft: () => {
-      if (activeTab === 'gastos') setActiveTab('solicitudes');
-      else if (activeTab === 'solicitudes' && isAdmin) setActiveTab('usuarios');
+      if (activeTab === 'gastos') changeTab('solicitudes');
+      else if (activeTab === 'solicitudes' && isAdmin) changeTab('usuarios');
     },
     onSwipedRight: () => {
-      if (activeTab === 'usuarios') setActiveTab('solicitudes');
-      else if (activeTab === 'solicitudes') setActiveTab('gastos');
+      if (activeTab === 'usuarios') changeTab('solicitudes');
+      else if (activeTab === 'solicitudes') changeTab('gastos');
     }
   });
 
   const clearAdminView = () => {
     setAdminSelectedUser(null);
     setAdminEditMode(false);
+    setShowAuditoriaTab(false);
   };
 
   const handleLogout = async () => {
@@ -232,9 +249,10 @@ function App() {
             </div>
 
             <div className="flex border-b border-slate-200 mb-4">
-              <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => setActiveTab('gastos')} />
-              <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { setActiveTab('solicitudes'); }} badge={pendingSolicitudes} />
-              {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => setActiveTab('usuarios')} />}
+              <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => changeTab('gastos')} />
+              <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { changeTab('solicitudes'); }} badge={pendingSolicitudes} />
+              {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
+              {isAdmin && showAuditoriaTab && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />}
             </div>
           </div>
 
@@ -270,7 +288,18 @@ function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ListaUsuarios onSelectUser={handleSelectUser} />
+                  <ListaUsuarios onSelectUser={handleSelectUser} onSelectAudit={selectAudit} />
+                </motion.div>
+              )}
+              {isAdmin && activeTab === 'auditoria' && (
+                <motion.div
+                  key="auditoria"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <AuditoriaView />
                 </motion.div>
               )}
             </AnimatePresence>
