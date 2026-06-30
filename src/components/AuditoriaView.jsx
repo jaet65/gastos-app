@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Card, Title, Text, Flex, Button, Subtitle } from "@tremor/react";
-import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar } from 'lucide-react';
+import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar, Upload } from 'lucide-react';
 import PanelAuditoria from './PanelAuditoria';
+import * as XLSX from 'xlsx';
 
 const InputGroup = ({ icon: Icon, children }) => (
     <div className="flex items-center bg-white/50 transition-all overflow-hidden h-14 hover:bg-white/80 focus-within:bg-white backdrop-blur-md border border-slate-200 rounded-full shadow-sm">
@@ -24,11 +25,67 @@ const AuditoriaView = () => {
     const [newStartDate, setNewStartDate] = useState(null);
     const [newEndDate, setNewEndDate] = useState(null);
     const [editingId, setEditingId] = useState(null);
+    const [isImporting, setIsImporting] = useState(false); // New state for import loading
+    const fileInputRef = useRef(null);
 
     const dateToInputValue = (date) => {
         if (!date) return '';
         return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
     };
+
+    const handleImportClick = () => {
+        fileInputRef.current.click();
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        setIsImporting(true); // Start importing
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = event.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+
+                // Start from 1 to skip header row
+                for (let i = 1; i < json.length; i++) {
+                    const row = json[i];
+                    if (!row[0] || !row[1] || !row[3]) { // Basic validation
+                        console.warn("Skipping incomplete row:", row);
+                        continue;
+                    }
+
+                    const startDate = row[0];
+                    const endDate = row[1];
+                    const city = row[3];
+                    
+                    const auditData = {
+                        city: city,
+                        startDate: startDate,
+                        endDate: endDate,
+                    };
+
+                    await addDoc(collection(db, "auditorias"), { ...auditData, creado_en: Timestamp.now() });
+                }
+                alert("¡Periodos importados con éxito!");
+            } catch (error) {
+                console.error("Error processing file:", error);
+                alert("Error al procesar el archivo: " + error.message);
+            } finally {
+                // Reset file input
+                e.target.value = '';
+                setIsImporting(false); // End importing
+            }
+        };
+        reader.readAsBinaryString(file);
+    };
+
 
     useEffect(() => {
         const q = query(collection(db, "gastos"), orderBy("fecha", "desc"));
@@ -151,8 +208,29 @@ const AuditoriaView = () => {
                         </InputGroup>
                     </div>
                     <Flex justifyContent="end" className="gap-2 mt-6 pt-4 border-t border-slate-200">
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileChange}
+                            className="hidden" 
+                            accept=".xlsx, .xls"
+                        />
                          {editingId && (
                             <Button onClick={resetForm} icon={XCircle} size="sm" color="gray" variant="light">Cancelar</Button>
+                        )}
+                        {!editingId && (
+                            <Button 
+                                type="button" 
+                                onClick={handleImportClick} 
+                                icon={Upload} 
+                                size="sm" 
+                                color="blue" 
+                                variant="light"
+                                loading={isImporting} // Add loading prop
+                                disabled={isImporting} // Disable button while importing
+                            >
+                                {isImporting ? 'Importando...' : 'Importar'}
+                            </Button>
                         )}
                         <Button type="submit" icon={editingId ? Edit : PlusCircle} size="sm" color="blue">
                             {editingId ? 'Guardar Cambios' : 'Añadir Periodo'}
