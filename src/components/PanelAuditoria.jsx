@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Card, Title, Text, Flex, Metric, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Divider } from '@tremor/react';
+import React, { useMemo, useState } from 'react';
+import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react';
 import { Car, Utensils, Layers, ShieldCheck } from 'lucide-react';
 
 const formatoMoneda = (cantidad) => {
@@ -20,10 +20,37 @@ const getCategoryDetails = (cat) => {
 };
 
 const PanelAuditoria = ({ allGastos, audits }) => {
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+    const availableYears = useMemo(() => {
+        if (!audits || audits.length === 0) return [new Date().getFullYear()];
+        const years = new Set(audits.map(audit => parseInt(audit.startDate.split('-')[0], 10)));
+        return Array.from(years).sort((a, b) => a - b);
+    }, [audits]);
+
+    const handlePrevYear = () => {
+        const currentIndex = availableYears.indexOf(selectedYear);
+        if (currentIndex > 0) {
+            setSelectedYear(availableYears[currentIndex - 1]);
+        }
+    };
+
+    const handleNextYear = () => {
+        const currentIndex = availableYears.indexOf(selectedYear);
+        if (currentIndex < availableYears.length - 1) {
+            setSelectedYear(availableYears[currentIndex + 1]);
+        }
+    };
+
     const auditResults = useMemo(() => {
         if (!audits.length || !allGastos.length) return [];
 
-        return audits.map(audit => {
+        const filteredAudits = audits.filter(audit => {
+            const auditYear = parseInt(audit.startDate.split('-')[0], 10);
+            return auditYear === selectedYear;
+        });
+
+        const results = filteredAudits.map(audit => {
             const gastosEnPeriodo = allGastos.filter(gasto =>
                 gasto.fecha >= audit.startDate && gasto.fecha <= audit.endDate
             );
@@ -42,7 +69,11 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 totalCiudad,
             };
         });
-    }, [allGastos, audits]);
+
+        // Filter out audits with totalCiudad of 0 and sort chronologically
+        return results.filter(result => result.totalCiudad > 0)
+                      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    }, [allGastos, audits, selectedYear]);
 
     if (audits.length === 0) {
         return (
@@ -52,10 +83,21 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         );
     }
 
+    const currentIndex = availableYears.indexOf(selectedYear);
+    const isPrevDisabled = currentIndex <= 0;
+    const isNextDisabled = currentIndex >= availableYears.length - 1;
+
     return (
         <div className="space-y-6 mt-6">
             <Title>Resultados de la Auditoría</Title>
-            {auditResults.map(result => (
+
+            <Flex justifyContent="center" alignItems="center" className="gap-4">
+                <Button onClick={handlePrevYear} disabled={isPrevDisabled} variant="light">&lt;&lt;</Button>
+                <Text className="text-xl font-semibold">{selectedYear}</Text>
+                <Button onClick={handleNextYear} disabled={isNextDisabled} variant="light">&gt;&gt;</Button>
+            </Flex>
+
+            {auditResults.length > 0 ? auditResults.map(result => (
                 <Card key={result.id} decoration="top" decorationColor="indigo">
                     <div className="mb-4">
                         <Flex alignItems="start">
@@ -90,7 +132,11 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                             })}
                     </div>
                 </Card>
-            ))}
+            )) : (
+                <Card className="text-center">
+                    <Text>No hay datos de auditoría para el año {selectedYear}.</Text>
+                </Card>
+            )}
         </div>
     );
 };
