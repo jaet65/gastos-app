@@ -6,6 +6,38 @@ import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar, Upload } from 'luc
 import PanelAuditoria from './PanelAuditoria';
 import * as XLSX from 'xlsx';
 
+// Helper function to format date from Excel import
+const formatImportedDate = (dateStr) => {
+    if (typeof dateStr !== 'string' || !dateStr.trim()) {
+        return null;
+    }
+    dateStr = dateStr.trim();
+
+    // If format is already correct, return it
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr;
+    }
+
+    // Handle various slash-separated date formats (m/d/yy, mm/dd/yy, etc.)
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+        let [month, day, year] = parts;
+        if (year.length === 2) {
+            // Assuming 2-digit years are in the 21st century
+            year = `20${year}`;
+        }
+        
+        // Pad month and day with a leading zero if necessary
+        month = month.padStart(2, '0');
+        day = day.padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    }
+
+    console.warn(`Could not parse date: "${dateStr}"`);
+    return null; // Return null if format is not recognized
+};
+
 const InputGroup = ({ icon: Icon, children }) => (
     <div className="flex items-center bg-white/50 transition-all overflow-hidden h-14 hover:bg-white/80 focus-within:bg-white backdrop-blur-md border border-slate-200 rounded-full shadow-sm">
         <div className="pl-5 text-slate-400">
@@ -56,14 +88,14 @@ const AuditoriaView = () => {
                 // Start from 1 to skip header row
                 for (let i = 1; i < json.length; i++) {
                     const row = json[i];
-                    if (!row[0] || !row[1] || !row[3]) { // Basic validation
-                        console.warn("Skipping incomplete row:", row);
+                    const startDate = formatImportedDate(row[0]);
+                    const endDate = formatImportedDate(row[1]);
+                    const city = row[3];
+
+                    if (!startDate || !endDate || !city) { // Basic validation
+                        console.warn("Skipping incomplete or invalid data in row:", row);
                         continue;
                     }
-
-                    const startDate = row[0];
-                    const endDate = row[1];
-                    const city = row[3];
                     
                     const auditData = {
                         city: city,
