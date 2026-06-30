@@ -18,6 +18,7 @@ const AuditoriaView = () => {
     const [allGastos, setAllGastos] = useState([]);
     const [audits, setAudits] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showDefinedPeriods, setShowDefinedPeriods] = useState(false);
 
     const [newCity, setNewCity] = useState('');
     const [newStartDate, setNewStartDate] = useState(null);
@@ -162,31 +163,35 @@ const AuditoriaView = () => {
 
             {audits.length > 0 && (
                 <div>
-                    <Title className="mb-3 text-left">Periodos definidos</Title>
-                    <div className="space-y-3">
-                        {audits.map(audit => (
-                            <Card key={audit.id} className="p-3 group">
-                                <Flex alignItems="center" justifyContent="between">
-                                    <div className="flex items-center gap-4 truncate">
-                                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
-                                            <MapPin size={16} />
-                                        </div>
-                                        <div>
-                                            <Text className="font-bold text-slate-800 truncate">{audit.city}</Text>
-                                            <div className="flex items-center gap-1.5">
-                                                <Calendar size={12} className="text-slate-400" />
-                                                <Text className="text-xs text-slate-500">{audit.startDate} al {audit.endDate}</Text>
+                    <Title className="mb-3 text-center cursor-pointer" onClick={() => setShowDefinedPeriods(!showDefinedPeriods)}>
+                       ▼ Periodos ▼
+                    </Title>
+                    {showDefinedPeriods && (
+                        <div className="space-y-3">
+                            {audits.map(audit => (
+                                <Card key={audit.id} className="p-3 group">
+                                    <Flex alignItems="center" justifyContent="between">
+                                        <div className="flex items-center gap-4 truncate">
+                                            <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
+                                                <MapPin size={16} />
+                                            </div>
+                                            <div>
+                                                <Text className="font-bold text-slate-800 truncate">{audit.city}</Text>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Calendar size={12} className="text-slate-400" />
+                                                    <Text className="text-xs text-slate-500">{audit.startDate} al {audit.endDate}</Text>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <Flex justifyContent="end" className="gap-1 w-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                        <Button onClick={() => handleEdit(audit)} icon={Edit} size="xs" variant="light" color="blue" />
-                                        <Button onClick={() => handleRemoveAudit(audit.id)} icon={Trash2} size="xs" variant="light" color="red" />
+                                        <Flex justifyContent="end" className="gap-1 w-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                            <Button onClick={() => handleEdit(audit)} icon={Edit} size="xs" variant="light" color="blue" />
+                                            <Button onClick={() => handleRemoveAudit(audit.id)} icon={Trash2} size="xs" variant="light" color="red" />
+                                        </Flex>
                                     </Flex>
-                                </Flex>
-                            </Card>
-                        ))}
-                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
             
