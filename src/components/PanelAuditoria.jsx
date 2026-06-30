@@ -19,6 +19,20 @@ const getCategoryDetails = (cat) => {
     }
 };
 
+const getNumberOfDays = (startDate, endDate) => {
+    const start = new Date(startDate + 'T00:00:00'); // Ensure local time parsing
+    const end = new Date(endDate + 'T00:00:00'); // Ensure local time parsing
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays + 1; // Include both start and end day
+};
+
+const adjustDate = (dateString, adjustment) => {
+    const date = new Date(dateString + 'T00:00:00');
+    date.setDate(date.getDate() + adjustment);
+    return date.toISOString().split('T')[0];
+};
+
 const PanelAuditoria = ({ allGastos, audits }) => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -51,22 +65,40 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         });
 
         const results = filteredAudits.map(audit => {
+            const adjustedStartDate = adjustDate(audit.startDate, -1);
+            const adjustedEndDate = adjustDate(audit.endDate, 1);
+            
             const gastosEnPeriodo = allGastos.filter(gasto =>
-                gasto.fecha >= audit.startDate && gasto.fecha <= audit.endDate
+                gasto.fecha >= adjustedStartDate && gasto.fecha <= adjustedEndDate
             );
 
-            const gastosPorCategoria = gastosEnPeriodo.reduce((acc, gasto) => {
+            // Calculate initial category totals
+            const categoryTotals = {};
+            gastosEnPeriodo.forEach(gasto => {
                 const categoria = gasto.categoria || 'Otros';
-                acc[categoria] = (acc[categoria] || 0) + parseFloat(gasto.monto);
-                return acc;
-            }, {});
+                if (!categoryTotals[categoria]) {
+                    categoryTotals[categoria] = 0;
+                }
+                categoryTotals[categoria] += parseFloat(gasto.monto);
+            });
 
-            const totalCiudad = Object.values(gastosPorCategoria).reduce((sum, monto) => sum + monto, 0);
+            const totalCiudad = Object.values(categoryTotals).reduce((sum, monto) => sum + monto, 0);
+            const numberOfDays = getNumberOfDays(audit.startDate, audit.endDate);
+            const averagePerDayCity = numberOfDays > 0 ? totalCiudad / numberOfDays : 0; // Renamed for clarity
+
+            // Calculate average per day for each category
+            const gastosPorCategoriaWithAverages = {};
+            for (const categoria in categoryTotals) {
+                const total = categoryTotals[categoria];
+                const average = numberOfDays > 0 ? total / numberOfDays : 0;
+                gastosPorCategoriaWithAverages[categoria] = { total: total, averagePerDay: average };
+            }
 
             return {
                 ...audit,
-                gastosPorCategoria,
+                gastosPorCategoria: gastosPorCategoriaWithAverages, // New structure
                 totalCiudad,
+                averagePerDay: averagePerDayCity, // Storing city-level average here
             };
         });
 
@@ -101,14 +133,18 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 <Card key={result.id} decoration="top" decorationColor="indigo">
                     <div className="mb-4">
                         <Flex alignItems="start">
-                            <div>
+                            <div className="flex-1">
                                 <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Ciudad</Text>
                                 <Metric className="text-slate-800">{result.city}</Metric>
                                 <Text className="text-slate-500">{result.startDate} al {result.endDate}</Text>
                             </div>
-                            <div className="text-right">
+                            <div className="flex-1 text-center">
                                 <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Total en Periodo</Text>
                                 <Metric className="text-indigo-600">{formatoMoneda(result.totalCiudad)}</Metric>
+                            </div>
+                            <div className="flex-1 text-right">
+                                <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Promedio/Día</Text>
+                                <Metric className="text-indigo-600">{formatoMoneda(result.averagePerDay)}</Metric>
                             </div>
                         </Flex>
                     </div>
@@ -117,16 +153,19 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
                     <div className="mt-4 space-y-3">
                         {Object.entries(result.gastosPorCategoria)
-                            .sort(([, a], [, b]) => b - a)
-                            .map(([categoria, monto]) => {
+                            .sort(([, a], [, b]) => b.total - a.total)
+                            .map(([categoria, data]) => {
                                 const { icon: Icon, color } = getCategoryDetails(categoria);
                                 return (
-                                    <Flex key={categoria}>
+                                    <Flex key={categoria} justifyContent="between" alignItems="center">
                                         <Flex className="w-auto gap-2" justifyContent="start" alignItems="center">
                                             <Icon className={`text-${color}-500`} size={14} />
                                             <Text className="font-medium text-slate-700">{categoria}</Text>
                                         </Flex>
-                                        <Text className="font-mono font-semibold text-slate-700">{formatoMoneda(monto)}</Text>
+                                        <Flex className="w-auto gap-4" justifyContent="end" alignItems="center">
+                                            <Text className="font-mono text-slate-700">{formatoMoneda(data.total)}</Text>
+                                            <Text className="font-mono text-sm text-slate-500">({formatoMoneda(data.averagePerDay)}/día)</Text>
+                                        </Flex>
                                     </Flex>
                                 );
                             })}
