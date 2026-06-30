@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Card, Title, Text, Flex, Metric, Divider, Button, TabGroup, TabList, Tab } from '@tremor/react';
+import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react';
 import { Car, Utensils, Layers, ShieldCheck } from 'lucide-react';
 
 const formatoMoneda = (cantidad) => {
@@ -175,12 +175,26 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         <div className="space-y-6 mt-6">
             <Title>Resultados de la Auditoría</Title>
 
-            <TabGroup index={auditType} onIndexChange={setAuditType}>
-                <TabList variant="solid">
-                    <Tab>Por Periodo</Tab>
-                    <Tab>Por Ciudad</Tab>
-                </TabList>
-            </TabGroup>
+            <Flex className="gap-2" justifyContent="center">
+                <Button
+                    variant={auditType === 0 ? "primary" : "light"}
+                    color={auditType === 0 ? "blue" : "slate"}
+                    onClick={() => setAuditType(0)}
+                    size="xs"
+                    className="rounded-xl px-4 py-2"
+                >
+                    Periodo
+                </Button>
+                <Button
+                    variant={auditType === 1 ? "primary" : "light"}
+                    color={auditType === 1 ? "blue" : "slate"}
+                    onClick={() => setAuditType(1)}
+                    size="xs"
+                    className="rounded-xl px-4 py-2"
+                >
+                    Ciudad
+                </Button>
+            </Flex>
 
             <Flex justifyContent="center" alignItems="center" className="gap-4">
                 <Button onClick={handlePrevYear} disabled={isPrevDisabled} variant="light">&lt;&lt;</Button>
