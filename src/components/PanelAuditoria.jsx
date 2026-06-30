@@ -138,15 +138,22 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 });
         
                 const dateRanges = Array.from(contributingAudits).map(s => JSON.parse(s)).sort((a,b) => new Date(a.startDate) - new Date(b.startDate));
+                
+                const totalDaysInCity = dateRanges.reduce((total, range) => total + getNumberOfDays(range.startDate, range.endDate), 0);
+                const averagePerDayCity = totalDaysInCity > 0 ? totalCiudad / totalDaysInCity : 0;
 
                 const gastosPorCategoria = gastos.reduce((acc, gasto) => {
                     const categoria = gasto.categoria || 'Otros';
                     if (!acc[categoria]) {
-                        acc[categoria] = { total: 0, averagePerDay: null }; // Keep structure, but null avg
+                        acc[categoria] = { total: 0, averagePerDay: 0 };
                     }
                     acc[categoria].total += parseFloat(gasto.monto);
                     return acc;
                 }, {});
+
+                for (const categoria in gastosPorCategoria) {
+                    gastosPorCategoria[categoria].averagePerDay = totalDaysInCity > 0 ? gastosPorCategoria[categoria].total / totalDaysInCity : 0;
+                }
 
                 return {
                     id: city,
@@ -154,6 +161,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     totalCiudad: totalCiudad,
                     gastosPorCategoria: gastosPorCategoria,
                     dateRanges: dateRanges,
+                    averagePerDay: averagePerDayCity,
                 };
             }).sort((a, b) => b.totalCiudad - a.totalCiudad);
         }
@@ -231,10 +239,10 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                                 <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Total en {auditType === 0 ? 'Periodo' : 'Año'}</Text>
                                 <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.totalCiudad)}</Metric>
                             </div>
-                            {auditType === 0 && (
+                            {result.averagePerDay > 0 && (
                                 <div className="flex-1 text-right">
                                     <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Promedio/Día</Text>
-                                    <Metric className="text-indigo-600">{formatoMoneda(result.averagePerDay)}</Metric>
+                                    <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.averagePerDay)}</Metric>
                                 </div>
                             )}
                         </Flex>
@@ -255,7 +263,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                                         </Flex>
                                         <Flex className="w-auto gap-4" justifyContent="end" alignItems="center">
                                             <Text className="font-mono text-slate-700">{formatoMoneda(data.total)}</Text>
-                                            {data.averagePerDay !== null && (
+                                            {data.averagePerDay > 0 && (
                                                 <Text className="font-mono text-sm text-slate-500">({formatoMoneda(data.averagePerDay)}/día)</Text>
                                             )}
                                         </Flex>
