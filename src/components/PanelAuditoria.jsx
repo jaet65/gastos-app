@@ -248,16 +248,6 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                                     </>
                                  )}
                             </div>
-                            <div className="flex-1 text-center">
-                                <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Total en {auditType === 0 ? 'Periodo' : 'Año'}</Text>
-                                <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.totalCiudad)}</Metric>
-                            </div>
-                            {result.averagePerDay > 0 && (
-                                <div className="flex-1 text-right">
-                                    <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Promedio/Día</Text>
-                                    <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.averagePerDay)}</Metric>
-                                </div>
-                            )}
                         </Flex>
                     </div>
 
@@ -284,6 +274,19 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                                 );
                             })}
                     </div>
+                    <Divider className="mt-4!" />
+                    <Flex className="mt-4 justify-center gap-12">
+                        <div className="text-center">
+                            <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Total por {auditType === 0 ? 'Periodo' : 'Año'}</Text>
+                            <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.totalCiudad)}</Metric>
+                        </div>
+                        {result.averagePerDay > 0 && (
+                            <div className="flex-1 text-right">
+                                <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Promedio/Día</Text>
+                                <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.averagePerDay)}</Metric>
+                            </div>
+                        )}
+                    </Flex>
                 </Card>
             )) : (
                 <Card className="text-center">
