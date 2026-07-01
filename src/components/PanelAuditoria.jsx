@@ -163,7 +163,20 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     dateRanges: dateRanges,
                     averagePerDay: averagePerDayCity,
                 };
-            }).sort((a, b) => b.totalCiudad - a.totalCiudad);
+            }).sort((a, b) => {
+                const cityA = (a.city || '').trim();
+                const cityB = (b.city || '').trim();
+                const isSinCiudadA = cityA.toLowerCase() === "sin ciudad";
+                const isSinCiudadB = cityB.toLowerCase() === "sin ciudad";
+            
+                if (isSinCiudadA && !isSinCiudadB) {
+                    return 1;
+                }
+                if (isSinCiudadB && !isSinCiudadA) {
+                    return -1;
+                }
+                return cityA.localeCompare(cityB);
+            });
         }
     }, [allGastos, audits, selectedYear, auditType]);
 

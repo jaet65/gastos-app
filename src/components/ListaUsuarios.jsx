@@ -5,7 +5,7 @@ import { Card, Text, Title, Flex, Divider } from "@tremor/react";
 import { User, Mail, Calendar, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
-const ListaUsuarios = ({ onSelectUser, onSelectAudit, adminEditMode = false }) => {
+const ListaUsuarios = ({ onSelectUser, adminEditMode = false }) => {
     const [usuarios, setUsuarios] = useState([]);
     const { userData } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -26,18 +26,8 @@ const ListaUsuarios = ({ onSelectUser, onSelectAudit, adminEditMode = false }) =
         <div className="space-y-4">
             <div className="mb-6">
                 <Title className="text-slate-800">Administración de Usuarios</Title>
-                <Text className="text-slate-500 text-sm">Selecciona un usuario para ver sus registros o inicia una auditoría general.</Text>
+                <Text className="text-slate-500 text-sm">Selecciona un usuario para ver sus registros.</Text>
             </div>
-
-            {userData?.role === 'admin' && (
-                <>
-                    <button onClick={onSelectAudit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-indigo-200 transition-all">
-                        <LayoutDashboard size={16} />
-                        <span className="text-xs uppercase font-bold tracking-wider">Auditoría General</span>
-                    </button>
-                    <Divider>O selecciona un usuario</Divider>
-                </>
-            )}
 
             <div className="grid grid-cols-1 gap-3">
                 {usuarios.map((u) => (

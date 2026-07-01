@@ -22,7 +22,6 @@ function App() {
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [pendingSolicitudes, setPendingSolicitudes] = useState(0);
-  const [showAuditoriaTab, setShowAuditoriaTab] = useState(false);
 
   const isAdmin = userData?.role === 'admin';
 
@@ -55,16 +54,9 @@ function App() {
 
   const changeTab = (tab) => {
     if (tab !== 'auditoria' && tab !== 'usuarios') {
-        setShowAuditoriaTab(false);
         setAdminSelectedUser(null); 
     }
     setActiveTab(tab);
-  }
-
-  const selectAudit = () => {
-      setShowAuditoriaTab(true);
-      setActiveTab('auditoria');
-      setIsSidebarOpen(false);
   }
 
   // Handlers para deslizar entre pestañas (swipe horizontal)
@@ -82,7 +74,6 @@ function App() {
   const clearAdminView = () => {
     setAdminSelectedUser(null);
     setAdminEditMode(false);
-    setShowAuditoriaTab(false);
   };
 
   const handleLogout = async () => {
@@ -171,7 +162,7 @@ function App() {
       
       {/* Banner de Modo Administrador */}
       {adminSelectedUser && (
-        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4 flex-wrap">
+        <div className="fixed top-0 left-0 right-0 z-100 bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4 flex-wrap">
           <span>Viendo datos de: {adminSelectedUser.displayName} ({adminSelectedUser.email})</span>
           <div className="flex gap-2">
             <button onClick={() => setAdminEditMode(!adminEditMode)} className={`px-3 py-1 rounded-full text-[10px] transition-all shadow-sm ${adminEditMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white text-amber-600 hover:bg-amber-50'}`}>
@@ -252,7 +243,7 @@ function App() {
               <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => changeTab('gastos')} />
               <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { changeTab('solicitudes'); }} badge={pendingSolicitudes} />
               {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
-              {isAdmin && showAuditoriaTab && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />}
+              {isAdmin && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />}
             </div>
           </div>
 
@@ -288,7 +279,7 @@ function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ListaUsuarios onSelectUser={handleSelectUser} onSelectAudit={selectAudit} />
+                  <ListaUsuarios onSelectUser={handleSelectUser} onSelectAudit={() => setActiveTab('auditoria')} />
                 </motion.div>
               )}
               {isAdmin && activeTab === 'auditoria' && (

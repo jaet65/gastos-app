@@ -133,10 +133,30 @@ const AuditoriaView = () => {
     }, [loading]);
 
     useEffect(() => {
-        const q = query(collection(db, "auditorias"), orderBy("creado_en", "asc"));
+        const q = query(collection(db, "auditorias")); // No Firestore orderBy, will sort client-side
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setAudits(data);
+            
+            // Custom sort function
+            const sortedData = data.sort((a, b) => {
+                const cityA = (a.city || '').trim(); // Handle potential undefined/null cities and trim whitespace
+                const cityB = (b.city || '').trim();
+
+                const isSinCiudadA = cityA.toLowerCase() === "sin ciudad";
+                const isSinCiudadB = cityB.toLowerCase() === "sin ciudad";
+
+                if (isSinCiudadA && !isSinCiudadB) {
+                    return 1; // "Sin Ciudad" comes after other cities
+                }
+                if (isSinCiudadB && !isSinCiudadA) {
+                    return -1; // Other cities come before "Sin Ciudad"
+                }
+                // For all other cases, sort alphabetically
+                return cityA.localeCompare(cityB);
+            });
+
+
+            setAudits(sortedData);
             if(loading) setLoading(false);
         }, (error) => {
             console.error("Error fetching auditorias:", error);
