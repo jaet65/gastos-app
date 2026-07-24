@@ -405,7 +405,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
         if (esMAF) {
           if (g.categoria !== 'MAF') return false;
         } else {
-          if (g.categoria === 'MAF') return false;
+          if (g.categoria === 'MAF' || g.categoria === 'ANTP') return false;
         }
         
         // Si las fechas del reporte vienen definidas, las usamos para filtrar.
@@ -991,6 +991,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
       case 'Transporte': return { color: 'slate', icon: Car };
       case 'Comida': return { color: 'slate', icon: Utensils };
       case 'MAF': return { color: 'orange', icon: ShieldCheck };
+      case 'ANTP': return { color: 'cyan', icon: Layers };
       default: return { color: 'slate', icon: Layers };
     }
   };
@@ -1039,7 +1040,14 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     });
 
     const resultado = filtrados.reduce((acc, gasto) => {
-      const estado = gasto.categoria === 'MAF' ? 'MAF' : (gasto.url_factura ? 'Con Factura' : 'Sin Factura');
+      let estado;
+      if (gasto.categoria === 'MAF') {
+        estado = 'MAF';
+      } else if (gasto.categoria === 'ANTP') {
+        estado = 'ANTP';
+      } else {
+        estado = gasto.url_factura ? 'Con Factura' : 'Sin Factura';
+      }
       const categoria = gasto.categoria || 'Otros';
       const fecha = gasto.fecha;
 
@@ -1061,7 +1069,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     let total = 0;
     Object.values(dataAgrupada).forEach(estado => {
       Object.entries(estado.categorias).forEach(([cat, datos]) => {
-        if (cat !== 'MAF') total += datos.totalCategoria;
+        if (cat !== 'MAF' && cat !== 'ANTP') total += datos.totalCategoria;
       });
     });
     return total;
@@ -1072,6 +1080,16 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     Object.values(dataAgrupada).forEach(estado => {
       Object.entries(estado.categorias).forEach(([cat, datos]) => {
         if (cat === 'MAF') total += datos.totalCategoria;
+      });
+    });
+    return total;
+  }, [dataAgrupada]);
+
+  const totalANTP = useMemo(() => {
+    let total = 0;
+    Object.values(dataAgrupada).forEach(estado => {
+      Object.entries(estado.categorias).forEach(([cat, datos]) => {
+        if (cat === 'ANTP') total += datos.totalCategoria;
       });
     });
     return total;
@@ -1099,7 +1117,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
     return Object.entries(groupedForStats).map(([categoria, data]) => ({
       categoria,
       total: data.totalCategoria,
-      promedio: data.totalCategoria / numDias,
+      promedio: (categoria === 'ANTP' || categoria === 'MAF') ? data.totalCategoria : (numDias === 0 ? 0 : data.totalCategoria / numDias),
       details: getCategoryDetails(categoria)
     }));
   }, [filteredGastosForStats]);
@@ -1180,7 +1198,9 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-black text-slate-800">{formatoMoneda(stat.promedio)}</span>
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Promedio / día</span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase">
+                  {(stat.categoria === 'ANTP' || stat.categoria === 'MAF') ? 'Total Periodo' : 'Promedio / día'}
+                </span>
               </div>
             </div>
           ))}
@@ -1188,7 +1208,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
       )}
 
       {/* 1. TOTALES SEPARADOS */}
-      <div className={`grid gap-3 ${totalMAF > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-3 ${totalMAF > 0 || totalANTP > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
         <Card decoration="top" decorationColor="blue" className="italic font-black py-1 px-0 mt-0 shadow-sm border-blue-100">
           <Flex justifyContent="between" alignItems="center" className="px-4">
             <Text className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Total Periodo</Text>
@@ -1197,20 +1217,6 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
             </Metric>
           </Flex>
         </Card>
-
-        {totalMAF > 0 && (
-          <Card decoration="top" decorationColor="orange" className="italic font-black py-1 px-0 mt-0 shadow-sm border-orange-100 bg-orange-50/30">
-            <Flex justifyContent="between" alignItems="center" className="px-4">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-orange-500" />
-                <Text className="text-orange-600 uppercase text-[10px] font-bold tracking-widest">Total MAF</Text>
-              </div>
-              <Metric className="italic text-xl font-black text-orange-700">
-                {formatoMoneda(totalMAF)}
-              </Metric>
-            </Flex>
-          </Card>
-        )}
       </div>
 
       {gastoAEditar && (
@@ -1233,26 +1239,27 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
 
       {Object.entries(dataAgrupada)
         .sort(([estadoA], [estadoB]) => {
-          const order = { 'Con Factura': 1, 'Sin Factura': 2, 'MAF': 3 };
+          const order = { 'Con Factura': 1, 'Sin Factura': 2, 'MAF': 3, 'ANTP': 4 };
           return (order[estadoA] || 99) - (order[estadoB] || 99);
         })
         .map(([estado, datosEstado]) => {
           const isFactura = estado === 'Con Factura';
           const isMAFState = estado === 'MAF';
+          const isANTPState = estado === 'ANTP';
           const colorEstado = 'transparent';
-          const IconoEstado = isMAFState ? ShieldCheck : (isFactura ? FileCheck : AlertTriangle);
+          const IconoEstado = isMAFState ? ShieldCheck : isANTPState ? Layers : (isFactura ? FileCheck : AlertTriangle);
 
           return (
             <Card key={estado} className="p-0 overflow-hidden shadow-sm">
-              <div className={`py-0 px-0 border-l-4 ${isMAFState ? 'border-orange-100 bg-orange-100' : (isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100')}`}>
+              <div className={`py-0 px-0 border-l-4 ${isMAFState ? 'border-orange-100 bg-orange-100' : isANTPState ? 'border-cyan-100 bg-cyan-100' : (isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100')}`}>
                 <Flex justifyContent="between" alignItems="center">
                   <div className="flex items-center gap-2">
                     <Icon icon={IconoEstado} color={colorEstado} variant="light" size="sm" />
-                    <Title className={`text-sm uppercase font-bold ${isMAFState ? 'text-orange-900' : (isFactura ? 'text-emerald-900' : 'text-amber-900')}`}>
-                      {isMAFState ? 'Gastos MAF' : estado}
+                    <Title className={`text-sm uppercase font-bold ${isMAFState ? 'text-orange-900' : isANTPState ? 'text-cyan-900' : (isFactura ? 'text-emerald-900' : 'text-amber-900')}`}>
+                      {isMAFState ? 'Gastos MAF' : isANTPState ? 'Gastos ANTP' : estado}
                     </Title>
                   </div>
-                  <Text className={`font-bold ${isMAFState ? 'text-orange-700' : (isFactura ? 'text-emerald-700' : 'text-amber-700')}`}>
+                  <Text className={`font-bold ${isMAFState ? 'text-orange-700' : isANTPState ? 'text-cyan-700' : (isFactura ? 'text-emerald-700' : 'text-amber-700')}`}>
                     {formatoMoneda(datosEstado.totalEstado)}
                   </Text>
                 </Flex>
@@ -1261,7 +1268,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
               <div className="p-4 space-y-4">
                 {Object.entries(datosEstado.categorias)
                   .sort(([catA], [catB]) => {
-                    const order = { 'Comida': 1, 'Transporte': 2, 'MAF': 3, 'Otros': 4 };
+                    const order = { 'Comida': 1, 'Transporte': 2, 'MAF': 3, 'ANTP': 4, 'Otros': 5 };
                     return (order[catA] || 99) - (order[catB] || 99);
                   })
                   .map(([nombreCategoria, datosCategoria], indexCat) => {

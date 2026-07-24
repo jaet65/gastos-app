@@ -198,15 +198,6 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
             <Flex className="gap-2" justifyContent="center">
                 <Button
-                    variant={auditType === 0 ? "primary" : "light"}
-                    color={auditType === 0 ? "blue" : "slate"}
-                    onClick={() => setAuditType(0)}
-                    size="xs"
-                    className="rounded-xl px-4 py-2"
-                >
-                    Periodo
-                </Button>
-                <Button
                     variant={auditType === 1 ? "primary" : "light"}
                     color={auditType === 1 ? "blue" : "slate"}
                     onClick={() => setAuditType(1)}
@@ -214,6 +205,15 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     className="rounded-xl px-4 py-2"
                 >
                     Ciudad
+                </Button>
+                <Button
+                    variant={auditType === 0 ? "primary" : "light"}
+                    color={auditType === 0 ? "blue" : "slate"}
+                    onClick={() => setAuditType(0)}
+                    size="xs"
+                    className="rounded-xl px-4 py-2"
+                >
+                    Periodo
                 </Button>
             </Flex>
 

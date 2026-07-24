@@ -318,6 +318,7 @@ const FormularioGasto = () => {
                 <option value="Comida">Comida</option>
                 <option value="Otros">Otros</option>
                 <option value="MAF">MAF</option>
+                <option value="ANTP">ANTP</option>
               </select>
             </InputGroup>
           </div>
