@@ -1,3 +1,6 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Download } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react';
 import { Car, Utensils, Layers, ShieldCheck, Trash } from 'lucide-react';
@@ -120,7 +123,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     gasto.fecha >= adjustDate(audit.startDate, -1) && gasto.fecha <= adjustDate(audit.endDate, 1)
                 );
 
-                const city = auditPeriod ? auditPeriod.city : 'Sin Ciudad';
+                const city = auditPeriod ? auditPeriod.city : 'Sin asignación';
                 
                 if (!acc[city]) acc[city] = [];
                 acc[city].push(gasto);
@@ -191,6 +194,77 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         );
     }
 
+    const handleGenerateReport = () => {
+        const doc = new jsPDF();
+        
+        // 1. Título principal
+        const title = `Auditoría por ${auditType === 0 ? 'Periodo' : 'Ciudad'} - ${selectedYear}`;
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(title, 14, 16);
+
+        // 2. Tarjeta de Resumen General (Antes de la tabla)
+        const cardY = 22;
+        doc.setFillColor(248, 250, 252); // Fondo gris muy claro
+        doc.setDrawColor(226, 232, 240); // Borde sutil
+        doc.roundedRect(14, cardY, 182, 14, 2, 2, 'FD');
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(71, 85, 105);
+        doc.text('GASTO TOTAL ANUAL ACUMULADO:', 18, cardY + 9);
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 38, 38); // Rojo destacado (o azul [37, 99, 235])
+        doc.text(formatoMoneda(totalGastosAnual), 190, cardY + 9, { align: 'right' });
+
+        // 3. Preparación de datos de la tabla
+        const tableColumn = ["Ciudad", "Periodo", "Total", "Promedio/Día", "Categorías"];
+        const tableRows = [];
+
+        auditResults.forEach(result => {
+            const period = auditType === 0 
+                ? `${result.startDate} al ${result.endDate}` 
+                : result.dateRanges.map(r => `${r.startDate} al ${r.endDate}`).join('\n');
+                
+            const categories = Object.entries(result.gastosPorCategoria)
+                .map(([cat, data]) => `${cat}: ${formatoMoneda(data.total)}`)
+                .join('\n');
+            
+            const rowData = [
+                result.city,
+                period,
+                formatoMoneda(result.totalCiudad),
+                formatoMoneda(result.averagePerDay),
+                categories,
+            ];
+            tableRows.push(rowData);
+        });
+
+        // 4. Generar la tabla arrancando después de la tarjeta (startY: 42)
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 42,
+            headStyles: {
+                fillColor: [30, 41, 59], // Encabezado elegante slate/oscuro
+                textColor: [255, 255, 255],
+                fontStyle: 'bold'
+            },
+            styles: {
+                fontSize: 9,
+                cellPadding: 3
+            },
+            alternateRowStyles: {
+                fillColor: [249, 250, 251] // Filas intercaladas para mejor lectura
+            }
+        });
+
+        doc.save('TrackSIM_Audit.pdf');
+    };
+
     const handleDeleteAllAudits = async () => {
         if (!window.confirm("¿Estás seguro de que quieres eliminar TODOS los periodos de auditoría? Esta acción es irreversible y eliminará todos los datos de auditoría de la base de datos.")) {
             return;
@@ -218,6 +292,13 @@ const PanelAuditoria = ({ allGastos, audits }) => {
     const currentIndex = availableYears.indexOf(selectedYear);
     const isPrevDisabled = currentIndex <= 0;
     const isNextDisabled = currentIndex >= availableYears.length - 1;
+
+    const totalGastosAnual = useMemo(() => {
+        if (!allGastos || allGastos.length === 0) return 0;
+        return allGastos
+            .filter(gasto => parseInt(gasto.fecha.split('-')[0], 10) === selectedYear)
+            .reduce((sum, gasto) => sum + parseFloat(gasto.monto || 0), 0);
+    }, [allGastos, selectedYear]);
 
     return (
         <div className="space-y-6 mt-6">
@@ -248,7 +329,16 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             </div>
 
             {/* Columna derecha: Botón alinear a la derecha */}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+                <Button
+                variant="light"
+                onClick={handleGenerateReport}
+                size="xs"
+                icon={Download}
+                className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600 rounded-md px-2 py-1 text-xs"
+                >
+                Generar Reporte
+                </Button>
                 <Button
                 variant="light"
                 onClick={handleDeleteAllAudits}
@@ -269,6 +359,14 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 <Button onClick={handleNextYear} disabled={isNextDisabled} variant="light">&gt;&gt;</Button>
             </Flex>
             
+            <Card>
+                <Flex alignItems="start">
+                    <div className="truncate">
+                        <Text>Gastos anuales: {selectedYear}</Text>
+                        <Metric className="truncate">{formatoMoneda(totalGastosAnual)}</Metric>
+                    </div>
+                </Flex>
+            </Card>
 
 
             {auditResults.length > 0 ? auditResults.map(result => (
@@ -282,7 +380,6 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                                     <Text className="text-slate-500">{result.startDate} al {result.endDate}</Text>
                                  ) : (
                                     <>
-                                        <Text>Total para {selectedYear}</Text>
                                         {result.dateRanges && result.dateRanges.length > 0 && (
                                             <div className="mt-2">
                                                 <Text className="text-xs font-semibold text-slate-500">Periodos considerados:</Text>
