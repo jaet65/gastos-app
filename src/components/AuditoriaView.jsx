@@ -52,6 +52,7 @@ const AuditoriaView = () => {
     const [audits, setAudits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showDefinedPeriods, setShowDefinedPeriods] = useState(false);
+    const [showForm, setShowForm] = useState(false); // New state to control form visibility
 
     const [newCity, setNewCity] = useState('');
     const [newStartDate, setNewStartDate] = useState(null);
@@ -196,6 +197,9 @@ const AuditoriaView = () => {
                 await addDoc(collection(db, "auditorias"), { ...auditData, creado_en: Timestamp.now() });
             }
             resetForm();
+            setTimeout(() => {
+                setShowForm(false); // Hide form after successful submission
+            }, 0);
         } catch (error) {
             console.error("Error saving audit:", error);
             alert("Error al guardar la auditoría: " + error.message);
@@ -207,6 +211,7 @@ const AuditoriaView = () => {
         setNewCity(audit.city);
         setNewStartDate(new Date(audit.startDate + 'T00:00:00'));
         setNewEndDate(new Date(audit.endDate + 'T00:00:00'));
+        setShowForm(true); // Show form when editing
     };
 
     const handleRemoveAudit = async (id) => {
@@ -224,107 +229,95 @@ const AuditoriaView = () => {
 
     return (
         <div className="space-y-6">
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange}
+                className="hidden" 
+                accept=".xlsx, .xls"
+            />
             <header>
                 <Title className="text-slate-800">Auditoría General de Gastos</Title>
-                <Text className="text-slate-500 text-sm mt-1">Define periodos de estancia en ciudades para auditar los gastos correspondientes.</Text>
+                <Text className="text-slate-500 text-sm mt-1">Auditar los gastos correspondientes por periodo o ciudad.</Text>
             </header>
 
-            <Card>
-                <form onSubmit={handleFormSubmit}>
-                    <Subtitle className="mb-4">{editingId ? 'Editando Periodo' : 'Añadir Nuevo Periodo'}</Subtitle>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputGroup icon={MapPin}>
-                            <input
-                                type="text"
-                                placeholder="Ej. Guadalajara"
-                                value={newCity}
-                                onChange={(e) => setNewCity(e.target.value)}
-                                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-base placeholder-slate-400"
-                            />
-                        </InputGroup>
-                        <InputGroup icon={Calendar}>
-                            <input
-                                type="date"
-                                value={dateToInputValue(newStartDate)}
-                                onChange={(e) => setNewStartDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
-                                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base"
-                            />
-                        </InputGroup>
-                        <InputGroup icon={Calendar}>
-                             <input
-                                type="date"
-                                value={dateToInputValue(newEndDate)}
-                                onChange={(e) => setNewEndDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
-                                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base"
-                            />
-                        </InputGroup>
-                    </div>
-                    <Flex justifyContent="end" className="gap-2 mt-6 pt-4 border-t border-slate-200">
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={handleFileChange}
-                            className="hidden" 
-                            accept=".xlsx, .xls"
-                        />
-                         {editingId && (
-                            <Button onClick={resetForm} icon={XCircle} size="sm" color="gray" variant="light">Cancelar</Button>
-                        )}
-                        {!editingId && (
-                            <Button 
-                                type="button" 
-                                onClick={handleImportClick} 
-                                icon={Upload} 
-                                size="sm" 
-                                color="blue" 
-                                variant="light"
-                                loading={isImporting} // Add loading prop
-                                disabled={isImporting} // Disable button while importing
-                            >
-                                {isImporting ? 'Importando...' : 'Importar'}
-                            </Button>
-                        )}
-                        <Button type="submit" icon={editingId ? Edit : PlusCircle} size="sm" color="blue">
-                            {editingId ? 'Guardar Cambios' : 'Añadir Periodo'}
-                        </Button>
-                    </Flex>
-                </form>
-            </Card>
+            <Flex justifyContent="end" className="gap-2">
+                {!showForm && (
+                    <Button
+                        icon={PlusCircle}
+                        size="sm"
+                        color="blue"
+                        onClick={() => { setShowForm(true); resetForm(); }} // Show form and reset fields
+                        className="rounded-2xl px-2 py-1 text-sm font-semibold"
+                    >
+                        Añadir Periodo
+                    </Button>
+                )}
+                <Button
+                    type="button"
+                    onClick={handleImportClick}
+                    icon={Upload}
+                    size="sm"
+                    color="blue"
+                    variant="light"
+                    loading={isImporting} // Add loading prop
+                    disabled={isImporting} // Disable button while importing
+                    className="rounded-2xl px-2 py-1 text-sm font-semibold"
+                >
+                    {isImporting ? 'Importando...' : 'Importar'}
+                </Button>
+            </Flex>
 
-            {audits.length > 0 && (
-                <div>
-                    <Title className="mb-3 text-center cursor-pointer" onClick={() => setShowDefinedPeriods(!showDefinedPeriods)}>
-                       ▼ Periodos ▼
-                    </Title>
-                    {showDefinedPeriods && (
-                        <div className="space-y-3">
-                            {audits.map(audit => (
-                                <Card key={audit.id} className="p-3 group">
-                                    <Flex alignItems="center" justifyContent="between">
-                                        <div className="flex items-center gap-4 truncate">
-                                            <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
-                                                <MapPin size={16} />
-                                            </div>
-                                            <div>
-                                                <Text className="font-bold text-slate-800 truncate">{audit.city}</Text>
-                                                <div className="flex items-center gap-1.5">
-                                                    <Calendar size={12} className="text-slate-400" />
-                                                    <Text className="text-xs text-slate-500">{audit.startDate} al {audit.endDate}</Text>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Flex justifyContent="end" className="gap-1 w-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                            <Button onClick={() => handleEdit(audit)} icon={Edit} size="xs" variant="light" color="blue" />
-                                            <Button onClick={() => handleRemoveAudit(audit.id)} icon={Trash2} size="xs" variant="light" color="red" />
-                                        </Flex>
-                                    </Flex>
-                                </Card>
-                            ))}
+            {showForm && (
+                <Card>
+                    <form onSubmit={handleFormSubmit}>
+                        <Subtitle className="mb-4">{editingId ? 'Editando Periodo' : 'Añadir Nuevo Periodo'}</Subtitle>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <InputGroup icon={MapPin}>
+                                <input
+                                    type="text"
+                                    placeholder="Ej. Guadalajara"
+                                    value={newCity}
+                                    onChange={(e) => setNewCity(e.target.value)}
+                                    className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-base placeholder-slate-400"
+                                />
+                            </InputGroup>
+                            <InputGroup icon={Calendar}>
+                                <input
+                                    type="date"
+                                    value={dateToInputValue(newStartDate)}
+                                    onChange={(e) => setNewStartDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
+                                    className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base"
+                                />
+                            </InputGroup>
+                            <InputGroup icon={Calendar}>
+                                 <input
+                                    type="date"
+                                    value={dateToInputValue(newEndDate)}
+                                    onChange={(e) => setNewEndDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
+                                    className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base"
+                                />
+                            </InputGroup>
                         </div>
-                    )}
-                </div>
+                        <Flex justifyContent="end" className="gap-2 mt-6 pt-4 border-t border-slate-200">
+
+                             {(editingId || !editingId) && ( // Show Cancel button for both edit and add new
+                                <Button onClick={() => { resetForm(); setShowForm(false); }} icon={XCircle} size="sm" color="gray" variant="light">Cancelar</Button>
+                            )}
+                            <Button
+                                type="submit"
+                                icon={editingId ? Edit : PlusCircle}
+                                size="sm"
+                                color="blue"
+                                className="rounded-2xl px-2 py-1 text-sm font-semibold"
+                            >
+                                {editingId ? 'Guardar Cambios' : 'Guardar'}
+                            </Button>
+                        </Flex>
+                    </form>
+                </Card>
             )}
-            
+
             <PanelAuditoria allGastos={allGastos} audits={audits} />
 
         </div>

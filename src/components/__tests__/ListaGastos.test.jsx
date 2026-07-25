@@ -70,11 +70,14 @@ describe('ListaGastos Component', () => {
         expect(screen.getByText('Gastos MAF')).toBeInTheDocument();
 
         // Verificar totales de forma más específica para evitar duplicados
-        const totalPeriodoCard = screen.getByText('Total Periodo').closest('div.tremor-Card-root');
-        const totalMAFCard = screen.getByText('Total MAF').closest('div.tremor-Card-root');
+        const totalPeriodoValue = screen.getByText('$1,050.00');
+        const totalPeriodoCard = totalPeriodoValue.closest('.tremor-Card-root');
+        expect(within(totalPeriodoCard).getByText('Total Periodo')).toBeInTheDocument();
 
-        expect(within(totalPeriodoCard).getByText('$1,050.00')).toBeInTheDocument(); // Total Periodo (250 + 800)
-        expect(within(totalMAFCard).getByText('$1,200.00')).toBeInTheDocument(); // Total MAF
+        // For Total MAF, find the 'Gastos MAF' title and then its associated total
+        const gastosMAFTitle = screen.getByText('Gastos MAF');
+        const gastosMAFFlexParent = gastosMAFTitle.closest('.tremor-Flex-root');
+        expect(within(gastosMAFFlexParent).getByText('$1,200.00')).toBeInTheDocument();
     });
 
     it('debería filtrar gastos por término de búsqueda', async () => {

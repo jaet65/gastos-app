@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react';
-import { Car, Utensils, Layers, ShieldCheck } from 'lucide-react';
+import { Car, Utensils, Layers, ShieldCheck, Trash } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 
 const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
@@ -35,7 +37,8 @@ const adjustDate = (dateString, adjustment) => {
 
 const PanelAuditoria = ({ allGastos, audits }) => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [auditType, setAuditType] = useState(0); // 0 for Periodo, 1 for Ciudad
+    const [auditType, setAuditType] = useState(1); // 0 for Periodo, 1 for Ciudad
+    const [isDeleting, setIsDeleting] = useState(false); // State to handle loading for delete all button
 
     const availableYears = useMemo(() => {
         if (!allGastos || allGastos.length === 0) return [new Date().getFullYear()];
@@ -188,40 +191,85 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         );
     }
 
+    const handleDeleteAllAudits = async () => {
+        if (!window.confirm("¿Estás seguro de que quieres eliminar TODOS los periodos de auditoría? Esta acción es irreversible y eliminará todos los datos de auditoría de la base de datos.")) {
+            return;
+        }
+
+        setIsDeleting(true); // Start loading
+
+        try {
+            const querySnapshot = await getDocs(collection(db, "auditorias"));
+            const deletePromises = [];
+            querySnapshot.forEach((document) => {
+                deletePromises.push(deleteDoc(doc(db, "auditorias", document.id)));
+            });
+            await Promise.all(deletePromises);
+            alert("Todos los periodos de auditoría han sido eliminados correctamente.");
+            // Optionally, you might want to refresh the audits data here if it's not handled by a real-time listener
+        } catch (error) {
+            console.error("Error al eliminar todos los periodos de auditoría:", error);
+            alert("Ocurrió un error al intentar eliminar los periodos de auditoría.");
+        } finally {
+            setIsDeleting(false); // End loading
+        }
+    };
+
     const currentIndex = availableYears.indexOf(selectedYear);
     const isPrevDisabled = currentIndex <= 0;
     const isNextDisabled = currentIndex >= availableYears.length - 1;
 
     return (
         <div className="space-y-6 mt-6">
-            <Title>Resultados de la Auditoría</Title>
+            <div className="grid grid-cols-3 items-center w-full">
+            {/* Columna izquierda vacía para balancear el espacio */}
+            <div></div>
 
-            <Flex className="gap-2" justifyContent="center">
+            {/* Columna central: Botones centrados */}
+            <div className="flex justify-center gap-2">
                 <Button
-                    variant={auditType === 1 ? "primary" : "light"}
-                    color={auditType === 1 ? "blue" : "slate"}
-                    onClick={() => setAuditType(1)}
-                    size="xs"
-                    className="rounded-xl px-4 py-2"
+                variant={auditType === 1 ? "primary" : "light"}
+                color={auditType === 1 ? "blue" : "slate"}
+                onClick={() => setAuditType(1)}
+                size="xs"
+                className="rounded-xl px-4 py-2"
                 >
-                    Ciudad
+                Ciudad
                 </Button>
                 <Button
-                    variant={auditType === 0 ? "primary" : "light"}
-                    color={auditType === 0 ? "blue" : "slate"}
-                    onClick={() => setAuditType(0)}
-                    size="xs"
-                    className="rounded-xl px-4 py-2"
+                variant={auditType === 0 ? "primary" : "light"}
+                color={auditType === 0 ? "blue" : "slate"}
+                onClick={() => setAuditType(0)}
+                size="xs"
+                className="rounded-xl px-4 py-2"
                 >
-                    Periodo
+                Periodo
                 </Button>
-            </Flex>
+            </div>
+
+            {/* Columna derecha: Botón alinear a la derecha */}
+            <div className="flex justify-end">
+                <Button
+                variant="light"
+                onClick={handleDeleteAllAudits}
+                size="xs"
+                icon={Trash}
+                loading={isDeleting}
+                disabled={isDeleting}
+                className="bg-red-500 hover:bg-red-600 text-white border-red-500 hover:border-red-600 rounded-md px-2 py-1 text-xs"
+                >
+                Limpiar
+                </Button>
+            </div>
+            </div>
 
             <Flex justifyContent="center" alignItems="center" className="gap-4">
                 <Button onClick={handlePrevYear} disabled={isPrevDisabled} variant="light">&lt;&lt;</Button>
                 <Text className="text-xl font-semibold">{selectedYear}</Text>
                 <Button onClick={handleNextYear} disabled={isNextDisabled} variant="light">&gt;&gt;</Button>
             </Flex>
+            
+
 
             {auditResults.length > 0 ? auditResults.map(result => (
                 <Card key={result.id} decoration="top" decorationColor={auditType === 0 ? 'indigo' : 'blue'}>
