@@ -53,7 +53,7 @@ function App() {
   });
 
   const changeTab = (tab) => {
-    if (tab !== 'auditoria' && tab !== 'usuarios') {
+    if (tab === 'auditoria' || tab === 'usuarios') {
         setAdminSelectedUser(null); 
     }
     setActiveTab(tab);
