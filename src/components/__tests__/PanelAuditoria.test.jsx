@@ -53,6 +53,14 @@ describe('PanelAuditoria', () => {
     expect(deleteButton).toBeInTheDocument();
   });
 
+  test('keeps hook order when switching to Periodo without audits', () => {
+    render(<PanelAuditoria allGastos={mockAllGastos} audits={[]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Periodo/i }));
+
+    expect(screen.getByText('Añade un periodo de ciudad para comenzar la auditoría.')).toBeInTheDocument();
+  });
+
   test('calls window.confirm when "Eliminar todos los periodos de auditoría" button is clicked', () => {
     render(<PanelAuditoria allGastos={mockAllGastos} audits={mockAudits} />);
     const deleteButton = screen.getByRole('button', { name: /Limpiar/i });

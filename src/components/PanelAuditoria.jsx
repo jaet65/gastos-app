@@ -186,6 +186,13 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         }
     }, [allGastos, audits, selectedYear, auditType]);
 
+    const totalGastosAnual = useMemo(() => {
+        if (!allGastos || allGastos.length === 0) return 0;
+        return allGastos
+            .filter(gasto => parseInt(gasto.fecha.split('-')[0], 10) === selectedYear)
+            .reduce((sum, gasto) => sum + parseFloat(gasto.monto || 0), 0);
+    }, [allGastos, selectedYear]);
+
     if (auditType === 0 && audits.length === 0) {
         return (
             <Card className="text-center mt-4">
@@ -292,13 +299,6 @@ const PanelAuditoria = ({ allGastos, audits }) => {
     const currentIndex = availableYears.indexOf(selectedYear);
     const isPrevDisabled = currentIndex <= 0;
     const isNextDisabled = currentIndex >= availableYears.length - 1;
-
-    const totalGastosAnual = useMemo(() => {
-        if (!allGastos || allGastos.length === 0) return 0;
-        return allGastos
-            .filter(gasto => parseInt(gasto.fecha.split('-')[0], 10) === selectedYear)
-            .reduce((sum, gasto) => sum + parseFloat(gasto.monto || 0), 0);
-    }, [allGastos, selectedYear]);
 
     return (
         <div className="space-y-6 mt-6">
