@@ -257,7 +257,7 @@ function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ListaGastos adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} />
+                  <ListaGastos adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} adminSelectedUser={adminSelectedUser} />
                 </motion.div>
               )}
               {activeTab === 'solicitudes' && (

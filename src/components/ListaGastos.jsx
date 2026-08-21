@@ -27,10 +27,14 @@ import {
 } from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
 
-const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
+const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }) => {
   const { user } = useAuth();
   const esVistaAdmin = !!adminViewUid && !adminEditMode;
   const targetUid = adminViewUid || user?.uid;
+  const targetEmail = adminSelectedUser?.email || user?.email || '';
+  const nombreConsultor = adminSelectedUser
+    ? (adminSelectedUser.displayName || adminSelectedUser.email || 'Consultor Desconocido')
+    : (user?.displayName || user?.email || 'Consultor Desconocido');
   const [gastos, setGastos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -42,7 +46,6 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
   const [selectedCategories, setSelectedCategories] = useState([]); // Nuevo estado
 
-  const nombreConsultor = user?.displayName || user?.email || 'Consultor Desconocido';
 
   const handleCategoryClick = (categoria) => {
     setSelectedCategories(prev =>
@@ -171,7 +174,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
           const nuevaPropinaRef = await addDoc(collection(db, "gastos"), {
             ...datosPropina,
             creado_en: Timestamp.now(),
-            userId: user.uid
+            userId: targetUid
           });
           updateData.idPropina = nuevaPropinaRef.id;
         }
@@ -218,7 +221,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
       blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob], { type: mimeType });
     }
 
-    const nombreArchivo = `[${user?.email}] ${solicitudId}`;
+    const nombreArchivo = (solicitudId && solicitudId.startsWith('[')) ? solicitudId : `[${targetEmail}] ${solicitudId}`;
     const data = new FormData();
     data.append("file", blob, nombreArchivo);
     data.append("upload_preset", UPLOAD_PRESET);
@@ -339,7 +342,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
         deleteToken: fileData.delete_token,
         creado_en: Timestamp.now(),
         estado: 'Esperando...',
-        userId: user.uid
+        userId: targetUid
       };
       const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
 
@@ -407,7 +410,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
         } else {
           if (g.categoria === 'MAF' || g.categoria === 'ANTP') return false;
         }
-        
+
         // Si las fechas del reporte vienen definidas, las usamos para filtrar.
         // Si no, el filtrado se basará en los gastos visibles (dataAgrupada).
         if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
@@ -447,7 +450,8 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
 
       const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
       const prefix = esMAF ? "MAF - " : "";
-      const baseFileName = `${prefix}Comprobacion gastos ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
+      const emailPrefix = targetEmail ? `[${targetEmail}] ` : "";
+      const baseFileName = `${emailPrefix}${prefix}Expenses ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
 
       const [excelBlob, pdfBlob] = await Promise.all([
         generarReporteExcel(gastosFiltrados, fInicio, fFin, solicitudVinculada, esMAF, montoMAF),
@@ -490,7 +494,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
 
         const cloudinaryFileName = `${baseFileName}.zip`;
         const { url: reporteUrl, nombreArchivo: nombreReporte, deleteToken } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
-        
+
         await addDoc(collection(db, "solicitudes"), {
           consultor: nombreConsultor,
           proyecto: 'Rally TrackSIM - MAF',
@@ -502,7 +506,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
           deleteToken: deleteToken || '',
           creado_en: Timestamp.now(),
           estado: 'Esperando...',
-          userId: user.uid,
+          userId: targetUid,
           esMAF: true,
           resumen_sumaFacturado: sumaFacturado,
           resumen_sumaSinFactura: sumaSinFactura,
@@ -1187,8 +1191,8 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false }) => {
           {...swipeHandlers}
           className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
           {statsCategorias.map((stat) => (
-            <div 
-              key={stat.categoria} 
+            <div
+              key={stat.categoria}
               className={`shrink-0 p-3 rounded-2xl border shadow-sm min-w-25 flex flex-col gap-1 cursor-pointer transition-all ${selectedCategories.includes(stat.categoria) ? 'border-emerald-500 bg-emerald-50' : 'border-white/50 bg-white/60 backdrop-blur-sm'}`}
               onClick={() => handleCategoryClick(stat.categoria)}
             >
