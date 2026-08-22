@@ -3,8 +3,9 @@ import FormularioGasto from './components/FormularioGasto';
 import ListaGastos from './components/ListaGastos';
 import ListaSolicitudes from './components/ListaSolicitudes';
 import ListaUsuarios from './components/ListaUsuarios';
+import PanelUsuarioAdmin from './components/PanelUsuarioAdmin';
 import Login from './components/Login';
-import { LayoutDashboard, Menu, X, LogOut, Bell, Share2 } from 'lucide-react';
+import { Menu, X, LogOut, Share2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
@@ -206,23 +207,11 @@ function App() {
 
         <div className="flex-1 flex flex-col justify-center p-6 lg:p-2">
           {adminSelectedUser ? (
-            <div className="text-center p-8 space-y-4">
-              <div className="bg-amber-100 text-amber-600 p-6 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
-                <LayoutDashboard size={40} />
-              </div>
-              <h2 className={`text-xl font-black ${adminEditMode ? 'text-red-600' : 'text-slate-800'}`}>
-                {adminEditMode ? 'Modo Edición Admin Activo' : 'Modo Lectura Admin'}
-              </h2>
-              <p className="text-slate-500 text-sm">
-                Estás visualizando los registros de <b>{adminSelectedUser.displayName}</b>. 
-                {adminEditMode 
-                  ? ' Actualmente puedes modificar y eliminar los registros existentes de este usuario.' 
-                  : ' No puedes crear ni modificar los gastos en su nombre.'}
-              </p>
-              <button onClick={clearAdminView} className="bg-slate-800 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-slate-900 transition-all">
-                Volver a mis gastos
-              </button>
-            </div>
+            <PanelUsuarioAdmin
+              user={adminSelectedUser}
+              adminEditMode={adminEditMode}
+              onClearView={clearAdminView}
+            />
           ) : (
             <FormularioGasto />
           )}

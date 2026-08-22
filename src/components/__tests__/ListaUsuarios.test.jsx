@@ -67,16 +67,14 @@ describe('ListaUsuarios Component', () => {
         vi.clearAllMocks();
     });
 
-    it('debería mostrar el estado de carga inicialmente', async () => { // Make async to await loading state
+    it('debería mostrar el estado de carga inicialmente', async () => {
         render(
             <AuthProvider>
                 <ListaUsuarios onSelectUser={mockOnSelectUser} />
             </AuthProvider>
         );
-        // Expect loading to be true for a brief moment before onAuthStateChanged fires
-        expect(screen.getByText('Cargando lista de usuarios...')).toBeInTheDocument();
-        // Wait for the mock onAuthStateChanged to resolve and update the user state
-        await waitFor(() => expect(screen.queryByText('Cargando lista de usuarios...')).not.toBeInTheDocument());
+        expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText('Admin User')).toBeInTheDocument());
     });
 
     it('debería renderizar la lista de usuarios después de cargarlos', async () => {
@@ -104,7 +102,7 @@ describe('ListaUsuarios Component', () => {
 
         // Esperamos y luego hacemos clic en el primer usuario
         const userCard = await screen.findByText('Admin User');
-        fireEvent.click(userCard.closest('.p-4')); // Assuming '.p-4' is a reliable selector for the clickable user card
+        fireEvent.click(userCard.closest('.user-card'));
 
         expect(mockOnSelectUser).toHaveBeenCalledTimes(1);
         expect(mockOnSelectUser).toHaveBeenCalledWith(expect.objectContaining({ uid: 'test-user-id-1', displayName: 'Admin User' }));
