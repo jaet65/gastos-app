@@ -6,7 +6,7 @@ import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar, Upload } from 'luc
 import PanelAuditoria from './PanelAuditoria';
 import * as XLSX from 'xlsx';
 
-const InputGroup = ({ icon: Icon, children }) => (
+const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-12 hover:bg-white focus-within:bg-white focus-within:border-blue-300 transition-all">
         <div className="pl-4 text-slate-400">
             <Icon size={16} strokeWidth={2.5} />

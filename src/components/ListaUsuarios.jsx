@@ -64,8 +64,6 @@ const ListaUsuarios = ({ onSelectUser }) => {
     );
   }, [usuarios, search]);
 
-  const adminCount = usuarios.filter((u) => u.role === 'admin').length;
-
   if (loading) {
     return (
       <div className="space-y-4">
