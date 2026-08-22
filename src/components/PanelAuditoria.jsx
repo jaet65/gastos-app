@@ -307,7 +307,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             <div></div>
 
             {/* Columna central: Botones centrados */}
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-2 mt-20">
                 <Button
                 variant={auditType === 1 ? "primary" : "light"}
                 color={auditType === 1 ? "blue" : "slate"}
