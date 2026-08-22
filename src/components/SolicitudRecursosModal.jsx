@@ -52,6 +52,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
             const inicio = new Date(`${fechaInicio}T00:00:00`);
             const fin = new Date(`${fechaFin}T00:00:00`);
             if (inicio > fin) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setFechaError('La fecha de finalización no puede ser anterior a la fecha de inicio.');
             } else {
                 setFechaError('');

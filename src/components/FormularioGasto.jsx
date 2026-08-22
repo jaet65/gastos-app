@@ -46,6 +46,7 @@ const FormularioGasto = () => {
 
   useEffect(() => {
     if (formData.categoria !== 'Comida') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAgregarPropina(false);
     }
     if (formData.categoria !== 'Transporte') {

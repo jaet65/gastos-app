@@ -3,11 +3,9 @@ import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { Card, Text, Title, Flex, Divider } from "@tremor/react";
 import { User, Mail, Calendar, ChevronRight, LayoutDashboard } from 'lucide-react';
-import { useAuth } from './AuthContext';
 
-const ListaUsuarios = ({ onSelectUser, adminEditMode = false }) => {
+const ListaUsuarios = ({ onSelectUser }) => {
     const [usuarios, setUsuarios] = useState([]);
-    const { userData } = useAuth();
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

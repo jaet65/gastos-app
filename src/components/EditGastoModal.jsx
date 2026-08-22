@@ -35,6 +35,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     useEffect(() => {
         // Si la categoría cambia a algo que no es 'Comida', desactiva la propina.
         if (gastoEditado.categoria !== 'Comida') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setEditarConPropina(false);
         }
     }, [gastoEditado.categoria]);

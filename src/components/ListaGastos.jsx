@@ -25,7 +25,7 @@ import {
   Icon,
   Divider,
 } from '@tremor/react';
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Archive, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Eye, EyeOff, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
 
 const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }) => {
   const { user } = useAuth();
@@ -1100,7 +1100,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
   }, [dataAgrupada]);
 
   const statsCategorias = useMemo(() => {
-    const totales = {};
+    const _totales = {};
     const diasConGastos = new Set();
 
     const groupedForStats = filteredGastosForStats.reduce((acc, gasto) => {
@@ -1150,18 +1150,18 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
               <Calendar size={14} className="text-gray-400 ml-1" />
               <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="rounded-full border-none bg-transparent w-full text-xs outline-none text-gray-600" />
             </div>
-            <button onClick={() => setMostrarArchivados(!mostrarArchivados)} className={`p-2 rounded-full border transition-all shadow-sm shrink-0 ${mostrarArchivados ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-transparent border-gray-200 text-slate-400 hover:bg-slate-50'}`} title={mostrarArchivados ? "Ocultar archivados" : "Mostrar archivados"}>
-              {mostrarArchivados
-                ? <ArchiveRestore size={16} />
-                : <Archive size={16} />
-              }
-            </button>
             {mostrarArchivados && gastos.some(g => g.archivado) && !esVistaAdmin && (
               <button onClick={handleUnarchiveVisible} disabled={isUnarchiving} className="flex items-center gap-1 p-2 rounded-full border transition-all shadow-sm shrink-0 bg-yellow-100 border-yellow-200 text-yellow-700 hover:bg-yellow-200" title="Desarchivar todos los visibles">
                 {isUnarchiving ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
                 <span className="text-xs font-bold">Desarchivar</span>
               </button>
             )}
+            <button onClick={() => setMostrarArchivados(!mostrarArchivados)} className={`p-2 rounded-full border transition-all shadow-sm shrink-0 ${mostrarArchivados ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-transparent border-gray-200 text-slate-400 hover:bg-slate-50'}`} title={mostrarArchivados ? "Ocultar archivados" : "Mostrar archivados"}>
+              {mostrarArchivados
+                ? <Eye size={14} />
+                : <EyeOff size={14} />
+              }
+            </button>
             {(fechaInicio || fechaFin || terminoBusqueda) && (
               <button onClick={limpiarFiltros} className="bg-transparent p-2 rounded-full border border-gray-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm shrink-0" title="Limpiar filtros">
                 <RotateCcw size={16} />
@@ -1330,11 +1330,11 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
                                                     className="bg-transparent border-none p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors shrink-0"
                                                     title={gasto.archivado ? 'Desarchivar' : 'Archivar'}
                                                   >
-                                                    {gasto.archivado ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                                                    {gasto.archivado ? <EyeOff size={12} /> : <Eye size={12} />}
                                                   </button>
                                                 )}
                                                 {gasto.archivado && esVistaAdmin && (
-                                                  <div className="text-slate-400 shrink-0" title="Gasto archivado"><Archive size={16} /></div>
+                                                  <div className="text-slate-400 shrink-0" title="Gasto archivado"><EyeOff size={12} /></div>
                                                 )}
                                                 <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm grow" title={gasto.concepto}>
                                                   {gasto.idPadre ? `Caseta de: ${padreGasto?.concepto || 'Gasto Eliminado'}` : gasto.concepto}

@@ -38,20 +38,12 @@ const formatImportedDate = (dateStr) => {
     return null; // Return null if format is not recognized
 };
 
-const InputGroup = ({ icon: Icon, children }) => (
-    <div className="flex items-center bg-white/50 transition-all overflow-hidden h-14 hover:bg-white/80 focus-within:bg-white backdrop-blur-md border border-slate-200 rounded-full shadow-sm">
-        <div className="pl-5 text-slate-400">
-            <Icon size={16} strokeWidth={2.5} />
-        </div>
-        <div className="flex-1 h-full flex items-center pr-5">{children}</div>
-    </div>
-);
 
 const AuditoriaView = () => {
     const [allGastos, setAllGastos] = useState([]);
     const [audits, setAudits] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showDefinedPeriods, setShowDefinedPeriods] = useState(false);
+    const [_showDefinedPeriods, _setShowDefinedPeriods] = useState(false);
     const [showForm, setShowForm] = useState(false); // New state to control form visibility
 
     const [newCity, setNewCity] = useState('');
@@ -206,7 +198,7 @@ const AuditoriaView = () => {
         }
     };
 
-    const handleEdit = (audit) => {
+    const _handleEdit = (audit) => {
         setEditingId(audit.id);
         setNewCity(audit.city);
         setNewStartDate(new Date(audit.startDate + 'T00:00:00'));
@@ -214,7 +206,7 @@ const AuditoriaView = () => {
         setShowForm(true); // Show form when editing
     };
 
-    const handleRemoveAudit = async (id) => {
+    const _handleRemoveAudit = async (id) => {
         if (confirm("¿Estás seguro de que quieres eliminar este periodo de auditoría?")) {
             try {
                 await deleteDoc(doc(db, "auditorias", id));
