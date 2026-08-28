@@ -451,7 +451,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
       const ultimaFechaGasto = gastosFiltrados.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosFiltrados[0].fecha);
       const prefix = esMAF ? "MAF - " : "";
       const emailPrefix = targetEmail ? `[${targetEmail}] ` : "";
-      const baseFileName = `${emailPrefix}${prefix}Expenses ${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}`;
+      const baseFileName = `${emailPrefix}${prefix} [${formatearFecha(ultimaFechaGasto).replaceAll('/', '-')}]`;
 
       const [excelBlob, pdfBlob] = await Promise.all([
         generarReporteExcel(gastosFiltrados, fInicio, fFin, solicitudVinculada, esMAF, montoMAF),
