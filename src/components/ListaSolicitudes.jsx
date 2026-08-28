@@ -127,9 +127,9 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
     useEffect(() => {
         if (loading || solicitudes.length === 0) return;
 
-        const solicitudesRecibidas = solicitudes.filter(s => s.estado === 'Recibida');
+        const solicitudesPendientes = solicitudes.filter(s => ['Solicitada', 'Recibida', 'Esperando...'].includes(s.estado));
 
-        if (solicitudesRecibidas.length > 0) {
+        if (solicitudesPendientes.length > 0) {
             const AHORA = new Date().getTime();
             const HACE_24_HORAS = AHORA - (24 * 60 * 60 * 1000);
             const ultimaNotificacion = localStorage.getItem('ultimaNotificacionSolicitudesRecibidas');
@@ -137,7 +137,18 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
             if ('Notification' in window) {
                 if (!ultimaNotificacion || parseInt(ultimaNotificacion) < HACE_24_HORAS) {
                     const mostrarNotificacion = async () => {
-                        const cuerpo = `Tienes ${solicitudesRecibidas.length} solicitud(es) de recursos recibidas. ¡No olvides registrar tus gastos!`;
+                        const conteo = {
+                            Solicitada: solicitudes.filter(s => s.estado === 'Solicitada').length,
+                            Recibida: solicitudes.filter(s => s.estado === 'Recibida').length,
+                            'Esperando...': solicitudes.filter(s => s.estado === 'Esperando...').length
+                        };
+
+                        const partes = [];
+                        if (conteo.Solicitada > 0) partes.push(`${conteo.Solicitada} solicitada(s)`);
+                        if (conteo.Recibida > 0) partes.push(`${conteo.Recibida} recibida(s)`);
+                        if (conteo['Esperando...'] > 0) partes.push(`${conteo['Esperando...']} esperando...`);
+
+                        const cuerpo = `Tienes ${solicitudesPendientes.length} solicitud(es) de recursos pendientes (${partes.join(', ')}). ¡No olvides revisarlas!`;
                         try {
                             const registration = await navigator.serviceWorker.ready;
                             await registration.showNotification('Recordatorio de Gastos MAF', {

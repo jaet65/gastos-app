@@ -22,7 +22,11 @@ function App() {
   const [activeTab, setActiveTab] = useState('gastos');
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
-  const [pendingSolicitudes, setPendingSolicitudes] = useState(0);
+  const [solicitudCounts, setSolicitudCounts] = useState({
+    'Solicitada': 0,
+    'Recibida': 0,
+    'Esperando...': 0
+  });
 
   const isAdmin = userData?.role === 'admin';
 
@@ -31,12 +35,28 @@ function App() {
     const targetUid = adminSelectedUser?.uid || user.uid;
     const q = query(
       collection(db, "solicitudes"),
-      where("userId", "==", targetUid),
-      where("estado", "==", "Esperando...")
+      where("userId", "==", targetUid)
     );
-    const unsub = onSnapshot(q, (snap) => setPendingSolicitudes(snap.size));
+    const unsub = onSnapshot(q, (snap) => {
+      const counts = { 'Solicitada': 0, 'Recibida': 0, 'Esperando...': 0 };
+      snap.docs.forEach(doc => {
+        let estado = doc.data().estado;
+        if (estado === 'Enviada') estado = 'Solicitada';
+        if (estado === 'Finalizada') estado = 'Esperando...';
+        if (Object.prototype.hasOwnProperty.call(counts, estado)) {
+          counts[estado]++;
+        }
+      });
+      setSolicitudCounts(counts);
+    });
     return () => unsub();
   }, [user, adminSelectedUser]);
+
+  const solicitudBadges = [
+    { key: 'Solicitada', title: 'Solicitada', count: solicitudCounts['Solicitada'], colorClass: 'bg-yellow-500 text-white', pingClass: 'bg-yellow-400' },
+    { key: 'Recibida', title: 'Recibida', count: solicitudCounts['Recibida'], colorClass: 'bg-blue-500 text-white', pingClass: 'bg-blue-400' },
+    { key: 'Esperando...', title: 'Esperando...', count: solicitudCounts['Esperando...'], colorClass: 'bg-green-500 text-white', pingClass: 'bg-green-400' },
+  ].filter(b => b.count > 0);
 
   // Handlers para abrir el sidebar (swipe a la derecha en el contenido principal)
   const openHandlers = useSwipeable({
@@ -55,7 +75,7 @@ function App() {
 
   const changeTab = (tab) => {
     if (tab === 'auditoria' || tab === 'usuarios') {
-        setAdminSelectedUser(null); 
+      setAdminSelectedUser(null);
     }
     setActiveTab(tab);
   }
@@ -111,8 +131,8 @@ function App() {
         }
         return; // Si el usuario cancela, no intentamos copiar al portapapeles
       }
-    } 
-    
+    }
+
     // Intento con API del portapapeles
     if (navigator.clipboard && window.isSecureContext) {
       try {
@@ -140,7 +160,7 @@ function App() {
     }
   };
 
-  
+
 
   if (loading) {
     return (
@@ -159,152 +179,201 @@ function App() {
 
   return (
     <>
-    <div className="w-full min-h-screen lg:h-screen bg-slate-50 flex flex-col lg:flex-row font-sans selection:bg-blue-200 selection:text-blue-900 overflow-x-hidden">
-      
-      {/* Banner de Modo Administrador */}
-      {adminSelectedUser && (
-        <div className="fixed top-0 left-0 right-0 z-100 bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4 flex-wrap">
-          <span>Viendo datos de: {adminSelectedUser.displayName} ({adminSelectedUser.email})</span>
-          <div className="flex gap-2">
-            <button onClick={() => setAdminEditMode(!adminEditMode)} className={`px-3 py-1 rounded-full text-[10px] transition-all shadow-sm ${adminEditMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white text-amber-600 hover:bg-amber-50'}`}>
-              {adminEditMode ? 'Deshabilitar Edición' : 'Habilitar Edición'}
-            </button>
-            <button onClick={clearAdminView} className="bg-white text-amber-600 px-3 py-1 rounded-full text-[10px] hover:bg-amber-50 transition-colors shadow-sm">
-              Cerrar Vista
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="w-full min-h-screen lg:h-screen bg-slate-50 flex flex-col lg:flex-row font-sans selection:bg-blue-200 selection:text-blue-900 overflow-x-hidden">
 
-      {/* COLUMNA IZQUIERDA */}
-      <div {...openHandlers} className={`w-full lg:w-112.5 xl:w-125 shrink-0 h-dvh lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100 ${adminSelectedUser ? 'pt-6' : ''}`}>
-        
-        <nav className="w-full pt-4 px-4 pb-0 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="p-2">
-              <img src="/MAF.png" alt="Logo MAF" className="h-26 w-auto" />
-            </div>
-            <h1 className="text-3xl font-black tracking-tighter text-slate-800">
-              Gastos <span className="text-orange-500">MAF</span>
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600 hidden lg:block">
-              {user.displayName || user.email}
-              {isAdmin && <span className="ml-2 text-amber-600 text-[10px] font-black uppercase">Admin</span>}
-            </span>
-            <button onClick={handleShare} className="p-2 text-slate-500 hover:text-blue-600" title="Compartir Aplicación">
-              <Share2 size={20} />
-            </button>
-            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-600" title="Cerrar Sesión">
-              <LogOut size={20} />
-            </button>
-            <button className="lg:hidden p-2 text-slate-500 hover:text-blue-600" onClick={() => setIsSidebarOpen(true)}>
-              <Menu size={24} />
-            </button>
-          </div>
-        </nav>
-
-        <div className="flex-1 flex flex-col justify-center p-6 lg:p-2">
-          {adminSelectedUser ? (
-            <PanelUsuarioAdmin
-              user={adminSelectedUser}
-              adminEditMode={adminEditMode}
-              onClearView={clearAdminView}
-            />
-          ) : (
-            <FormularioGasto />
-          )}
-        </div>
-      </div>
-
-      {/* COLUMNA DERECHA */}
-      <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser ? 'pt-6' : ''}`}>
-        <div className="h-full w-full overflow-y-auto px-4 lg:px-16 pb-32 pt-4">
-          <div {...tabSwipeHandlers} className="tabs-container pb-2 -mt-2 pt-2">
-            <div className="flex justify-end lg:hidden mb-4">
-              <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-red-600">
-                <X size={24} />
+        {/* Banner de Modo Administrador */}
+        {adminSelectedUser && (
+          <div className="fixed top-0 left-0 right-0 z-100 bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4 flex-wrap">
+            <span>Viendo datos de: {adminSelectedUser.displayName} ({adminSelectedUser.email})</span>
+            <div className="flex gap-2">
+              <button onClick={() => setAdminEditMode(!adminEditMode)} className={`px-3 py-1 rounded-full text-[10px] transition-all shadow-sm ${adminEditMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white text-amber-600 hover:bg-amber-50'}`}>
+                {adminEditMode ? 'Deshabilitar Edición' : 'Habilitar Edición'}
+              </button>
+              <button onClick={clearAdminView} className="bg-white text-amber-600 px-3 py-1 rounded-full text-[10px] hover:bg-amber-50 transition-colors shadow-sm">
+                Cerrar Vista
               </button>
             </div>
-
-            <div className="flex border-b border-slate-200 mb-4">
-              <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => changeTab('gastos')} />
-              <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { changeTab('solicitudes'); }} badge={pendingSolicitudes} />
-              {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
-              {isAdmin && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />}
-            </div>
           </div>
+        )}
 
-          <div className="relative">
-            <AnimatePresence mode="wait">
-              {activeTab === 'gastos' && (
-                <motion.div
-                  key="gastos"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ListaGastos adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} adminSelectedUser={adminSelectedUser} />
-                </motion.div>
-              )}
-              {activeTab === 'solicitudes' && (
-                <motion.div
-                  key="solicitudes"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} />
-                </motion.div>
-              )}
-              {isAdmin && activeTab === 'usuarios' && (
-                <motion.div
-                  key="usuarios"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ListaUsuarios onSelectUser={handleSelectUser} onSelectAudit={() => setActiveTab('auditoria')} />
-                </motion.div>
-              )}
-              {isAdmin && activeTab === 'auditoria' && (
-                <motion.div
-                  key="auditoria"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <AuditoriaView />
-                </motion.div>
-              )}
-            </AnimatePresence>
+        {/* COLUMNA IZQUIERDA */}
+        <div {...openHandlers} className={`w-full lg:w-112.5 xl:w-125 shrink-0 h-dvh lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100 ${adminSelectedUser ? 'pt-6' : ''}`}>
+
+          <nav className="w-full pt-4 px-4 pb-0 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="p-2">
+                <img src="/MAF.png" alt="Logo MAF" className="h-26 w-auto" />
+              </div>
+              <h1 className="text-3xl font-black tracking-tighter text-slate-800">
+                Gastos <span className="text-orange-500">MAF</span>
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600 hidden lg:block">
+                {user.displayName || user.email}
+                {isAdmin && <span className="ml-2 text-amber-600 text-[10px] font-black uppercase">Admin</span>}
+              </span>
+              <button onClick={handleShare} className="p-2 text-slate-500 hover:text-blue-600" title="Compartir Aplicación">
+                <Share2 size={20} />
+              </button>
+              <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-600" title="Cerrar Sesión">
+                <LogOut size={20} />
+              </button>
+              <button className="lg:hidden p-2 text-slate-500 hover:text-blue-600" onClick={() => setIsSidebarOpen(true)}>
+                <Menu size={24} />
+              </button>
+            </div>
+          </nav>
+
+          <div className="flex-1 flex flex-col justify-center p-6 lg:p-2">
+            {adminSelectedUser ? (
+              <PanelUsuarioAdmin
+                user={adminSelectedUser}
+                adminEditMode={adminEditMode}
+                onClearView={clearAdminView}
+              />
+            ) : (
+              <FormularioGasto />
+            )}
           </div>
         </div>
-      </div>
 
-      {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
-    </div>
+        {/* COLUMNA DERECHA */}
+        <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser ? 'pt-6' : ''}`}>
+          <div className="h-full w-full overflow-y-auto px-4 lg:px-16 pb-32 pt-4">
+            <div {...tabSwipeHandlers} className="tabs-container pb-2 -mt-2 pt-2">
+              <div className="flex justify-end lg:hidden mb-4">
+                <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-red-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex border-b border-slate-200 mb-4">
+                <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => changeTab('gastos')} />
+                <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { changeTab('solicitudes'); }} badges={solicitudBadges} />
+                {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
+                {isAdmin && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />}
+              </div>
+            </div>
+
+            <div className="relative">
+              <AnimatePresence mode="wait">
+                {activeTab === 'gastos' && (
+                  <motion.div
+                    key="gastos"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ListaGastos adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} adminSelectedUser={adminSelectedUser} />
+                  </motion.div>
+                )}
+                {activeTab === 'solicitudes' && (
+                  <motion.div
+                    key="solicitudes"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} />
+                  </motion.div>
+                )}
+                {isAdmin && activeTab === 'usuarios' && (
+                  <motion.div
+                    key="usuarios"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ListaUsuarios onSelectUser={handleSelectUser} onSelectAudit={() => setActiveTab('auditoria')} />
+                  </motion.div>
+                )}
+                {isAdmin && activeTab === 'auditoria' && (
+                  <motion.div
+                    key="auditoria"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <AuditoriaView />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+
+        {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
+      </div>
     </>
   );
 }
 
-const TabButton = ({ label, isActive, onClick, badge = 0 }) => (
-  <button onClick={onClick} className={`relative px-4 py-2 text-sm font-bold transition-colors ${isActive ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
-    {label}
-    {badge > 0 && (
-      <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 items-center justify-center">
-          <span className="text-white text-[9px] font-black leading-none">{badge > 9 ? '9+' : badge}</span>
-        </span>
-      </span>
-    )}
-  </button>
-);
+const TabButton = ({ label, isActive, onClick, badge = 0, badges = null }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (!badges || badges.length <= 1) {
+      setCurrentIndex(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % badges.length);
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [badges]);
+
+  const activeBadge = badges && badges.length > 0 ? badges[currentIndex % badges.length] : null;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`relative px-4 py-2 text-sm font-bold transition-colors ${isActive ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'
+        }`}
+    >
+      <span>{label}</span>
+      <AnimatePresence mode="wait">
+        {activeBadge ? (
+          <motion.span
+            key={activeBadge.key}
+            initial={{ opacity: 0, scale: 0.8, filter: 'blur(3px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.8, filter: 'blur(3px)' }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center"
+          >
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${activeBadge.pingClass || 'bg-green-400'} opacity-75`}></span>
+            <span
+              className={`relative inline-flex rounded-full h-4 min-w-4 px-1 items-center justify-center ${activeBadge.colorClass} shadow-xs`}
+              title={`${activeBadge.title}: ${activeBadge.count}`}
+            >
+              <span className="text-white text-[9px] font-black leading-none">
+                {activeBadge.count > 9 ? '9+' : activeBadge.count}
+              </span>
+            </span>
+          </motion.span>
+        ) : badge > 0 ? (
+          <motion.span
+            key="single-badge"
+            initial={{ opacity: 0, scale: 0.8, filter: 'blur(3px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.8, filter: 'blur(3px)' }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center"
+          >
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 items-center justify-center">
+              <span className="text-white text-[9px] font-black leading-none">{badge > 9 ? '9+' : badge}</span>
+            </span>
+          </motion.span>
+        ) : null}
+      </AnimatePresence>
+    </button>
+  );
+};
 
 export default App;

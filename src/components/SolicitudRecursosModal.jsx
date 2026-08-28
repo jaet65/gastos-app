@@ -31,10 +31,10 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
     const { dias, montoTransporte, montoComida, totalSolicitado } = useMemo(() => {
         if (!fechaInicio || !fechaFin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
-        
-        const inicio = new Date(`${fechaInicio}T00:00:00`); 
+
+        const inicio = new Date(`${fechaInicio}T00:00:00`);
         const fin = new Date(`${fechaFin}T00:00:00`);
-        
+
         if (inicio > fin) {
             return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
         }
@@ -85,9 +85,9 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         } catch (err) {
             console.warn("No se pudo cargar el logo. Asegúrate que 'CECAI.png' esté en la carpeta /public.", err);
         }
-        
+
         page.drawText('Solicitud de Recursos', { x: margin, y: height - margin - 100, font: boldFont, size: 24 });
-        
+
         // --- Cuerpo del documento ---
         let y = height - margin - 140;
         page.drawText('Consultor:', { x: margin, y, font: boldFont, size: 12 });
@@ -96,7 +96,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
         y -= 20;
-        page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });        
+        page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText(`${format(new Date(`${fechaInicio}T00:00:00`), 'dd \'de\' MMMM \'de\' yyyy', { locale: es })} al ${format(new Date(`${fechaFin}T00:00:00`), 'dd \'de\' MMMM \'de\' yyyy', { locale: es })} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
         y -= 20;
         page.drawText('Personas:', { x: margin, y, font: boldFont, size: 12 });
@@ -159,7 +159,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
             // 1.5. Descargar en automático
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-            saveAs(blob, `Solicitud ${fechaInicio}.pdf`);
+            saveAs(blob, `[${user?.email}] Solicitud ${fechaInicio}.pdf`);
 
             // 2. Subir a Cloudinary
             const fileData = await subirACloudinary(pdfBytes);
@@ -215,7 +215,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-4 pt-4 items-end">
                         <div>
-                           <label htmlFor="fechaInicio" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
+                            <label htmlFor="fechaInicio" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
                             <input id="fechaInicio" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
                         </div>
                         <div>
@@ -244,7 +244,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                             <h4 className="font-bold text-center text-slate-700">Resumen de Solicitud ({dias} días)</h4>
                             <div className="flex justify-between text-sm"><p>Transporte ($700/día × {personas}):</p><p className="font-bold">{formatoMoneda(montoTransporte)}</p></div>
                             <div className="flex justify-between text-sm"><p>Comida ($600/día × {personas}):</p><p className="font-bold">{formatoMoneda(montoComida)}</p></div>
-                            <hr className="my-1"/>
+                            <hr className="my-1" />
                             <div className="flex justify-between text-base"><p className="font-bold">Total Solicitado:</p><p className="font-black text-blue-600">{formatoMoneda(totalSolicitado)}</p></div>
                         </div>
                     )}

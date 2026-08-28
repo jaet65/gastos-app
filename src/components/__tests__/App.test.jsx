@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from '../../App';
 import { useAuth } from '../AuthContext';
@@ -6,6 +6,27 @@ import { useAuth } from '../AuthContext';
 // 1. Mock de dependencias
 vi.mock('../AuthContext', () => ({
     useAuth: vi.fn(),
+}));
+
+vi.mock('../../firebase', () => ({
+    db: {}
+}));
+
+vi.mock('firebase/firestore', () => ({
+    collection: vi.fn(),
+    query: vi.fn(),
+    where: vi.fn(),
+    onSnapshot: vi.fn((q, callback) => {
+        callback({
+            docs: [
+                { id: '1', data: () => ({ estado: 'Solicitada' }) },
+                { id: '2', data: () => ({ estado: 'Recibida' }) },
+                { id: '3', data: () => ({ estado: 'Esperando...' }) },
+                { id: '4', data: () => ({ estado: 'Cerrada' }) }
+            ]
+        });
+        return () => {};
+    })
 }));
 
 // Mock de los componentes hijos para aislar la lógica de App.jsx
@@ -94,5 +115,20 @@ describe('App Component', () => {
 
         const adminTab = screen.queryByRole('button', { name: /Usuarios/i });
         expect(adminTab).not.toBeInTheDocument();
+    });
+
+    it('debería renderizar un único badge dinámico que rota entre los estados activos', () => {
+        useAuth.mockReturnValue({
+            loading: false,
+            user: { uid: 'test-user' },
+            userData: { role: 'user' }
+        });
+        render(<App />);
+
+        const solicitudesTab = screen.getByRole('button', { name: /Solicitudes/i });
+        expect(solicitudesTab).toBeInTheDocument();
+
+        // Muestra el estado activo actual
+        expect(screen.getByTitle(/Solicitada: 1|Recibida: 1|Esperando...: 1/)).toBeInTheDocument();
     });
 });
