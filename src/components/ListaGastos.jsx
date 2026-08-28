@@ -1233,6 +1233,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
 
       {modalReporteAbierto && (
         <ReporteOpcionesModal
+          userId={targetUid}
           onClose={() => setModalReporteAbierto(false)}
           onGenerarConFechasPersonalizadas={handleAbrirModalSolicitudParaReporte}
           onGenerarConSolicitud={(solicitud) => generarReporte(solicitud.fechaInicio, solicitud.fechaFin, solicitud)}

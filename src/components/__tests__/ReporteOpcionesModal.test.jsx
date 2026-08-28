@@ -180,4 +180,14 @@ describe('ReporteOpcionesModal Component', () => {
         expect(mockOnGenerarReporteMAF).toHaveBeenCalledWith(550.75);
         expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
+
+    it('debería consultar las solicitudes utilizando el userId pasado como prop si está presente', async () => {
+        const { where } = await import('firebase/firestore');
+        render(<ReporteOpcionesModal userId="custom-user-123" onClose={mockOnClose} />);
+
+        const botonVincular = screen.getByText('Vincular a Solicitud').closest('button');
+        fireEvent.click(botonVincular);
+
+        expect(where).toHaveBeenCalledWith('userId', '==', 'custom-user-123');
+    });
 });

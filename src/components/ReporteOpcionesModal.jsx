@@ -5,8 +5,9 @@ import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestor
 import { X, Calendar, Link as LinkIcon, ChevronRight, Filter } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
-const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud, onGenerarReporteMAF, onGenerarConSolicitudYFiltros }) => {
+const ReporteOpcionesModal = ({ userId, onClose, onGenerarConFechasPersonalizadas, onGenerarConSolicitud, onGenerarReporteMAF, onGenerarConSolicitudYFiltros }) => {
     const { user } = useAuth();
+    const targetUserId = userId || user?.uid;
     const [view, setView] = useState('initial'); // 'initial' | 'seleccionarSolicitud' | 'pedirMontoMAF' | 'confirmarFechasSolicitud'
     const [solicitudes, setSolicitudes] = useState([]);
     const [solicitudSeleccionada, setSolicitudSeleccionada] = useState(null);
@@ -22,12 +23,12 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
     };
 
     useEffect(() => {
-        if (view === 'seleccionarSolicitud') {
+        if (view === 'seleccionarSolicitud' && targetUserId) {
             let isMounted = true;
             const q = query(
                 collection(db, "solicitudes"), 
                 where("estado", "not-in", ["Esperando...", "Cerrada", "Finalizada"]),
-                where("userId", "==", user.uid), // Filter by current user
+                where("userId", "==", targetUserId),
                 orderBy("fechaInicio", "desc")
             );
             const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -41,7 +42,7 @@ const ReporteOpcionesModal = ({ onClose, onGenerarConFechasPersonalizadas, onGen
                 unsubscribe();
             };
         }
-    }, [view, user.uid]);
+    }, [view, targetUserId]);
 
     const handleSetView = (newView) => {
         if (newView === 'seleccionarSolicitud') {
