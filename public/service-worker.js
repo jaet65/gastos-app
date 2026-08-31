@@ -1,3 +1,4 @@
+/* global clients */
 const CACHE_NAME = 'gastos-maf-cache-v2';
 const urlsToCache = [
 '/MAF.png',
@@ -44,5 +45,30 @@ self.addEventListener('fetch', (event) => {
         }
         return fetch(event.request);
       })
+  );
+});
+
+// Evento notificationclick: al tocar la notificación se abre/enfoca la app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = (event.notification.data && event.notification.data.url)
+    ? event.notification.data.url
+    : '/?tab=solicitudes';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Si ya hay una ventana/pestaña de la app abierta, enfocarla y navegar
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      // Si no hay ninguna ventana abierta, abrir una nueva
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
   );
 });

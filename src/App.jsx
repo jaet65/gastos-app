@@ -18,8 +18,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
   const { user, userData, logout, loading } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('gastos');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('tab');
+  });
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['gastos', 'solicitudes', 'usuarios', 'auditoria'].includes(tabParam)) {
+      // Limpiar el parámetro de la URL sin recargar la página
+      window.history.replaceState({}, '', window.location.pathname);
+      return tabParam;
+    }
+    return 'gastos';
+  });
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [solicitudCounts, setSolicitudCounts] = useState({
@@ -318,7 +330,6 @@ const TabButton = ({ label, isActive, onClick, badge = 0, badges = null }) => {
 
   useEffect(() => {
     if (!badges || badges.length <= 1) {
-      setCurrentIndex(0);
       return;
     }
     const timer = setInterval(() => {
@@ -327,7 +338,9 @@ const TabButton = ({ label, isActive, onClick, badge = 0, badges = null }) => {
     return () => clearInterval(timer);
   }, [badges]);
 
-  const activeBadge = badges && badges.length > 0 ? badges[currentIndex % badges.length] : null;
+  // Calcular el índice seguro sin necesidad de resetear con setState
+  const safeIndex = badges && badges.length > 0 ? currentIndex % badges.length : 0;
+  const activeBadge = badges && badges.length > 0 ? badges[safeIndex] : null;
 
   return (
     <button

@@ -153,7 +153,8 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
                             const registration = await navigator.serviceWorker.ready;
                             await registration.showNotification('Recordatorio de Gastos MAF', {
                                 body: cuerpo,
-                                icon: '/MAF.png'
+                                icon: '/MAF.png',
+                                data: { url: '/?tab=solicitudes' }
                             });
                             localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
                         } catch (err) {

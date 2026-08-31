@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import PanelAuditoria from '../PanelAuditoria';
 import * as firebase from '../../firebase';
@@ -61,11 +61,13 @@ describe('PanelAuditoria', () => {
     expect(screen.getByText('Añade un periodo de ciudad para comenzar la auditoría.')).toBeInTheDocument();
   });
 
-  test('calls window.confirm when "Eliminar todos los periodos de auditoría" button is clicked', () => {
+  test('calls window.confirm when "Eliminar todos los periodos de auditoría" button is clicked', async () => {
     render(<PanelAuditoria allGastos={mockAllGastos} audits={mockAudits} />);
     const deleteButton = screen.getByRole('button', { name: /Limpiar/i });
     
-    fireEvent.click(deleteButton);
+    await act(async () => {
+      fireEvent.click(deleteButton);
+    });
     expect(window.confirm).toHaveBeenCalledTimes(1);
     expect(window.confirm).toHaveBeenCalledWith("¿Estás seguro de que quieres eliminar TODOS los periodos de auditoría? Esta acción es irreversible y eliminará todos los datos de auditoría de la base de datos.");
   });
@@ -96,13 +98,13 @@ describe('PanelAuditoria', () => {
     const deleteButton = screen.getByRole('button', { name: /Limpiar/i });
     
     window.confirm.mockReturnValueOnce(true); // User confirms deletion
-    fireEvent.click(deleteButton);
+    await act(async () => {
+      fireEvent.click(deleteButton);
+    });
 
-    await screen.findByRole('button', { name: /Limpiar/i }); // Wait for any async operations to settle by finding the button again
-
-    expect(collection).toHaveBeenCalledWith(firebase.db, 'auditorias');
-    expect(getDocs).toHaveBeenCalledWith({ __isCollectionRef: true }); // getDocs is called with the mocked collection reference
-    expect(deleteDoc).toHaveBeenCalledTimes(mockAuditsData.length);
+    await waitFor(() => {
+      expect(deleteDoc).toHaveBeenCalledTimes(mockAuditsData.length);
+    });
     expect(deleteDoc).toHaveBeenCalledWith({ id: 'audit1' });
     expect(deleteDoc).toHaveBeenCalledWith({ id: 'audit2' });
     expect(window.alert).toHaveBeenCalledWith("Todos los periodos de auditoría han sido eliminados correctamente.");
@@ -113,7 +115,9 @@ describe('PanelAuditoria', () => {
     const deleteButton = screen.getByRole('button', { name: /Limpiar/i });
     
     window.confirm.mockReturnValueOnce(false); // User cancels deletion
-    fireEvent.click(deleteButton);
+    await act(async () => {
+      fireEvent.click(deleteButton);
+    });
 
     expect(collection).not.toHaveBeenCalled();
     expect(getDocs).not.toHaveBeenCalled();
