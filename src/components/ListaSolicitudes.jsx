@@ -124,58 +124,6 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
         return () => unsubscribe();
     }, [user, targetUid]);
 
-    useEffect(() => {
-        if (loading || solicitudes.length === 0) return;
-
-        const solicitudesPendientes = solicitudes.filter(s => ['Solicitada', 'Recibida', 'Esperando...'].includes(s.estado));
-
-        if (solicitudesPendientes.length > 0) {
-            const AHORA = new Date().getTime();
-            const HACE_24_HORAS = AHORA - (24 * 60 * 60 * 1000);
-            const ultimaNotificacion = localStorage.getItem('ultimaNotificacionSolicitudesRecibidas');
-
-            if ('Notification' in window) {
-                if (!ultimaNotificacion || parseInt(ultimaNotificacion) < HACE_24_HORAS) {
-                    const mostrarNotificacion = async () => {
-                        const conteo = {
-                            Solicitada: solicitudes.filter(s => s.estado === 'Solicitada').length,
-                            Recibida: solicitudes.filter(s => s.estado === 'Recibida').length,
-                            'Esperando...': solicitudes.filter(s => s.estado === 'Esperando...').length
-                        };
-
-                        const partes = [];
-                        if (conteo.Solicitada > 0) partes.push(`${conteo.Solicitada} solicitada(s)`);
-                        if (conteo.Recibida > 0) partes.push(`${conteo.Recibida} recibida(s)`);
-                        if (conteo['Esperando...'] > 0) partes.push(`${conteo['Esperando...']} esperando...`);
-
-                        const cuerpo = `Tienes ${solicitudesPendientes.length} solicitud(es) de recursos pendientes (${partes.join(', ')}). ¡No olvides revisarlas!`;
-                        try {
-                            const registration = await navigator.serviceWorker.ready;
-                            await registration.showNotification('Recordatorio de Gastos MAF', {
-                                body: cuerpo,
-                                icon: '/MAF.png',
-                                data: { url: '/?tab=solicitudes' }
-                            });
-                            localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
-                        } catch (err) {
-                            console.error('Error al mostrar la notificación:', err);
-                        }
-                    };
-
-                    if (Notification.permission === 'granted') {
-                        mostrarNotificacion();
-                    } else if (Notification.permission !== 'denied') {
-                        Notification.requestPermission().then((permission) => {
-                            if (permission === 'granted') {
-                                mostrarNotificacion();
-                            }
-                        });
-                    }
-                }
-            }
-        }
-    }, [solicitudes, loading]);
-
     if (loading) {
         return <Text className="text-center mt-8">Cargando solicitudes...</Text>;
     }

@@ -6,7 +6,7 @@ import ListaUsuarios from './components/ListaUsuarios';
 import PanelUsuarioAdmin from './components/PanelUsuarioAdmin';
 import Login from './components/Login';
 import { Menu, X, LogOut, Share2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
 import { Badge } from "@tremor/react";
@@ -39,6 +39,7 @@ function App() {
     'Recibida': 0,
     'Esperando...': 0
   });
+  const notificacionEnviadaRef = useRef(false);
 
   const isAdmin = userData?.role === 'admin';
 
@@ -63,6 +64,55 @@ function App() {
     });
     return () => unsub();
   }, [user, adminSelectedUser]);
+
+  // Notificación de solicitudes pendientes — se dispara al cargar la app,
+  // sin necesidad de navegar a la pestaña de Solicitudes.
+  useEffect(() => {
+    if (!user || adminSelectedUser) return; // solo para el usuario propio
+
+    const totalPendientes =
+      solicitudCounts['Solicitada'] +
+      solicitudCounts['Recibida'] +
+      solicitudCounts['Esperando...'];
+
+    if (totalPendientes === 0) return;
+    if (notificacionEnviadaRef.current) return;
+
+    const AHORA = Date.now();
+    const HACE_24_HORAS = AHORA - 24 * 60 * 60 * 1000;
+    const ultimaNotificacion = localStorage.getItem('ultimaNotificacionSolicitudesRecibidas');
+    if (ultimaNotificacion && parseInt(ultimaNotificacion) > HACE_24_HORAS) return;
+
+    if (!('Notification' in window)) return;
+
+    const mostrarNotificacion = async () => {
+      notificacionEnviadaRef.current = true;
+      const partes = [];
+      if (solicitudCounts['Solicitada'] > 0) partes.push(`${solicitudCounts['Solicitada']} solicitada(s)`);
+      if (solicitudCounts['Recibida'] > 0) partes.push(`${solicitudCounts['Recibida']} recibida(s)`);
+      if (solicitudCounts['Esperando...'] > 0) partes.push(`${solicitudCounts['Esperando...']} esperando...`);
+      const cuerpo = `Tienes ${totalPendientes} solicitud(es) de recursos pendientes (${partes.join(', ')}). ¡No olvides revisarlas!`;
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification('Recordatorio de Gastos MAF', {
+          body: cuerpo,
+          icon: '/MAF.png',
+          data: { url: '/?tab=solicitudes' }
+        });
+        localStorage.setItem('ultimaNotificacionSolicitudesRecibidas', AHORA.toString());
+      } catch (err) {
+        console.error('Error al mostrar la notificación:', err);
+      }
+    };
+
+    if (Notification.permission === 'granted') {
+      mostrarNotificacion();
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') mostrarNotificacion();
+      });
+    }
+  }, [solicitudCounts, user, adminSelectedUser]);
 
   const solicitudBadges = [
     { key: 'Solicitada', title: 'Solicitada', count: solicitudCounts['Solicitada'], colorClass: 'bg-yellow-500 text-white', pingClass: 'bg-yellow-400' },

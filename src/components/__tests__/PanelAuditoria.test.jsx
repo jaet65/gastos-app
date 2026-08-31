@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import PanelAuditoria from '../PanelAuditoria';
-import * as firebase from '../../firebase';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { vi } from 'vitest';
 
