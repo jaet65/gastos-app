@@ -69,6 +69,8 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
     }).format(cantidad);
   };
 
+  const [solicitudes, setSolicitudes] = useState([]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -80,6 +82,19 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [user, targetUid]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, "solicitudes"),
+      where("userId", "==", targetUid)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
   }, [user, targetUid]);
@@ -1079,6 +1094,14 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
     return total;
   }, [dataAgrupada]);
 
+  const totalSolicitudesRecibidas = useMemo(() => {
+    return solicitudes
+      .filter(s => s.estado === 'Recibida')
+      .reduce((sum, s) => sum + (parseFloat(s.totalSolicitado) || 0), 0);
+  }, [solicitudes]);
+
+  const haySolicitudRecibida = totalSolicitudesRecibidas > 0 || solicitudes.some(s => s.estado === 'Recibida');
+
   const totalMAF = useMemo(() => {
     let total = 0;
     Object.values(dataAgrupada).forEach(estado => {
@@ -1212,7 +1235,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
       )}
 
       {/* 1. TOTALES SEPARADOS */}
-      <div className={`grid gap-3 ${totalMAF > 0 || totalANTP > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-3 ${haySolicitudRecibida ? 'grid-cols-1 sm:grid-cols-2' : (totalMAF > 0 || totalANTP > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}`}>
         <Card decoration="top" decorationColor="blue" className="italic font-black py-1 px-0 mt-0 shadow-sm border-blue-100">
           <Flex justifyContent="between" alignItems="center" className="px-4">
             <Text className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Total Periodo</Text>
@@ -1221,6 +1244,21 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
             </Metric>
           </Flex>
         </Card>
+
+        {haySolicitudRecibida && (
+          <Card
+            decoration="top"
+            decorationColor={(totalSolicitudesRecibidas - totalNormal) >= 0 ? "emerald" : "rose"}
+            className={`italic font-black py-1 px-0 mt-0 shadow-sm ${(totalSolicitudesRecibidas - totalNormal) >= 0 ? 'border-emerald-100' : 'border-rose-100'}`}
+          >
+            <Flex justifyContent="between" alignItems="center" className="px-4">
+              <Text className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Restantes</Text>
+              <Metric className={`italic text-xl font-black ${(totalSolicitudesRecibidas - totalNormal) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {formatoMoneda(totalSolicitudesRecibidas - totalNormal)}
+              </Metric>
+            </Flex>
+          </Card>
+        )}
       </div>
 
       {gastoAEditar && (

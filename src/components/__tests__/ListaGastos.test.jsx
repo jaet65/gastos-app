@@ -16,22 +16,28 @@ const mockGastos = [
     { id: 'g4', concepto: 'Gasto archivado', monto: 100, fecha: '2026-04-10', categoria: 'Otros', url_factura: '', archivado: true, creado_en: { toDate: () => new Date() } },
 ];
 
+const mockSolicitudes = [
+    { id: 's1', totalSolicitado: 2000, estado: 'Recibida', userId: 'test-user-id' }
+];
+
 vi.mock('firebase/firestore', async (importOriginal) => {
     const actual = await importOriginal();
     return {
         ...actual,
-        onSnapshot: vi.fn((_query, callback) => {
+        onSnapshot: vi.fn((queryObj, callback) => {
+            const isSolicitudes = queryObj?._collection === 'solicitudes' || (queryObj?.type === 'solicitudes');
+            const dataList = isSolicitudes ? mockSolicitudes : mockGastos;
             const snapshot = {
-                docs: mockGastos.map(doc => ({
+                docs: dataList.map(doc => ({
                     id: doc.id,
                     data: () => doc,
                 })),
             };
             setTimeout(() => callback(snapshot), 0);
-            return () => {};
+            return () => { };
         }),
-        collection: vi.fn(),
-        query: vi.fn(),
+        collection: vi.fn((_db, name) => ({ _collection: name })),
+        query: vi.fn((colRef) => ({ _collection: colRef?._collection })),
         where: vi.fn(),
         orderBy: vi.fn(),
         deleteDoc: vi.fn(),
@@ -74,15 +80,16 @@ describe('ListaGastos Component', () => {
         const totalPeriodoCard = totalPeriodoValue.closest('.tremor-Card-root');
         expect(within(totalPeriodoCard).getByText('Total Periodo')).toBeInTheDocument();
 
-        // For Total MAF, find the 'Gastos MAF' title and then its associated total
-        const gastosMAFTitle = screen.getByText('Gastos MAF');
-        const gastosMAFFlexParent = gastosMAFTitle.closest('.tremor-Flex-root');
-        expect(within(gastosMAFFlexParent).getByText('$1,200.00')).toBeInTheDocument();
+        // Verificar tarjeta Restante cuando hay solicitud recibida ($2,000 - $1,050 = $950.00)
+        expect(await screen.findByText('Restantes')).toBeInTheDocument();
+        const restanteValue = screen.getByText('$950.00');
+        const restanteCard = restanteValue.closest('.tremor-Card-root');
+        expect(within(restanteCard).getByText('Restantes')).toBeInTheDocument();
     });
 
     it('debería filtrar gastos por término de búsqueda', async () => {
         render(<ListaGastos />);
-        
+
         const searchInput = screen.getByPlaceholderText('Buscar por concepto...');
         fireEvent.change(searchInput, { target: { value: 'Gasolina' } });
 
