@@ -6,6 +6,7 @@ import SolicitudRecursosModal from './SolicitudRecursosModal';
 import Footer from './Footer';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
+import { getCloudinaryFilename } from './cloudinary';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
@@ -160,7 +161,7 @@ const FormularioGasto = () => {
     }
 
     const data = new FormData();
-    const nombreArchivo = `[${user?.email}] ${file.name}`;
+    const nombreArchivo = getCloudinaryFilename(user?.email, file.name);
     data.append("file", fileDataUrl); // Cloudinary acepta Base64
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", CLOUD_NAME);
@@ -361,7 +362,7 @@ const FormularioGasto = () => {
               <div
                 onClick={() => fileInputRef.current.click()}
                 className={`
-                  p-1 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-1 group border-1 border-none
+                  p-1 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 gap-1 group border border-none
                   ${isDragging
                     ? 'border-none bg-white/50 scale-105 shadow-xl ring-4 ring-blue-100 rounded-full'
                     : 'border-none bg-white/50 hover:bg-white/80'
@@ -414,7 +415,7 @@ const FormularioGasto = () => {
 
               {casetas.map((caseta, index) => (
                 <div key={index} className="flex flex-col md:flex-row gap-2 items-start md:items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
-                  <div className="md:w-32 w-full flex-shrink-0">
+                  <div className="md:w-32 w-full shrink-0">
                     <div className="flex items-center gap-1">
                       <span className="text-slate-400 font-bold font-mono text-sm">$</span>
                       <input
@@ -437,7 +438,7 @@ const FormularioGasto = () => {
                         className="text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 w-full truncate"
                       />
                       {caseta.archivo && (
-                        <span className="text-green-500 flex-shrink-0 ml-1"><FileCheck size={14} /></span>
+                        <span className="text-green-500 shrink-0 ml-1"><FileCheck size={14} /></span>
                       )}
                     </div>
                   </div>
@@ -445,7 +446,7 @@ const FormularioGasto = () => {
                   <button
                     type="button"
                     onClick={() => removeCaseta(index)}
-                    className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+                    className="p-1 text-slate-300 hover:text-red-500 transition-colors shrink-0"
                   >
                     <X size={16} />
                   </button>

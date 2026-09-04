@@ -4,6 +4,7 @@ import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCir
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { getCloudinaryFilename } from './cloudinary';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";
@@ -80,7 +81,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         }
 
         const data = new FormData();
-        const nombreArchivo = `[${user?.email}] ${file.name}`;
+        const nombreArchivo = getCloudinaryFilename(user?.email, file.name);
         data.append("file", fileDataUrl);
         data.append("upload_preset", UPLOAD_PRESET);
         data.append("cloud_name", CLOUD_NAME);
@@ -245,7 +246,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-white/90"
+            className="fixed inset-0 z-99999 flex items-center justify-center p-4 bg-white/90"
             onDragEnter={handleDragEnterModal}
             onDragLeave={handleDragLeaveModal}
             onDragOver={(e) => e.preventDefault()}
@@ -346,7 +347,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                     )}
 
                     <div className="mt-4">
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block flex items-center gap-2"><FileText size={14} /> Factura Principal PDF</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><FileText size={14} /> Factura Principal PDF</label>
                         {nuevoArchivo ? (
                             <div className="flex items-center justify-between w-full bg-emerald-100 p-2 rounded border border-emerald-200">
                                 <div className="flex items-center gap-2 truncate">
