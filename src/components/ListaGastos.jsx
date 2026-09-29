@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { db } from '../firebase'; import { CLOUD_NAME } from './config';
 import { useAuth } from './AuthContext';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
@@ -10,6 +10,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { useSwipeable } from 'react-swipeable';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
+import { filtrarGastosParaReporte, resolverGastosPorIds } from './reportFilters';
 import ExcelJS from 'exceljs'; import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { differenceInCalendarDays } from 'date-fns';
@@ -27,7 +28,7 @@ import {
 } from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Eye, EyeOff, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
 
-const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }) => {
+const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }, ref) => {
   const { user } = useAuth();
   const esVistaAdmin = !!adminViewUid && !adminEditMode;
   const targetUid = adminViewUid || user?.uid;
@@ -318,12 +319,11 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
 
   const handleAbrirModalSolicitudParaReporte = async () => {
     // 1. Obtener gastos actualmente filtrados para determinar el rango de fechas real
-    const gastosFiltrados = gastos.filter(g => {
-      if (fechaInicio && g.fecha < fechaInicio) return false;
-      if (fechaFin && g.fecha > fechaFin) return false;
-      if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return false;
-      if (!mostrarArchivados && g.archivado) return false;
-      return true;
+    const gastosFiltrados = filtrarGastosParaReporte(gastos, {
+      fechaInicio,
+      fechaFin,
+      terminoBusqueda,
+      mostrarArchivados,
     });
 
     if (gastosFiltrados.length === 0) {
@@ -418,36 +418,12 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
     let fFin = fechaFinReporte;
 
     try {
-      gastosFiltrados = gastos.filter(g => {
-        // Filtro especial para MAF
-        if (esMAF) {
-          if (g.categoria !== 'MAF') return false;
-        } else {
-          if (g.categoria === 'MAF' || g.categoria === 'ANTP') return false;
-        }
-
-        // Si las fechas del reporte vienen definidas, las usamos para filtrar.
-        // Si no, el filtrado se basará en los gastos visibles (dataAgrupada).
-        if (fechaInicioReporte && g.fecha < fechaInicioReporte) return false;
-        if (fechaFinReporte && g.fecha > fechaFinReporte) return false;
-
-        if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
-          // Lógica para incluir gastos si su padre coincide con la búsqueda
-          const gastoPadrePropina = gastos.find(padre => padre.idPropina === g.id);
-          if (gastoPadrePropina && gastoPadrePropina.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
-
-          const gastoPadreCaseta = gastos.find(padre => padre.id === g.idPadre);
-          if (gastoPadreCaseta && gastoPadreCaseta.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) return true;
-
-          return false;
-        }
-
-        // Si se está mostrando archivados, se incluyen. Si no, se excluyen.
-        if (!mostrarArchivados && g.archivado) {
-          return false;
-        }
-
-        return true;
+      gastosFiltrados = filtrarGastosParaReporte(gastos, {
+        fechaInicio: fechaInicioReporte,
+        fechaFin: fechaFinReporte,
+        terminoBusqueda,
+        mostrarArchivados,
+        tipoReporte: esMAF ? 'MAF' : 'normal',
       });
 
       if (gastosFiltrados.length === 0) {
@@ -499,6 +475,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
           resumen_sumaSinFactura: sumaSinFactura,
           resumen_porReembolsar: porReembolsar,
           resumen_porReintegrar: porReintegrar,
+          gastosReporteIds: gastosFiltrados.map(gasto => gasto.id),
         });
       } else if (esMAF) {
         const sumaFacturado = gastosFiltrados.filter(g => g.url_factura).reduce((sum, g) => sum + parseFloat(g.monto), 0);
@@ -527,6 +504,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
           resumen_sumaSinFactura: sumaSinFactura,
           resumen_porReembolsar: porReembolsar,
           resumen_porReintegrar: porReintegrar,
+          gastosReporteIds: gastosFiltrados.map(gasto => gasto.id),
         });
       }
 
@@ -557,7 +535,13 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
   const handleGenerarReporteMAF = async (montoRecibido) => {
     setReporteGenerandose(true);
     try {
-      const gastosMAF = gastos.filter(g => g.categoria === 'MAF');
+      const gastosMAF = filtrarGastosParaReporte(gastos, {
+        fechaInicio,
+        fechaFin,
+        terminoBusqueda,
+        mostrarArchivados,
+        tipoReporte: 'MAF',
+      });
       if (gastosMAF.length === 0) {
         alert("No hay gastos MAF para generar el reporte.");
         setReporteGenerandose(false);
@@ -743,9 +727,11 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
     let width;
     let height;
 
-    if (solicitudVinculada) {
+    if (solicitudVinculada?.url_pdf_solicitud) {
       try {
-        const solicitudPdfBytes = await fetch(solicitudVinculada.url_pdf_solicitud).then(res => res.arrayBuffer());
+        const solicitudPdfResponse = await fetch(solicitudVinculada.url_pdf_solicitud);
+        if (!solicitudPdfResponse.ok) throw new Error(`HTTP ${solicitudPdfResponse.status}`);
+        const solicitudPdfBytes = await solicitudPdfResponse.arrayBuffer();
         const solicitudPdf = await PDFDocument.load(solicitudPdfBytes);
         const copiedSolicitudPages = await pdfDoc.copyPages(solicitudPdf, solicitudPdf.getPageIndices());
         copiedSolicitudPages.forEach((p) => pdfDoc.addPage(p));
@@ -982,15 +968,27 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
       }
     }
 
-    for (const gasto of gastosConFactura) {
-      try {
-        const url = gasto.url_factura;
-        const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
-        const donorPdfDoc = await PDFDocument.load(existingPdfBytes);
-        const copiedPages = await pdfDoc.copyPages(donorPdfDoc, donorPdfDoc.getPageIndices());
-        copiedPages.forEach((page) => pdfDoc.addPage(page));
-      } catch (error) {
-        console.error(`No se pudo cargar o procesar el PDF para el gasto '${gasto.concepto}':`, error);
+    for (let start = 0; start < gastosConFactura.length; start += 4) {
+      const loteGastos = gastosConFactura.slice(start, start + 4);
+      const documentosFactura = await Promise.all(loteGastos.map(async (gasto) => {
+        try {
+          const response = await fetch(gasto.url_factura);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await PDFDocument.load(await response.arrayBuffer());
+        } catch (error) {
+          console.error(`No se pudo cargar o procesar el PDF para el gasto '${gasto.concepto}':`, error);
+          return null;
+        }
+      }));
+
+      for (const documentoFactura of documentosFactura) {
+        if (!documentoFactura) continue;
+        try {
+          const copiedPages = await pdfDoc.copyPages(documentoFactura, documentoFactura.getPageIndices());
+          copiedPages.forEach((copiedPage) => pdfDoc.addPage(copiedPage));
+        } catch (error) {
+          console.error('No se pudo adjuntar una factura al reporte:', error);
+        }
       }
     }
 
@@ -998,6 +996,25 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     return blob;
   };
+
+  useImperativeHandle(ref, () => ({
+    generarVistaPreviaSolicitud: async (solicitud) => {
+      const ids = solicitud.gastosReporteIds;
+      if (!Array.isArray(ids) || ids.length === 0) return null;
+
+      const gastosReporte = resolverGastosPorIds(gastos, ids);
+      const fechaMinima = gastosReporte.reduce((minima, gasto) => gasto.fecha < minima ? gasto.fecha : minima, gastosReporte[0].fecha);
+      const fechaMaxima = gastosReporte.reduce((maxima, gasto) => gasto.fecha > maxima ? gasto.fecha : maxima, gastosReporte[0].fecha);
+      return generarReportePdf(
+        gastosReporte,
+        solicitud.fechaInicio || fechaMinima,
+        solicitud.fechaFin || fechaMaxima,
+        solicitud,
+        Boolean(solicitud.esMAF),
+        solicitud.esMAF ? solicitud.totalSolicitado || 0 : 0
+      );
+    },
+  }));
 
   const limpiarFiltros = () => {
     setFechaInicio('');
@@ -1236,7 +1253,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
 
       {/* 1. TOTALES SEPARADOS */}
       <div className={`grid gap-3 ${haySolicitudRecibida ? 'grid-cols-1 sm:grid-cols-2' : (totalMAF > 0 || totalANTP > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}`}>
-        <Card decoration="top" decorationColor="blue" className="italic font-black py-1 px-0 mt-0 shadow-sm border-blue-100">
+        <Card decoration="top" decorationColor="blue" className="italic font-black py-1 px-0 mt-0 shadow-sm rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
           <Flex justifyContent="between" alignItems="center" className="px-4">
             <Text className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Total Periodo</Text>
             <Metric className="italic text-xl font-black text-slate-800">
@@ -1249,7 +1266,7 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
           <Card
             decoration="top"
             decorationColor={(totalSolicitudesRecibidas - totalNormal) >= 0 ? "emerald" : "rose"}
-            className={`italic font-black py-1 px-0 mt-0 shadow-sm ${(totalSolicitudesRecibidas - totalNormal) >= 0 ? 'border-emerald-100' : 'border-rose-100'}`}
+            className="italic font-black py-1 px-0 mt-0 shadow-sm rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80"
           >
             <Flex justifyContent="between" alignItems="center" className="px-4">
               <Text className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Restantes</Text>
@@ -1293,8 +1310,8 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
           const IconoEstado = isMAFState ? ShieldCheck : isANTPState ? Layers : (isFactura ? FileCheck : AlertTriangle);
 
           return (
-            <Card key={estado} className="p-0 overflow-hidden shadow-sm">
-              <div className={`py-0 px-0 border-l-4 ${isMAFState ? 'border-orange-100 bg-orange-100' : isANTPState ? 'border-cyan-100 bg-cyan-100' : (isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100')}`}>
+            <Card key={estado} className="p-2 overflow-hidden shadow-sm rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
+              <div className={`py-2 px-2 border-l-2 rounded-lg ${isMAFState ? 'border-orange-100 bg-orange-100' : isANTPState ? 'border-cyan-100 bg-cyan-100' : (isFactura ? 'border-emerald-100 bg-emerald-100' : 'border-amber-100 bg-amber-100')}`}>
                 <Flex justifyContent="between" alignItems="center">
                   <div className="flex items-center gap-2">
                     <Icon icon={IconoEstado} color={colorEstado} variant="light" size="sm" />
@@ -1466,6 +1483,6 @@ const ListaGastos = ({ adminViewUid = null, adminEditMode = false, adminSelected
 
     </div>
   );
-};
+});
 
 export default ListaGastos;

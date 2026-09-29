@@ -272,7 +272,7 @@ const AuditoriaView = () => {
             </Flex>
 
             {showForm && (
-                <Card>
+                <Card className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
                     <form onSubmit={handleFormSubmit}>
                         <Subtitle className="mb-4">{editingId ? 'Editando Periodo' : 'Añadir Nuevo Periodo'}</Subtitle>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

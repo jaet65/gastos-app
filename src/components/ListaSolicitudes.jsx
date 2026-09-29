@@ -1,11 +1,14 @@
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState, Fragment, Suspense, lazy } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext'; import { CLOUD_NAME } from './config';
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc } from 'firebase/firestore';
 import Footer from './Footer';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
-import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown } from 'lucide-react';
+import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown, Eye, X } from 'lucide-react';
+
+const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer'));
 
 const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
@@ -22,13 +25,18 @@ const statusColors = {
     'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
 };
 
-const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
+const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPreviewReport }) => {
     const { user } = useAuth();
     const esVistaAdmin = !!adminViewUid && !adminEditMode;
     const targetUid = adminViewUid || user?.uid;
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [estadoFiltro, setEstadoFiltro] = useState('Todos');
+    const [preview, setPreview] = useState(null);
+    const [previewBytes, setPreviewBytes] = useState(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewError, setPreviewError] = useState('');
+    const [reporteOpciones, setReporteOpciones] = useState(null);
 
     const solicitudesFiltradas = estadoFiltro === 'Todos'
         ? solicitudes
@@ -37,6 +45,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
     const descargarPdf = async (url, nombreArchivo) => {
         try {
             const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const blob = await response.blob();
             const objectUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -49,6 +58,36 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
         } catch (error) {
             console.error('Error al descargar el PDF:', error);
             alert('No se pudo descargar el archivo.');
+        }
+    };
+
+    const visualizarReporte = async (solicitud) => {
+        setPreview(solicitud);
+        setPreviewBytes(null);
+        setPreviewError('');
+        setPreviewLoading(true);
+
+        try {
+            let pdfBytes;
+            if (Array.isArray(solicitud.gastosReporteIds) && solicitud.gastosReporteIds.length > 0) {
+                const pdfBlob = await onPreviewReport?.(solicitud);
+                if (!pdfBlob) throw new Error('No se pudo generar la vista previa del reporte.');
+                pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
+            } else {
+                const response = await fetch(solicitud.url_reporte_gastos);
+                if (!response.ok) throw new Error(`No se pudo descargar el ZIP del reporte (HTTP ${response.status}).`);
+                const { default: JSZip } = await import('jszip');
+                const zip = await JSZip.loadAsync(await response.arrayBuffer());
+                const pdfEntry = Object.values(zip.files).find(file => !file.dir && file.name.toLowerCase().endsWith('.pdf'));
+                if (!pdfEntry) throw new Error('El ZIP guardado no contiene un PDF.');
+                pdfBytes = await pdfEntry.async('uint8array');
+            }
+            setPreviewBytes(pdfBytes);
+        } catch (error) {
+            console.error('Error al preparar la vista previa del reporte:', error);
+            setPreviewError(error.message || 'No se pudo abrir la vista previa.');
+        } finally {
+            setPreviewLoading(false);
         }
     };
 
@@ -172,7 +211,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
                 <Text className="text-center mt-8">No hay solicitudes en este estado.</Text>
             ) : (
                 solicitudesFiltradas.map(solicitud => (
-                    <Card key={solicitud.id}>
+                    <Card key={solicitud.id} className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
                         <Flex alignItems="start" className="border-none">
                             <div className="truncate">
                                 <Flex alignItems='center' className='gap-2 mb-2'>
@@ -201,9 +240,9 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
                                 )}
                                 {solicitud.url_reporte_gastos && (
                                     <button
-                                        onClick={() => descargarPdf(solicitud.url_reporte_gastos, solicitud.nombre_archivo_reporte)}
+                                        onClick={() => setReporteOpciones(solicitud)}
                                         className="flex items-center gap-1 p-2 text-slate-500 hover:text-emerald-600 transition-colors"
-                                        title="Descargar Reporte de Gastos Final"
+                                        title="Opciones del reporte"
                                     >
                                         <FileDown size={16} />
                                         <span className="text-xs font-bold">Reporte</span>
@@ -303,6 +342,90 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false }) => {
                         )}
                     </Card>
                 ))
+            )}
+            {reporteOpciones && createPortal(
+                <div
+                    className="fixed inset-0 z-[99998] flex items-center justify-center bg-black/50 p-4"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget) setReporteOpciones(null);
+                    }}
+                >
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="reporte-opciones-titulo"
+                        className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+                    >
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <h2 id="reporte-opciones-titulo" className="text-base font-bold text-slate-800">Reporte</h2>
+                            <button
+                                onClick={() => setReporteOpciones(null)}
+                                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                aria-label="Cancelar opciones de reporte"
+                                title="Cancelar"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                onClick={() => {
+                                    const solicitud = reporteOpciones;
+                                    setReporteOpciones(null);
+                                    descargarPdf(solicitud.url_reporte_gastos, solicitud.nombre_archivo_reporte);
+                                }}
+                                className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                            >
+                                <FileDown size={16} /> Descargar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const solicitud = reporteOpciones;
+                                    setReporteOpciones(null);
+                                    visualizarReporte(solicitud);
+                                }}
+                                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                            >
+                                <Eye size={16} /> Visualizar
+                            </button>
+                        </div>
+                    </section>
+                </div>,
+                document.body
+            )}
+            {preview && createPortal(
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Vista previa del reporte"
+                    className="fixed inset-0 z-[99999] flex flex-col bg-slate-950 text-white"
+                    style={{
+                        paddingTop: 'env(safe-area-inset-top, 0px)',
+                        paddingRight: 'env(safe-area-inset-right, 0px)',
+                        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                        paddingLeft: 'env(safe-area-inset-left, 0px)',
+                    }}
+                >
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                        <div className="min-w-0">
+                            <h2 className="truncate text-sm font-bold">Vista previa del reporte</h2>
+                            <p className="truncate text-xs text-slate-300">{preview.nombre_archivo_reporte || preview.proyecto}</p>
+                        </div>
+                        <button onClick={() => setPreview(null)} className="shrink-0 rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Cerrar vista previa">
+                            <X size={20} />
+                        </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-neutral-700">
+                        {previewLoading && <p className="p-6 text-center text-sm text-white">Preparando reporte...</p>}
+                        {previewError && <p role="alert" className="p-6 text-center text-sm text-red-200">{previewError}</p>}
+                        {previewBytes && (
+                            <Suspense fallback={<p className="p-6 text-center text-sm text-white">Cargando visor...</p>}>
+                                <PdfCanvasViewer data={previewBytes} />
+                            </Suspense>
+                        )}
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );

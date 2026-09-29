@@ -80,10 +80,7 @@ describe('App Component', () => {
         const solicitudesTab = screen.getByRole('button', { name: /Solicitudes/i });
         fireEvent.click(solicitudesTab);
 
-        // Esperar a que la animación de salida termine y el componente desaparezca
-        await waitFor(() => {
-            expect(screen.queryByTestId('lista-gastos')).not.toBeInTheDocument();
-        });
+        expect(screen.getByTestId('lista-gastos').parentElement).toHaveAttribute('hidden');
         expect(await screen.findByTestId('lista-solicitudes')).toBeInTheDocument();
     });
 

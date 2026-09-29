@@ -34,6 +34,7 @@ function App() {
   });
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
+  const listaGastosRef = useRef(null);
   const [solicitudCounts, setSolicitudCounts] = useState({
     'Solicitada': 0,
     'Recibida': 0,
@@ -319,18 +320,15 @@ function App() {
             </div>
 
             <div className="relative">
+              <div hidden={activeTab !== 'gastos'} aria-hidden={activeTab !== 'gastos'}>
+                <ListaGastos
+                  ref={listaGastosRef}
+                  adminViewUid={adminSelectedUser?.uid}
+                  adminEditMode={adminEditMode}
+                  adminSelectedUser={adminSelectedUser}
+                />
+              </div>
               <AnimatePresence mode="wait">
-                {activeTab === 'gastos' && (
-                  <motion.div
-                    key="gastos"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <ListaGastos adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} adminSelectedUser={adminSelectedUser} />
-                  </motion.div>
-                )}
                 {activeTab === 'solicitudes' && (
                   <motion.div
                     key="solicitudes"
@@ -339,7 +337,11 @@ function App() {
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <ListaSolicitudes adminViewUid={adminSelectedUser?.uid} adminEditMode={adminEditMode} />
+                    <ListaSolicitudes
+                      adminViewUid={adminSelectedUser?.uid}
+                      adminEditMode={adminEditMode}
+                      onPreviewReport={(solicitud) => listaGastosRef.current?.generarVistaPreviaSolicitud(solicitud)}
+                    />
                   </motion.div>
                 )}
                 {isAdmin && activeTab === 'usuarios' && (

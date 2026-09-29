@@ -195,7 +195,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
     if (auditType === 0 && audits.length === 0) {
         return (
-            <Card className="text-center mt-4">
+            <Card className="text-center mt-4 rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
                 <Text>Añade un periodo de ciudad para comenzar la auditoría.</Text>
             </Card>
         );
@@ -359,7 +359,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 <Button onClick={handleNextYear} disabled={isNextDisabled} variant="light">&gt;&gt;</Button>
             </Flex>
             
-            <Card>
+            <Card className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
                 <Flex alignItems="start">
                     <div className="truncate">
                         <Text>Gastos anuales: {selectedYear}</Text>
@@ -370,7 +370,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
 
             {auditResults.length > 0 ? auditResults.map(result => (
-                <Card key={result.id} decoration="top" decorationColor={auditType === 0 ? 'indigo' : 'blue'}>
+                <Card key={result.id} decoration="top" decorationColor={auditType === 0 ? 'indigo' : 'blue'} className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
                     <div className="mb-4">
                         <Flex alignItems="start">
                             <div className="flex-1">
@@ -434,7 +434,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     </Flex>
                 </Card>
             )) : (
-                <Card className="text-center">
+                <Card className="text-center rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
                     <Text>No hay datos de auditoría para la selección actual.</Text>
                 </Card>
             )}

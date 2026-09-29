@@ -1,6 +1,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import ListaSolicitudes from '../ListaSolicitudes';
+import JSZip from 'jszip';
+
+const mockPdfViewer = vi.hoisted(() => vi.fn(() => null));
+vi.mock('../PdfCanvasViewer', () => ({ default: mockPdfViewer }));
 
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({
@@ -10,8 +14,8 @@ vi.mock('../AuthContext', () => ({
 }));
 
 const mockSolicitudes = [
-    { id: 'sol1', proyecto: 'Rally TrackSIM - CECAI', consultor: 'Usuario de Prueba', fechaInicio: '2026-04-20', fechaFin: '2026-04-25', dias: 6, totalSolicitado: 7800, estado: 'Solicitada', url_pdf_solicitud: 'http://solicitud.url/1' },
-    { id: 'sol2', proyecto: 'Rally TrackSIM - MAF', consultor: 'Usuario de Prueba', fechaInicio: '2026-05-01', fechaFin: '2026-05-05', dias: 5, totalSolicitado: 6500, estado: 'Recibida', esMAF: true, url_pdf_solicitud: 'http://solicitud.url/2' },
+    { id: 'sol1', proyecto: 'Rally TrackSIM - CECAI', consultor: 'Usuario de Prueba', fechaInicio: '2026-04-20', fechaFin: '2026-04-25', dias: 6, totalSolicitado: 7800, estado: 'Solicitada', url_pdf_solicitud: 'http://solicitud.url/1', url_reporte_gastos: 'http://reporte.url/1.zip', nombre_archivo_reporte: 'reporte-nuevo.zip', gastosReporteIds: ['g1'] },
+    { id: 'sol2', proyecto: 'Rally TrackSIM - MAF', consultor: 'Usuario de Prueba', fechaInicio: '2026-05-01', fechaFin: '2026-05-05', dias: 5, totalSolicitado: 6500, estado: 'Recibida', esMAF: true, url_pdf_solicitud: 'http://solicitud.url/2', url_reporte_gastos: 'http://reporte.url/2.zip', nombre_archivo_reporte: 'reporte-historico.zip' },
 ];
 
 vi.mock('firebase/firestore', async (importOriginal) => {
@@ -46,11 +50,23 @@ describe('ListaSolicitudes Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
+        vi.stubGlobal('fetch', vi.fn());
+        vi.stubGlobal('alert', vi.fn());
+        vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+        URL.createObjectURL = vi.fn(() => 'blob:download');
+        URL.revokeObjectURL = vi.fn();
         // Importar dinámicamente para obtener las funciones mockeadas
         return import('firebase/firestore').then((firestore) => {
             mockUpdateDoc = firestore.updateDoc;
             mockDeleteDoc = firestore.deleteDoc;
         });
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        delete URL.createObjectURL;
+        delete URL.revokeObjectURL;
     });
 
     it('debería renderizar la lista de solicitudes', async () => {
@@ -126,5 +142,50 @@ describe('ListaSolicitudes Component', () => {
         await waitFor(() => {
             expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
         });
+    });
+
+    it('ofrece Visualizar y Descargar, y visualiza reportes nuevos desde sus IDs', async () => {
+        const pdfBlob = new Blob([new Uint8Array([1, 2, 3])], { type: 'application/pdf' });
+        const onPreviewReport = vi.fn().mockResolvedValue(pdfBlob);
+        render(<ListaSolicitudes onPreviewReport={onPreviewReport} />);
+
+        const reportButton = (await screen.findAllByTitle('Opciones del reporte'))[0];
+        fireEvent.click(reportButton);
+        expect(await screen.findByRole('dialog', { name: 'Reporte' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Cancelar opciones de reporte' }));
+        expect(screen.queryByRole('dialog', { name: 'Reporte' })).not.toBeInTheDocument();
+
+        fireEvent.click(reportButton);
+        fireEvent.click(await screen.findByRole('button', { name: /Visualizar/i }));
+
+        await waitFor(() => expect(mockPdfViewer).toHaveBeenCalled());
+        expect(onPreviewReport).toHaveBeenCalledWith(mockSolicitudes[0]);
+        expect(Array.from(mockPdfViewer.mock.calls.at(-1)[0].data)).toEqual([1, 2, 3]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cerrar vista previa' }));
+        fetch.mockResolvedValue({ ok: true, blob: async () => new Blob(['zip']) });
+        fireEvent.click((await screen.findAllByTitle('Opciones del reporte'))[0]);
+        fireEvent.click(await screen.findByRole('button', { name: /Descargar/i }));
+        await waitFor(() => expect(fetch).toHaveBeenCalledWith('http://reporte.url/1.zip'));
+    });
+
+    it('extrae el PDF del ZIP al visualizar un reporte histórico sin IDs', async () => {
+        const zip = new JSZip();
+        zip.file('reporte.pdf', new Uint8Array([37, 80, 68, 70]));
+        const zipBytes = await zip.generateAsync({ type: 'uint8array' });
+        fetch.mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => zipBytes.buffer,
+        });
+        const onPreviewReport = vi.fn();
+        render(<ListaSolicitudes onPreviewReport={onPreviewReport} />);
+
+        fireEvent.click((await screen.findAllByTitle('Opciones del reporte'))[1]);
+        fireEvent.click(await screen.findByRole('button', { name: /Visualizar/i }));
+
+        await waitFor(() => expect(mockPdfViewer).toHaveBeenCalled());
+        expect(fetch).toHaveBeenCalledWith('http://reporte.url/2.zip');
+        expect(onPreviewReport).not.toHaveBeenCalled();
+        expect(Array.from(mockPdfViewer.mock.calls.at(-1)[0].data)).toEqual([37, 80, 68, 70]);
     });
 });

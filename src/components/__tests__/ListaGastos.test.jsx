@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createRef } from 'react';
 import ListaGastos from '../ListaGastos';
+import { filtrarGastosParaReporte, resolverGastosPorIds } from '../reportFilters';
 
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({
@@ -62,6 +64,54 @@ describe('ListaGastos Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true); // Mockear confirm para que no bloquee
+    });
+
+    it('usa los mismos filtros de fecha, tipo, búsqueda y archivados para el reporte', () => {
+        const filtrados = filtrarGastosParaReporte(mockGastos, {
+            fechaInicio: '2026-04-15',
+            fechaFin: '2026-04-16',
+            terminoBusqueda: 'viaje',
+            mostrarArchivados: false,
+            tipoReporte: 'normal',
+        });
+
+        expect(filtrados.map(gasto => gasto.id)).toEqual(['g2']);
+        expect(filtrarGastosParaReporte(mockGastos, { tipoReporte: 'MAF' }).map(gasto => gasto.id)).toEqual(['g3']);
+        expect(filtrarGastosParaReporte(mockGastos, { mostrarArchivados: true }).map(gasto => gasto.id)).toContain('g4');
+    });
+
+    it('reconstruye exactamente los gastos generados aunque después se archiven', () => {
+        const gastosIncluidos = filtrarGastosParaReporte(mockGastos, {
+            fechaInicio: '2026-04-15',
+            fechaFin: '2026-04-16',
+            terminoBusqueda: 'viaje',
+        });
+        const idsGuardados = gastosIncluidos.map(gasto => gasto.id);
+        const gastosPosteriores = mockGastos.map(gasto =>
+            idsGuardados.includes(gasto.id) ? { ...gasto, archivado: true } : gasto
+        );
+
+        expect(resolverGastosPorIds(gastosPosteriores, idsGuardados).map(gasto => gasto.id)).toEqual(idsGuardados);
+    });
+
+    it('previsualiza gastos archivados y omite el PDF de solicitud si no tiene URL', async () => {
+        const listaRef = createRef();
+        const fetchMock = vi.fn().mockRejectedValue(new Error('No debe descargarse una URL vacía'));
+        vi.stubGlobal('fetch', fetchMock);
+        render(<ListaGastos ref={listaRef} />);
+
+        await screen.findByText('Comida de mediodía');
+        const pdf = await listaRef.current.generarVistaPreviaSolicitud({
+            gastosReporteIds: ['g4'],
+            fechaInicio: '2026-04-10',
+            fechaFin: '2026-04-10',
+            proyecto: 'Rally TrackSIM - CECAI',
+            consultor: 'Usuario de Prueba',
+        });
+
+        expect(pdf.type).toBe('application/pdf');
+        expect(fetchMock).not.toHaveBeenCalledWith(undefined);
+        vi.unstubAllGlobals();
     });
 
     it('debería renderizar los gastos agrupados correctamente', async () => {
