@@ -465,12 +465,14 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         const porReintegrar = importeRecibido > sumaFacturado ? importeRecibido - sumaFacturado : 0;
 
         const cloudinaryFileName = `${baseFileName} (Solicitud ${solicitudVinculada.fechaInicio}).zip`;
-        const { url: reporteUrl, nombreArchivo: nombreReporte } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
+        const { url: reporteUrl, nombreArchivo: nombreReporte, deleteToken: deleteTokenReporte } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
         await updateDoc(solicitudRef, {
           estado: 'Esperando...',
+          estadoAnteriorReporte: solicitudVinculada.estado || 'Solicitada',
           url_reporte_gastos: reporteUrl,
           nombre_archivo_reporte: nombreReporte,
+          deleteTokenReporte: deleteTokenReporte || '',
           resumen_sumaFacturado: sumaFacturado,
           resumen_sumaSinFactura: sumaSinFactura,
           resumen_porReembolsar: porReembolsar,
@@ -496,6 +498,8 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
           url_reporte_gastos: reporteUrl,
           nombre_archivo_reporte: nombreReporte,
           deleteToken: deleteToken || '',
+          deleteTokenReporte: deleteToken || '',
+          estadoAnteriorReporte: 'Solicitada',
           creado_en: Timestamp.now(),
           estado: 'Esperando...',
           userId: targetUid,

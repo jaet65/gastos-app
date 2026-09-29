@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, Fragment, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext'; import { CLOUD_NAME } from './config';
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc, deleteField } from 'firebase/firestore';
 import Footer from './Footer';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
@@ -226,15 +226,56 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
         }
     };
 
-    const handleStatusChange = async (id, nuevoEstado) => {
-        const solicitudRef = doc(db, "solicitudes", id);
+    const handleStatusChange = async (solicitud, nuevoEstado) => {
+        const solicitudRef = doc(db, "solicitudes", solicitud.id);
         try {
+            const cancelarReporte = solicitud.estado === 'Esperando...' &&
+                solicitud.url_reporte_gastos &&
+                ['Recibida', 'Solicitada'].includes(nuevoEstado) &&
+                window.confirm('Esta solicitud tiene un reporte adjunto. ¿Deseas cancelar el reporte y eliminar el ZIP de Cloudinary?');
+
+            if (cancelarReporte) {
+                const deleteTokenReporte = solicitud.deleteTokenReporte ||
+                    (!solicitud.url_pdf_solicitud ? solicitud.deleteToken : '');
+                if (!deleteTokenReporte) {
+                    throw new Error('No se encontró el token para eliminar el reporte de Cloudinary.');
+                }
+
+                const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
+                const response = await fetch(cloudinaryUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: deleteTokenReporte })
+                });
+                if (!response.ok) throw new Error('Cloudinary no pudo eliminar el reporte adjunto.');
+
+                const gastosReporteIds = Array.isArray(solicitud.gastosReporteIds) ? solicitud.gastosReporteIds : [];
+                await Promise.all(gastosReporteIds.map(gastoId =>
+                    updateDoc(doc(db, 'gastos', gastoId), { archivado: false })
+                ));
+
+                await updateDoc(solicitudRef, {
+                    estado: solicitud.estadoAnteriorReporte || 'Solicitada',
+                    url_reporte_gastos: deleteField(),
+                    nombre_archivo_reporte: deleteField(),
+                    deleteTokenReporte: deleteField(),
+                    ...(!solicitud.url_pdf_solicitud ? { deleteToken: deleteField() } : {}),
+                    estadoAnteriorReporte: deleteField(),
+                    gastosReporteIds: deleteField(),
+                    resumen_sumaFacturado: deleteField(),
+                    resumen_sumaSinFactura: deleteField(),
+                    resumen_porReembolsar: deleteField(),
+                    resumen_porReintegrar: deleteField(),
+                });
+                return;
+            }
+
             await updateDoc(solicitudRef, {
                 estado: nuevoEstado
             });
         } catch (error) {
             console.error("Error al actualizar el estado: ", error);
-            alert("Ocurrió un error al cambiar el estado de la solicitud.");
+            alert(error.message || "Ocurrió un error al cambiar el estado de la solicitud.");
         }
     };
 
@@ -317,7 +358,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                 <Text className="text-center mt-8">No hay solicitudes en este estado.</Text>
             ) : (
                 solicitudesFiltradas.map(solicitud => (
-                    <Card key={solicitud.id} className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
+                    <Card key={solicitud.id} className="relative rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80 focus-within:z-20">
                         <Flex alignItems="start" className="border-none">
                             <div className="truncate">
                                 <Flex alignItems='center' className='gap-2 mb-2'>
@@ -398,7 +439,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                                                         {Object.keys(statusColors).map((estado) => (
                                                             <Menu.Item key={estado}>
                                                                 {({ active }) => (
-                                                                    <button onClick={() => handleStatusChange(solicitud.id, estado)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}>
+                                                                        <button onClick={() => handleStatusChange(solicitud, estado)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}>
                                                                         <span className={`w-2 h-2 rounded-full mr-3 ${statusColors[estado].dot}`}></span>
                                                                         {estado}
                                                                         {solicitud.estado === estado && <Check className="ml-auto h-5 w-5 text-blue-600" />}

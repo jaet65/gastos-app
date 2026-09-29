@@ -4,6 +4,7 @@ import ListaSolicitudes from '../ListaSolicitudes';
 import JSZip from 'jszip';
 
 const mockPdfViewer = vi.hoisted(() => vi.fn(() => null));
+const mockDeleteField = vi.hoisted(() => vi.fn(() => '__DELETE_FIELD__'));
 vi.mock('../PdfCanvasViewer', () => ({ default: mockPdfViewer }));
 
 // Mock de dependencias externas
@@ -14,7 +15,7 @@ vi.mock('../AuthContext', () => ({
 }));
 
 const mockSolicitudes = [
-    { id: 'sol1', proyecto: 'Rally TrackSIM - CECAI', consultor: 'Usuario de Prueba', fechaInicio: '2026-04-20', fechaFin: '2026-04-25', dias: 6, totalSolicitado: 7800, estado: 'Solicitada', url_pdf_solicitud: 'http://solicitud.url/1', url_reporte_gastos: 'http://reporte.url/1.zip', nombre_archivo_reporte: 'reporte-nuevo.zip', gastosReporteIds: ['g1'] },
+    { id: 'sol1', proyecto: 'Rally TrackSIM - CECAI', consultor: 'Usuario de Prueba', fechaInicio: '2026-04-20', fechaFin: '2026-04-25', dias: 6, totalSolicitado: 7800, estado: 'Solicitada', url_pdf_solicitud: 'http://solicitud.url/1', url_reporte_gastos: 'http://reporte.url/1.zip', nombre_archivo_reporte: 'reporte-nuevo.zip', deleteTokenReporte: 'report-delete-token', estadoAnteriorReporte: 'Solicitada', gastosReporteIds: ['g1'] },
     { id: 'sol2', proyecto: 'Rally TrackSIM - MAF', consultor: 'Usuario de Prueba', fechaInicio: '2026-05-01', fechaFin: '2026-05-05', dias: 5, totalSolicitado: 6500, estado: 'Recibida', esMAF: true, url_pdf_solicitud: 'http://solicitud.url/2', url_reporte_gastos: 'http://reporte.url/2.zip', nombre_archivo_reporte: 'reporte-historico.zip' },
 ];
 
@@ -40,6 +41,7 @@ vi.mock('firebase/firestore', async (importOriginal) => {
         updateDoc: vi.fn(), // Definir el mock aquí
         deleteDoc: vi.fn(), // Definir el mock aquí
         getDoc: vi.fn().mockResolvedValue({ data: () => ({}) }), // Mock para getDoc en eliminar
+        deleteField: mockDeleteField,
     };
 });
 
@@ -50,6 +52,11 @@ describe('ListaSolicitudes Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
+        mockSolicitudes[0].estado = 'Solicitada';
+        mockSolicitudes[0].estadoAnteriorReporte = 'Solicitada';
+        mockSolicitudes[1].estado = 'Recibida';
+        mockSolicitudes[1].url_pdf_solicitud = 'http://solicitud.url/2';
+        delete mockSolicitudes[1].deleteToken;
         vi.stubGlobal('fetch', vi.fn());
         vi.stubGlobal('alert', vi.fn());
         vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -83,7 +90,11 @@ describe('ListaSolicitudes Component', () => {
 
         // Abrir el menú de la primera solicitud (usamos RegExp exacto para evitar el botón de filtro "Solicitada (1)")
         const menuButton = await screen.findByRole('button', { name: /^Solicitada$/ });
+        expect(menuButton.closest('.tremor-Card-root')).toHaveClass('focus-within:z-20');
         fireEvent.click(menuButton);
+
+        expect(await screen.findByRole('menuitem', { name: /Esperando\.\.\./i })).toBeVisible();
+        expect(screen.getByRole('menuitem', { name: /^Cerrada$/ })).toBeVisible();
 
         // Hacer clic en la opción "Recibida"
         const opcionRecibida = await screen.findByRole('menuitem', { name: /Recibida/i });
@@ -93,6 +104,59 @@ describe('ListaSolicitudes Component', () => {
             expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
             expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { estado: 'Recibida' });
         });
+    });
+
+    it('pregunta y elimina el reporte adjunto de Cloudinary y Firestore al confirmar', async () => {
+        mockSolicitudes[0].estado = 'Esperando...';
+        fetch.mockResolvedValue({ ok: true });
+        render(<ListaSolicitudes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+
+        await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
+        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('¿Deseas cancelar el reporte'));
+        const [cloudinaryUrl, cloudinaryOptions] = fetch.mock.calls[0];
+        expect(cloudinaryUrl).toContain('/delete_by_token');
+        expect(JSON.parse(cloudinaryOptions.body)).toEqual({ token: 'report-delete-token' });
+        expect(mockUpdateDoc).toHaveBeenNthCalledWith(1, undefined, { archivado: false });
+        expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, expect.objectContaining({
+            estado: 'Solicitada',
+            url_reporte_gastos: '__DELETE_FIELD__',
+            nombre_archivo_reporte: '__DELETE_FIELD__',
+            deleteTokenReporte: '__DELETE_FIELD__',
+            estadoAnteriorReporte: '__DELETE_FIELD__',
+            gastosReporteIds: '__DELETE_FIELD__',
+        }));
+        expect(mockUpdateDoc.mock.calls[0][1]).not.toHaveProperty('deleteToken');
+    });
+
+    it('conserva el reporte y cambia el estado si se rechaza la cancelación', async () => {
+        mockSolicitudes[0].estado = 'Esperando...';
+        window.confirm.mockReturnValueOnce(false);
+        render(<ListaSolicitudes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+
+        await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
+        expect(fetch).not.toHaveBeenCalled();
+        expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { estado: 'Recibida' });
+    });
+
+    it('elimina el token legado del ZIP MAF sin adjunto de solicitud', async () => {
+        mockSolicitudes[1].estado = 'Esperando...';
+        mockSolicitudes[1].url_pdf_solicitud = '';
+        mockSolicitudes[1].deleteToken = 'legacy-maf-report-token';
+        fetch.mockResolvedValue({ ok: true });
+        render(<ListaSolicitudes />);
+
+        fireEvent.click(await screen.findAllByRole('button', { name: /^Esperando\.\.\.$/ }).then(buttons => buttons[0]));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+
+        await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
+        expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ token: 'legacy-maf-report-token' });
+        expect(mockUpdateDoc.mock.calls[0][1].deleteToken).toBe('__DELETE_FIELD__');
     });
 
     it('debería filtrar la lista de solicitudes al hacer clic en los botones de filtro', async () => {
