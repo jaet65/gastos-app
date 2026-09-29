@@ -188,4 +188,49 @@ describe('ListaSolicitudes Component', () => {
         expect(onPreviewReport).not.toHaveBeenCalled();
         expect(Array.from(mockPdfViewer.mock.calls.at(-1)[0].data)).toEqual([37, 80, 68, 70]);
     });
+
+    it('ofrece Descargar y Visualizar para el PDF de solicitud', async () => {
+        const pdfBytes = new Uint8Array([37, 80, 68, 70]);
+        fetch.mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => pdfBytes.buffer,
+            blob: async () => new Blob([pdfBytes], { type: 'application/pdf' }),
+        });
+        render(<ListaSolicitudes />);
+
+        const solicitudButton = (await screen.findAllByTitle('Opciones de la solicitud'))[0];
+        fireEvent.click(solicitudButton);
+        expect(await screen.findByRole('dialog', { name: 'Solicitud' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Cancelar opciones de solicitud' }));
+        expect(screen.queryByRole('dialog', { name: 'Solicitud' })).not.toBeInTheDocument();
+
+        fireEvent.click(solicitudButton);
+        fireEvent.click(await screen.findByRole('button', { name: /Visualizar/i }));
+        await waitFor(() => expect(mockPdfViewer).toHaveBeenCalled());
+        expect(fetch).toHaveBeenCalledWith('http://solicitud.url/1');
+        expect(Array.from(mockPdfViewer.mock.calls.at(-1)[0].data)).toEqual(Array.from(pdfBytes));
+        expect(screen.getByRole('heading', { name: 'Vista previa de la solicitud' })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cerrar vista previa' }));
+        fireEvent.click(solicitudButton);
+        fireEvent.click(await screen.findByRole('button', { name: /Descargar/i }));
+        await waitFor(() => expect(fetch).toHaveBeenCalledWith('http://solicitud.url/1'));
+    });
+
+    it('cierra la vista previa con Atrás y conserva la página de solicitudes', async () => {
+        const pdfBytes = new Uint8Array([37, 80, 68, 70]);
+        fetch.mockResolvedValue({ ok: true, arrayBuffer: async () => pdfBytes.buffer });
+        const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+        render(<ListaSolicitudes />);
+
+        fireEvent.click((await screen.findAllByTitle('Opciones de la solicitud'))[0]);
+        fireEvent.click(await screen.findByRole('button', { name: /Visualizar/i }));
+        expect(await screen.findByRole('dialog', { name: 'Vista previa de la solicitud' })).toBeInTheDocument();
+        expect(pushState).toHaveBeenCalledWith(expect.objectContaining({ gastosPreviewEntry: true }), '', window.location.href);
+
+        fireEvent(window, new PopStateEvent('popstate', { state: null }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Vista previa de la solicitud' })).not.toBeInTheDocument());
+        expect(screen.getByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
+    });
 });

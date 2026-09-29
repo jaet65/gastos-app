@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment, Suspense, lazy } from 'react';
+import { useEffect, useRef, useState, Fragment, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext'; import { CLOUD_NAME } from './config';
@@ -25,6 +25,49 @@ const statusColors = {
     'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
 };
 
+const OpcionesArchivoModal = ({ titulo, cancelLabel, onClose, onDownload, onPreview }) => createPortal(
+    <div
+        className="fixed inset-0 z-[99998] flex items-center justify-center bg-black/50 p-4"
+        onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+        }}
+    >
+        <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="opciones-archivo-titulo"
+            className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+        >
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 id="opciones-archivo-titulo" className="text-base font-bold text-slate-800">{titulo}</h2>
+                <button
+                    onClick={onClose}
+                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    aria-label={cancelLabel}
+                    title="Cancelar"
+                >
+                    <X size={18} />
+                </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                <button
+                    onClick={onDownload}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                >
+                    <FileDown size={16} /> Descargar
+                </button>
+                <button
+                    onClick={onPreview}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                    <Eye size={16} /> Visualizar
+                </button>
+            </div>
+        </section>
+    </div>,
+    document.body
+);
+
 const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPreviewReport }) => {
     const { user } = useAuth();
     const esVistaAdmin = !!adminViewUid && !adminEditMode;
@@ -37,6 +80,8 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
     const [previewLoading, setPreviewLoading] = useState(false);
     const [previewError, setPreviewError] = useState('');
     const [reporteOpciones, setReporteOpciones] = useState(null);
+    const [solicitudOpciones, setSolicitudOpciones] = useState(null);
+    const previewHistoryRef = useRef(false);
 
     const solicitudesFiltradas = estadoFiltro === 'Todos'
         ? solicitudes
@@ -62,7 +107,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
     };
 
     const visualizarReporte = async (solicitud) => {
-        setPreview(solicitud);
+        setPreview({ ...solicitud, vistaTipo: 'reporte' });
         setPreviewBytes(null);
         setPreviewError('');
         setPreviewLoading(true);
@@ -90,6 +135,67 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
             setPreviewLoading(false);
         }
     };
+
+    const visualizarSolicitud = async (solicitud) => {
+        setPreview({ ...solicitud, vistaTipo: 'solicitud' });
+        setPreviewBytes(null);
+        setPreviewError('');
+        setPreviewLoading(true);
+
+        try {
+            const response = await fetch(solicitud.url_pdf_solicitud);
+            if (!response.ok) throw new Error(`No se pudo descargar el PDF de la solicitud (HTTP ${response.status}).`);
+            setPreviewBytes(new Uint8Array(await response.arrayBuffer()));
+        } catch (error) {
+            console.error('Error al preparar la vista previa de la solicitud:', error);
+            setPreviewError(error.message || 'No se pudo abrir la vista previa de la solicitud.');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const cerrarVistaPrevia = () => {
+        if (previewHistoryRef.current) {
+            previewHistoryRef.current = false;
+            window.history.back();
+        }
+        setPreview(null);
+        setPreviewBytes(null);
+        setPreviewError('');
+    };
+
+    useEffect(() => {
+        if (!preview) return undefined;
+
+        const currentState = window.history.state;
+        const nextState = currentState && typeof currentState === 'object' ? currentState : {};
+        window.history.pushState({ ...nextState, gastosPreviewEntry: true }, '', window.location.href);
+        previewHistoryRef.current = true;
+
+        const handlePopState = () => {
+            previewHistoryRef.current = false;
+            setPreview(null);
+            setPreviewBytes(null);
+            setPreviewError('');
+        };
+        const handleKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            if (previewHistoryRef.current) {
+                previewHistoryRef.current = false;
+                window.history.back();
+            }
+            setPreview(null);
+            setPreviewBytes(null);
+            setPreviewError('');
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [preview]);
 
     const eliminarSolicitud = async (id) => {
         if (window.confirm("¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.")) {
@@ -230,9 +336,9 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                             <div className="flex flex-col items-end">
                                 {solicitud.url_pdf_solicitud && (
                                     <button
-                                        onClick={() => descargarPdf(solicitud.url_pdf_solicitud, solicitud.nombre_archivo)}
+                                        onClick={() => setSolicitudOpciones(solicitud)}
                                         className="flex items-center gap-1 p-2 text-slate-500 hover:text-blue-600 transition-colors"
-                                        title="Descargar PDF de la solicitud"
+                                        title="Opciones de la solicitud"
                                     >
                                         <FileText size={16} />
                                         <span className="text-xs font-bold">Solicitud</span>
@@ -343,61 +449,45 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                     </Card>
                 ))
             )}
-            {reporteOpciones && createPortal(
-                <div
-                    className="fixed inset-0 z-[99998] flex items-center justify-center bg-black/50 p-4"
-                    onMouseDown={(event) => {
-                        if (event.target === event.currentTarget) setReporteOpciones(null);
+            {reporteOpciones && (
+                <OpcionesArchivoModal
+                    titulo="Reporte"
+                    cancelLabel="Cancelar opciones de reporte"
+                    onClose={() => setReporteOpciones(null)}
+                    onDownload={() => {
+                        const solicitud = reporteOpciones;
+                        setReporteOpciones(null);
+                        descargarPdf(solicitud.url_reporte_gastos, solicitud.nombre_archivo_reporte);
                     }}
-                >
-                    <section
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="reporte-opciones-titulo"
-                        className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
-                    >
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                            <h2 id="reporte-opciones-titulo" className="text-base font-bold text-slate-800">Reporte</h2>
-                            <button
-                                onClick={() => setReporteOpciones(null)}
-                                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                                aria-label="Cancelar opciones de reporte"
-                                title="Cancelar"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => {
-                                    const solicitud = reporteOpciones;
-                                    setReporteOpciones(null);
-                                    descargarPdf(solicitud.url_reporte_gastos, solicitud.nombre_archivo_reporte);
-                                }}
-                                className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
-                            >
-                                <FileDown size={16} /> Descargar
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const solicitud = reporteOpciones;
-                                    setReporteOpciones(null);
-                                    visualizarReporte(solicitud);
-                                }}
-                                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
-                            >
-                                <Eye size={16} /> Visualizar
-                            </button>
-                        </div>
-                    </section>
-                </div>,
-                document.body
+                    onPreview={() => {
+                        const solicitud = reporteOpciones;
+                        setReporteOpciones(null);
+                        visualizarReporte(solicitud);
+                    }}
+                />
+            )}
+            {solicitudOpciones && (
+                <OpcionesArchivoModal
+                    titulo="Solicitud"
+                    cancelLabel="Cancelar opciones de solicitud"
+                    onClose={() => setSolicitudOpciones(null)}
+                    onDownload={() => {
+                        const solicitud = solicitudOpciones;
+                        setSolicitudOpciones(null);
+                        descargarPdf(solicitud.url_pdf_solicitud, solicitud.nombre_archivo);
+                    }}
+                    onPreview={() => {
+                        const solicitud = solicitudOpciones;
+                        setSolicitudOpciones(null);
+                        visualizarSolicitud(solicitud);
+                    }}
+                />
             )}
             {preview && createPortal(
                 <div
                     role="dialog"
                     aria-modal="true"
-                    aria-label="Vista previa del reporte"
+                    aria-label={preview.vistaTipo === 'solicitud' ? 'Vista previa de la solicitud' : 'Vista previa del reporte'}
                     className="fixed inset-0 z-[99999] flex flex-col bg-slate-950 text-white"
                     style={{
                         paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -408,10 +498,10 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                 >
                     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
                         <div className="min-w-0">
-                            <h2 className="truncate text-sm font-bold">Vista previa del reporte</h2>
-                            <p className="truncate text-xs text-slate-300">{preview.nombre_archivo_reporte || preview.proyecto}</p>
+                            <h2 className="truncate text-sm font-bold">{preview.vistaTipo === 'solicitud' ? 'Vista previa de la solicitud' : 'Vista previa del reporte'}</h2>
+                            <p className="truncate text-xs text-slate-300">{preview.vistaTipo === 'solicitud' ? preview.nombre_archivo || preview.proyecto : preview.nombre_archivo_reporte || preview.proyecto}</p>
                         </div>
-                        <button onClick={() => setPreview(null)} className="shrink-0 rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Cerrar vista previa">
+                        <button onClick={cerrarVistaPrevia} className="shrink-0 rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Cerrar vista previa">
                             <X size={20} />
                         </button>
                     </div>
