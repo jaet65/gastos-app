@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
+import { deleteDoc, getDoc } from 'firebase/firestore';
 import ListaGastos from '../ListaGastos';
 import { filtrarGastosParaReporte, resolverGastosPorIds } from '../reportFilters';
 
@@ -12,7 +13,7 @@ vi.mock('../AuthContext', () => ({
 }));
 
 const mockGastos = [
-    { id: 'g1', concepto: 'Comida de mediodía', monto: 250, fecha: '2026-04-15', categoria: 'Comida', url_factura: 'http://factura.url/1', archivado: false, creado_en: { toDate: () => new Date() } },
+    { id: 'g1', concepto: 'Comida de mediodía', monto: 250, fecha: '2026-04-15', categoria: 'Comida', url_factura: 'http://factura.url/1', deleteToken: 'invoice-token', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g2', concepto: 'Gasolina para viaje', monto: 800, fecha: '2026-04-16', categoria: 'Transporte', url_factura: '', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g3', concepto: 'Gasto especial MAF', monto: 1200, fecha: '2026-04-17', categoria: 'MAF', url_factura: 'http://factura.url/3', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g4', concepto: 'Gasto archivado', monto: 100, fecha: '2026-04-10', categoria: 'Otros', url_factura: '', archivado: true, creado_en: { toDate: () => new Date() } },
@@ -59,11 +60,31 @@ vi.mock('../ReporteOpcionesModal', () => ({
     ),
 }));
 
+vi.mock('../EditGastoModal', () => ({
+    __esModule: true,
+    default: ({ gasto, onSave }) => (
+        <button
+            data-testid="guardar-edicion-factura"
+            onClick={() => onSave({
+                ...gasto,
+                url_factura: 'https://res.cloudinary.com/new-invoice.pdf',
+                deleteToken: 'fresh-invoice-token',
+            }, false)}
+        >
+            Guardar factura editada
+        </button>
+    ),
+}));
+
 describe('ListaGastos Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true); // Mockear confirm para que no bloquee
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
     });
 
     it('usa los mismos filtros de fecha, tipo, búsqueda y archivados para el reporte', () => {
@@ -170,5 +191,62 @@ describe('ListaGastos Component', () => {
         fireEvent.click(botonReporte);
 
         expect(await screen.findByTestId('reporte-opciones-modal')).toBeInTheDocument();
+    });
+
+    it('persiste el deleteToken nuevo al adjuntar factura desde la edición de la lista', async () => {
+        render(<ListaGastos />);
+
+        await screen.findByText('Comida de mediodía');
+        fireEvent.click(screen.getByTitle('Editar gasto'));
+        fireEvent.click(await screen.findByTestId('guardar-edicion-factura'));
+
+        await waitFor(() => expect(updateDoc).toHaveBeenCalledWith(undefined, expect.objectContaining({
+            url_factura: 'https://res.cloudinary.com/new-invoice.pdf',
+            deleteToken: 'fresh-invoice-token',
+        })));
+    });
+
+    it('continúa eliminando un gasto al aceptar la eliminación manual de su factura caducada', async () => {
+        getDoc.mockResolvedValue({ data: () => mockGastos[0] });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: async () => ({ error: { message: 'Invalid or expired token' } }),
+        }));
+        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        render(<ListaGastos />);
+
+        fireEvent.click((await screen.findAllByTitle('Eliminar'))[0]);
+
+        await waitFor(() => expect(deleteDoc).toHaveBeenCalledTimes(1));
+        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('eliminar la factura de Comida de mediodía manualmente'));
+    });
+
+    it('detiene la eliminación local del gasto si se rechaza el borrado manual', async () => {
+        getDoc.mockResolvedValue({ data: () => mockGastos[0] });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: async () => ({ error: { message: 'Invalid or expired token' } }),
+        }));
+        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(false);
+        render(<ListaGastos />);
+
+        fireEvent.click((await screen.findAllByTitle('Eliminar'))[0]);
+
+        await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2));
+        expect(deleteDoc).not.toHaveBeenCalled();
+    });
+
+    it('pregunta por eliminación manual si una factura guardada no tiene token', async () => {
+        const gastoSinToken = { ...mockGastos[0], deleteToken: '' };
+        getDoc.mockResolvedValue({ data: () => gastoSinToken });
+        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        render(<ListaGastos />);
+
+        fireEvent.click((await screen.findAllByTitle('Eliminar'))[0]);
+
+        await waitFor(() => expect(deleteDoc).toHaveBeenCalledTimes(1));
+        expect(window.confirm.mock.calls[1][0]).toContain('Cloudinary no proporcionó un token');
     });
 });

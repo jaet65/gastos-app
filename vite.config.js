@@ -1,11 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    host: true, // Permite acceso desde la red local si lo necesitas
+    https: true, // Habilita HTTPS en el servidor de desarrollo
+  },
   plugins: [
     react(),
+    basicSsl(), // Genera el certificado SSL autofirmado automáticamente
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],

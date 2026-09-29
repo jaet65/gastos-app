@@ -5,6 +5,7 @@ import SolicitudRecursosModal from './SolicitudRecursosModal';
 import EditGastoModal from './EditGastoModal';
 import Footer from './Footer';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
+import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { AnimatePresence } from 'framer-motion';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { useSwipeable } from 'react-swipeable';
@@ -101,22 +102,24 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   }, [user, targetUid]);
 
   const eliminarGasto = async (id, idPropina) => {
-    if (confirm("¿Borrar este registro?")) {
+    if (!confirm("¿Borrar este registro?")) return;
+
+    try {
       const gastoRef = doc(db, "gastos", id);
       const gastoDoc = await getDoc(gastoRef);
       const gastoData = gastoDoc.data();
+      const subgastos = gastos.filter(gasto => gasto.idPadre === id);
+      const archivosAEliminar = [
+        { token: gastoData.deleteToken, url: gastoData.url_factura, descripcion: `la factura de ${gastoData.concepto || 'este gasto'}` },
+        ...subgastos.map(subgasto => ({
+          token: subgasto.deleteToken,
+          url: subgasto.url_factura,
+          descripcion: `la factura del subgasto ${subgasto.concepto || subgasto.id}`,
+        })),
+      ];
 
-      // Borrar archivo de Cloudinary si existe
-      if (gastoData.deleteToken) {
-        try {
-          const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
-          const response = await fetch(cloudinaryUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: gastoData.deleteToken })
-          });
-          if (!response.ok) console.error('Error deleting from Cloudinary:', response.statusText);
-        } catch (error) { console.error('Error deleting from Cloudinary:', error); }
+      for (const archivo of archivosAEliminar) {
+        if ((archivo.token || archivo.url) && !await eliminarCloudinaryConToken(archivo.token, archivo.descripcion)) return;
       }
 
       // Borrar el gasto principal
@@ -131,24 +134,12 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         }
       }
 
-      // NUEVO: Borrar subgastos (casetas) vinculados
-      const subgastos = gastos.filter(g => g.idPadre === id);
       for (const sub of subgastos) {
-        try {
-          // Borrar factura de caseta si tiene
-          if (sub.deleteToken) {
-            const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
-            await fetch(cloudinaryUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: sub.deleteToken })
-            });
-          }
-          await deleteDoc(doc(db, "gastos", sub.id));
-        } catch (e) {
-          console.error("Error borrando subgasto:", e);
-        }
+        await deleteDoc(doc(db, "gastos", sub.id));
       }
+    } catch (error) {
+      console.error('Error eliminando gasto:', error);
+      alert(error.message || 'Ocurrió un error al eliminar el gasto.');
     }
   };
 
@@ -162,7 +153,8 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         monto: montoPrincipal,
         fecha: gastoActualizado.fecha,
         categoria: gastoActualizado.categoria,
-        url_factura: gastoActualizado.url_factura || ""
+        url_factura: gastoActualizado.url_factura || "",
+        deleteToken: gastoActualizado.deleteToken || "",
       };
 
       // Lógica para manejar la propina
@@ -1429,6 +1421,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
                                                       type="button"
                                                       onClick={() => abrirEdicion(gasto)}
                                                       className="bg-transparent border-none p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                      title="Editar gasto"
                                                     >
                                                       <Pencil size={20} />
                                                     </button>

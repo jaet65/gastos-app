@@ -4,6 +4,7 @@ import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCir
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { getCloudinaryFilename } from './cloudinary';
 
 const CLOUD_NAME = "didj7kuah";
@@ -112,22 +113,24 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
 
             // 1. Manejar factura del gasto principal
             if (tieneNuevoArchivo) {
-                fileData = await subirACloudinary(nuevoArchivo);
-                if (urlOriginal && tokenABorrar) {
-                    eliminarArchivoCloudinary(tokenABorrar).catch(() =>
-                        console.log("El token expiró o falló el borrado del archivo viejo."));
+                if (urlOriginal) {
+                    const continuar = await eliminarCloudinaryConToken(tokenABorrar, 'la factura anterior de este gasto');
+                    if (!continuar) return;
                 }
+                fileData = await subirACloudinary(nuevoArchivo);
             }
-            else if (seQuitoFactura && urlOriginal && tokenABorrar) {
-                try { await eliminarArchivoCloudinary(tokenABorrar); } catch { /* ignore */ }
+            else if (seQuitoFactura && urlOriginal) {
+                const continuar = await eliminarCloudinaryConToken(tokenABorrar, 'la factura de este gasto');
+                if (!continuar) return;
             }
 
             // 2. Manejar casetas (Altas y Bajas)
             // a) Borrar casetas eliminadas
             for (const idCaseta of casetasBorradas) {
                 const casetaObj = misCasetas.find(c => c.id === idCaseta) || {}; // Intentamos buscar si ya estaba cargada
-                if (casetaObj.deleteToken) {
-                    await eliminarArchivoCloudinary(casetaObj.deleteToken).catch(() => { });
+                if (casetaObj.url_factura || casetaObj.deleteToken) {
+                    const continuar = await eliminarCloudinaryConToken(casetaObj.deleteToken, 'la factura de esta caseta');
+                    if (!continuar) return;
                 }
                 await deleteDoc(doc(db, "gastos", idCaseta));
             }
@@ -159,6 +162,10 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                     let deleteToken = caseta.deleteToken || "";
 
                     if (caseta.archivo) { // Se subió una factura para una caseta que no tenía o se cambió
+                        if (url_factura) {
+                            const continuar = await eliminarCloudinaryConToken(deleteToken, 'la factura anterior de esta caseta');
+                            if (!continuar) return;
+                        }
                         const fileData = await subirACloudinary(caseta.archivo);
                         url_factura = fileData.secure_url;
                         deleteToken = fileData.delete_token;
@@ -194,19 +201,6 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         } finally {
             setSubiendo(false);
         }
-    };
-
-    const eliminarArchivoCloudinary = async (deleteToken) => {
-        try {
-            const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
-            const formData = new FormData();
-            formData.append("token", deleteToken);
-            const response = await fetch(cloudinaryUrl, { method: 'POST', body: formData });
-            if (!response.ok) {
-                const data = await response.json();
-                console.error('Error de Cloudinary:', data.error?.message || 'Error desconocido');
-            }
-        } catch (error) { console.error('Error en Cloudinary delete:', error); }
     };
 
     const quitarArchivoActual = () => {

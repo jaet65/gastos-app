@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext'; import { CLOUD_NAME } from './config';
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, getDoc, deleteField } from 'firebase/firestore';
 import Footer from './Footer';
+import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
 import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown, Eye, X } from 'lucide-react';
@@ -204,19 +205,8 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                 const solicitudDoc = await getDoc(solicitudRef);
                 const solicitudData = solicitudDoc.data();
 
-                if (solicitudData.deleteToken) {
-                    try {
-                        // Delete the file from Cloudinary using the delete token
-                        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
-                        const response = await fetch(cloudinaryUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ token: solicitudData.deleteToken })
-                        });
-
-                        if (!response.ok) console.error('Error deleting from Cloudinary:', response.statusText);
-                    } catch (error) { console.error('Error deleting from Cloudinary:', error); }
-                }
+                if ((solicitudData.url_pdf_solicitud || solicitudData.deleteToken) &&
+                    !await eliminarCloudinaryConToken(solicitudData.deleteToken, 'el PDF de la solicitud')) return;
                 await deleteDoc(doc(db, "solicitudes", id));
                 // Opcional: mostrar una notificación de éxito.
             } catch (error) {
@@ -237,17 +227,8 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
             if (cancelarReporte) {
                 const deleteTokenReporte = solicitud.deleteTokenReporte ||
                     (!solicitud.url_pdf_solicitud ? solicitud.deleteToken : '');
-                if (!deleteTokenReporte) {
-                    throw new Error('No se encontró el token para eliminar el reporte de Cloudinary.');
-                }
-
-                const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/delete_by_token`;
-                const response = await fetch(cloudinaryUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: deleteTokenReporte })
-                });
-                if (!response.ok) throw new Error('Cloudinary no pudo eliminar el reporte adjunto.');
+                const continuarCancelacion = await eliminarCloudinaryConToken(deleteTokenReporte, 'el ZIP del reporte');
+                if (!continuarCancelacion) return;
 
                 const gastosReporteIds = Array.isArray(solicitud.gastosReporteIds) ? solicitud.gastosReporteIds : [];
                 await Promise.all(gastosReporteIds.map(gastoId =>

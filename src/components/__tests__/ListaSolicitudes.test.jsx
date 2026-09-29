@@ -48,6 +48,7 @@ vi.mock('firebase/firestore', async (importOriginal) => {
 describe('ListaSolicitudes Component', () => {
     let mockUpdateDoc;
     let mockDeleteDoc;
+    let mockGetDoc;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -66,6 +67,8 @@ describe('ListaSolicitudes Component', () => {
         return import('firebase/firestore').then((firestore) => {
             mockUpdateDoc = firestore.updateDoc;
             mockDeleteDoc = firestore.deleteDoc;
+            mockGetDoc = firestore.getDoc;
+            mockGetDoc.mockResolvedValue({ data: () => ({}) });
         });
     });
 
@@ -108,7 +111,7 @@ describe('ListaSolicitudes Component', () => {
 
     it('pregunta y elimina el reporte adjunto de Cloudinary y Firestore al confirmar', async () => {
         mockSolicitudes[0].estado = 'Esperando...';
-        fetch.mockResolvedValue({ ok: true });
+        fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
         render(<ListaSolicitudes />);
 
         fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
@@ -118,7 +121,9 @@ describe('ListaSolicitudes Component', () => {
         expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('¿Deseas cancelar el reporte'));
         const [cloudinaryUrl, cloudinaryOptions] = fetch.mock.calls[0];
         expect(cloudinaryUrl).toContain('/delete_by_token');
-        expect(JSON.parse(cloudinaryOptions.body)).toEqual({ token: 'report-delete-token' });
+        expect(cloudinaryOptions.headers['Content-Type']).toContain('application/x-www-form-urlencoded');
+        expect(cloudinaryOptions.headers['X-Requested-With']).toBe('XMLHttpRequest');
+        expect(new URLSearchParams(cloudinaryOptions.body).get('token')).toBe('report-delete-token');
         expect(mockUpdateDoc).toHaveBeenNthCalledWith(1, undefined, { archivado: false });
         expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, expect.objectContaining({
             estado: 'Solicitada',
@@ -148,15 +153,82 @@ describe('ListaSolicitudes Component', () => {
         mockSolicitudes[1].estado = 'Esperando...';
         mockSolicitudes[1].url_pdf_solicitud = '';
         mockSolicitudes[1].deleteToken = 'legacy-maf-report-token';
-        fetch.mockResolvedValue({ ok: true });
+        fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
         render(<ListaSolicitudes />);
 
         fireEvent.click(await screen.findAllByRole('button', { name: /^Esperando\.\.\.$/ }).then(buttons => buttons[0]));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
-        expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ token: 'legacy-maf-report-token' });
+        expect(new URLSearchParams(fetch.mock.calls[0][1].body).get('token')).toBe('legacy-maf-report-token');
         expect(mockUpdateDoc.mock.calls[0][1].deleteToken).toBe('__DELETE_FIELD__');
+    });
+
+    it('continúa cancelando el reporte si el usuario acepta borrar manualmente el ZIP caducado', async () => {
+        mockSolicitudes[0].estado = 'Esperando...';
+        fetch.mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: async () => ({ error: { message: 'Stale request - reported time is more than 1 hour ago' } }),
+        });
+        render(<ListaSolicitudes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+
+        await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
+        expect(window.confirm).toHaveBeenCalledTimes(2);
+        expect(window.confirm.mock.calls[1][0]).toContain('eliminar el ZIP del reporte manualmente');
+        expect(mockUpdateDoc.mock.calls[0][1]).toEqual({ archivado: false });
+        expect(mockUpdateDoc.mock.calls[1][1]).toEqual(expect.objectContaining({
+            url_reporte_gastos: '__DELETE_FIELD__',
+            gastosReporteIds: '__DELETE_FIELD__',
+        }));
+    });
+
+    it('mantiene el reporte si se rechaza eliminar manualmente un ZIP con token caducado', async () => {
+        mockSolicitudes[0].estado = 'Esperando...';
+        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(false);
+        fetch.mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: async () => ({ error: { message: 'Invalid or expired token' } }),
+        });
+        render(<ListaSolicitudes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+
+        await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2));
+        expect(mockUpdateDoc).not.toHaveBeenCalled();
+    });
+
+    it('permite eliminar la solicitud tras aceptar borrar manualmente su PDF caducado', async () => {
+        mockGetDoc.mockResolvedValue({ data: () => ({ deleteToken: 'expired-request-token' }) });
+        fetch.mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: async () => ({ error: { message: 'Invalid or expired token' } }),
+        });
+        render(<ListaSolicitudes />);
+
+        fireEvent.click((await screen.findAllByTitle('Eliminar solicitud'))[0]);
+
+        await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
+        expect(window.confirm).toHaveBeenCalledTimes(2);
+        expect(window.confirm.mock.calls[1][0]).toContain('eliminar el PDF de la solicitud manualmente');
+    });
+
+    it('avisa y permite eliminar la solicitud si el PDF no tiene token', async () => {
+        mockGetDoc.mockResolvedValue({ data: () => ({ url_pdf_solicitud: 'https://res.cloudinary.com/request.pdf' }) });
+        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        render(<ListaSolicitudes />);
+
+        fireEvent.click((await screen.findAllByTitle('Eliminar solicitud'))[0]);
+
+        await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
+        expect(fetch).not.toHaveBeenCalled();
+        expect(window.confirm.mock.calls[1][0]).toContain('Cloudinary no proporcionó un token');
     });
 
     it('debería filtrar la lista de solicitudes al hacer clic en los botones de filtro', async () => {

@@ -44,6 +44,10 @@ Aplicación web moderna para la administración, control y reporte de gastos y s
    npm run dev
    ```
 
+## Tokens de eliminación de Cloudinary
+
+Para que la app pueda borrar automáticamente los archivos recién subidos, habilita `return_delete_token` en los presets unsigned usados por la aplicación: `Gastos_Facturas`, `Gastos_Reportes` y `Gastos_Solicitudes`. Cloudinary no incluye el token por defecto y los tokens emitidos solo son válidos temporalmente; si falta o caduca, la app pedirá confirmación antes de continuar y requerirá borrar el archivo manualmente desde Cloudinary.
+
 ## 📜 Scripts Disponibles
 
 - `npm run dev`: Inicia el servidor de desarrollo en red local.
