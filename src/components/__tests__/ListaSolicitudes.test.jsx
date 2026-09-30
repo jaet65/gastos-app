@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import Swal from 'sweetalert2';
 import ListaSolicitudes from '../ListaSolicitudes';
 import JSZip from 'jszip';
 
@@ -40,7 +41,7 @@ vi.mock('firebase/firestore', async (importOriginal) => {
         doc: vi.fn(),
         updateDoc: vi.fn(), // Definir el mock aquí
         deleteDoc: vi.fn(), // Definir el mock aquí
-        getDoc: vi.fn().mockResolvedValue({ data: () => ({}) }), // Mock para getDoc en eliminar
+        getDoc: vi.fn().mockResolvedValue({ exists: () => true, data: () => ({ totalSolicitado: 1000 }) }),
         deleteField: mockDeleteField,
     };
 });
@@ -53,6 +54,7 @@ describe('ListaSolicitudes Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
+        vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
         mockSolicitudes[0].estado = 'Solicitada';
         mockSolicitudes[0].estadoAnteriorReporte = 'Solicitada';
         mockSolicitudes[1].estado = 'Recibida';
@@ -68,7 +70,7 @@ describe('ListaSolicitudes Component', () => {
             mockUpdateDoc = firestore.updateDoc;
             mockDeleteDoc = firestore.deleteDoc;
             mockGetDoc = firestore.getDoc;
-            mockGetDoc.mockResolvedValue({ data: () => ({}) });
+            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ totalSolicitado: 1000 }) });
         });
     });
 
@@ -171,14 +173,18 @@ describe('ListaSolicitudes Component', () => {
             status: 400,
             json: async () => ({ error: { message: 'Stale request - reported time is more than 1 hour ago' } }),
         });
+        window.confirm.mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaSolicitudes />);
 
         fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
-        expect(window.confirm).toHaveBeenCalledTimes(2);
-        expect(window.confirm.mock.calls[1][0]).toContain('eliminar el ZIP del reporte manualmente');
+        expect(window.confirm).toHaveBeenCalledTimes(1);
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Token caducado',
+        }));
         expect(mockUpdateDoc.mock.calls[0][1]).toEqual({ archivado: false });
         expect(mockUpdateDoc.mock.calls[1][1]).toEqual(expect.objectContaining({
             url_reporte_gastos: '__DELETE_FIELD__',
@@ -188,7 +194,8 @@ describe('ListaSolicitudes Component', () => {
 
     it('mantiene el reporte si se rechaza eliminar manualmente un ZIP con token caducado', async () => {
         mockSolicitudes[0].estado = 'Esperando...';
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(false);
+        window.confirm.mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
         fetch.mockResolvedValue({
             ok: false,
             status: 400,
@@ -199,36 +206,50 @@ describe('ListaSolicitudes Component', () => {
         fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
-        await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
+        expect(window.confirm).toHaveBeenCalledTimes(1);
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Token caducado',
+        }));
         expect(mockUpdateDoc).not.toHaveBeenCalled();
     });
 
     it('permite eliminar la solicitud tras aceptar borrar manualmente su PDF caducado', async () => {
-        mockGetDoc.mockResolvedValue({ data: () => ({ deleteToken: 'expired-request-token' }) });
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ deleteToken: 'expired-request-token', totalSolicitado: 1000 }) });
         fetch.mockResolvedValue({
             ok: false,
             status: 400,
             json: async () => ({ error: { message: 'Invalid or expired token' } }),
         });
+        Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaSolicitudes />);
 
         fireEvent.click((await screen.findAllByTitle('Eliminar solicitud'))[0]);
 
         await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
-        expect(window.confirm).toHaveBeenCalledTimes(2);
-        expect(window.confirm.mock.calls[1][0]).toContain('eliminar el PDF de la solicitud manualmente');
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: '¿Estás seguro?',
+        }));
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Token caducado',
+        }));
     });
 
     it('avisa y permite eliminar la solicitud si el PDF no tiene token', async () => {
-        mockGetDoc.mockResolvedValue({ data: () => ({ url_pdf_solicitud: 'https://res.cloudinary.com/request.pdf' }) });
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ url_pdf_solicitud: 'https://res.cloudinary.com/request.pdf', totalSolicitado: 1000 }) });
+        Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaSolicitudes />);
 
         fireEvent.click((await screen.findAllByTitle('Eliminar solicitud'))[0]);
 
         await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
         expect(fetch).not.toHaveBeenCalled();
-        expect(window.confirm.mock.calls[1][0]).toContain('Cloudinary no proporcionó un token');
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: '¿Estás seguro?',
+        }));
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Sin token de eliminación',
+        }));
     });
 
     it('debería filtrar la lista de solicitudes al hacer clic en los botones de filtro', async () => {
@@ -270,14 +291,18 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('debería llamar a deleteDoc al hacer clic en eliminar', async () => {
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ totalSolicitado: 1000 }) });
+        Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaSolicitudes />);
         const deleteButton = (await screen.findAllByTitle('Eliminar solicitud'))[0];
         fireEvent.click(deleteButton);
 
-        expect(window.confirm).toHaveBeenCalled();
         await waitFor(() => {
             expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
         });
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: '¿Estás seguro?',
+        }));
     });
 
     it('ofrece Visualizar y Descargar, y visualiza reportes nuevos desde sus IDs', async () => {

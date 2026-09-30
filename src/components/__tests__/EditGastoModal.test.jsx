@@ -1,6 +1,7 @@
 /* globals global */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import Swal from 'sweetalert2';
 import EditGastoModal from '../EditGastoModal';
 
 // Mock de dependencias externas
@@ -62,6 +63,7 @@ describe('EditGastoModal Component', () => {
         vi.clearAllMocks();
         window.alert = vi.fn();
         window.confirm = vi.fn(() => true);
+        vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
 
         // Importar dinámicamente para obtener las funciones mockeadas
         const firestore = await import('firebase/firestore');
@@ -140,14 +142,17 @@ describe('EditGastoModal Component', () => {
             status: 400,
             json: () => Promise.resolve({ error: { message: 'Invalid or expired token' } }),
         });
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        window.confirm.mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true });
         render(<EditGastoModal gasto={mockGastoTransporte} onClose={mockOnClose} onSave={mockOnSave} />);
 
         fireEvent.click(await screen.findByTitle('Eliminar factura actual'));
         fireEvent.click(screen.getByRole('button', { name: /Guardar Cambios/i }));
 
         await waitFor(() => expect(mockOnSave).toHaveBeenCalledTimes(1));
-        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('eliminar la factura de este gasto manualmente'));
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Token caducado',
+        }));
     });
 
     it('cancela los cambios locales si se rechaza la eliminación manual de una factura caducada', async () => {
@@ -156,20 +161,22 @@ describe('EditGastoModal Component', () => {
             status: 400,
             json: () => Promise.resolve({ error: { message: 'Invalid or expired token' } }),
         });
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(false);
+        window.confirm.mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
         render(<EditGastoModal gasto={mockGastoTransporte} onClose={mockOnClose} onSave={mockOnSave} />);
 
         fireEvent.click(await screen.findByTitle('Eliminar factura actual'));
         fireEvent.click(screen.getByRole('button', { name: /Guardar Cambios/i }));
 
-        await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
         expect(mockOnSave).not.toHaveBeenCalled();
         expect(mockDeleteDoc).not.toHaveBeenCalled();
     });
 
     it('pide eliminar manualmente si la factura guardada no tiene token', async () => {
         const gastoSinToken = { ...mockGastoTransporte, deleteToken: '' };
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        window.confirm.mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true });
         render(<EditGastoModal gasto={gastoSinToken} onClose={mockOnClose} onSave={mockOnSave} />);
 
         fireEvent.click(await screen.findByTitle('Eliminar factura actual'));
@@ -177,6 +184,8 @@ describe('EditGastoModal Component', () => {
 
         await waitFor(() => expect(mockOnSave).toHaveBeenCalledTimes(1));
         expect(global.fetch).not.toHaveBeenCalled();
-        expect(window.confirm.mock.calls[1][0]).toContain('Cloudinary no proporcionó un token');
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Sin token de eliminación',
+        }));
     });
 });

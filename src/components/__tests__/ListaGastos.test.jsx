@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
 import { deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
+import Swal from 'sweetalert2';
 import ListaGastos from '../ListaGastos';
 import { filtrarGastosParaReporte, resolverGastosPorIds } from '../reportFilters';
 
@@ -41,6 +42,7 @@ vi.mock('firebase/firestore', async (importOriginal) => {
         }),
         collection: vi.fn((_db, name) => ({ _collection: name })),
         query: vi.fn((colRef) => ({ _collection: colRef?._collection })),
+        doc: vi.fn(),
         where: vi.fn(),
         orderBy: vi.fn(),
         deleteDoc: vi.fn(),
@@ -81,6 +83,7 @@ describe('ListaGastos Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true); // Mockear confirm para que no bloquee
+        vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
     });
 
     afterEach(() => {
@@ -197,7 +200,8 @@ describe('ListaGastos Component', () => {
         render(<ListaGastos />);
 
         await screen.findByText('Comida de mediodía');
-        fireEvent.click(screen.getByTitle('Editar gasto'));
+        const botonesEditar = await screen.findAllByTitle('Editar gasto');
+        fireEvent.click(botonesEditar[0]);
         fireEvent.click(await screen.findByTestId('guardar-edicion-factura'));
 
         await waitFor(() => expect(updateDoc).toHaveBeenCalledWith(undefined, expect.objectContaining({
@@ -213,13 +217,15 @@ describe('ListaGastos Component', () => {
             status: 400,
             json: async () => ({ error: { message: 'Invalid or expired token' } }),
         }));
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaGastos />);
 
         fireEvent.click((await screen.findAllByTitle('Eliminar'))[0]);
 
         await waitFor(() => expect(deleteDoc).toHaveBeenCalledTimes(1));
-        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('eliminar la factura de Comida de mediodía manualmente'));
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Token caducado',
+        }));
     });
 
     it('detiene la eliminación local del gasto si se rechaza el borrado manual', async () => {
@@ -229,24 +235,28 @@ describe('ListaGastos Component', () => {
             status: 400,
             json: async () => ({ error: { message: 'Invalid or expired token' } }),
         }));
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(false);
+        // Primera confirmación (¿Borrar este registro?): aceptada; Segunda (Token caducado): rechazada
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true })
+            .mockResolvedValueOnce({ isConfirmed: false });
         render(<ListaGastos />);
 
         fireEvent.click((await screen.findAllByTitle('Eliminar'))[0]);
 
-        await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(2));
         expect(deleteDoc).not.toHaveBeenCalled();
     });
 
     it('pregunta por eliminación manual si una factura guardada no tiene token', async () => {
         const gastoSinToken = { ...mockGastos[0], deleteToken: '' };
         getDoc.mockResolvedValue({ data: () => gastoSinToken });
-        window.confirm.mockReturnValueOnce(true).mockReturnValueOnce(true);
+        Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaGastos />);
 
         fireEvent.click((await screen.findAllByTitle('Eliminar'))[0]);
 
         await waitFor(() => expect(deleteDoc).toHaveBeenCalledTimes(1));
-        expect(window.confirm.mock.calls[1][0]).toContain('Cloudinary no proporcionó un token');
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Sin token de eliminación',
+        }));
     });
 });

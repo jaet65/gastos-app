@@ -114,8 +114,6 @@ describe('FormularioGasto Component', () => {
         );
 
         // Verificar que se mostró la alerta de éxito
-        await waitFor(() => {
-            expect(window.alert).toHaveBeenCalledWith('¡Guardado correctamente!');
-        });
+        expect(await screen.findByText('¡Guardado correctamente!')).toBeInTheDocument();
     });
 });
