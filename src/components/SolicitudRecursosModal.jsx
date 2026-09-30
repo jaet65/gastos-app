@@ -9,6 +9,7 @@ import { es } from 'date-fns/locale';
 import { format } from 'date-fns-tz';
 import { X, FileCog, Send } from 'lucide-react';
 import { saveAs } from 'file-saver';
+import Swal from 'sweetalert2';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Solicitudes";
@@ -187,7 +188,16 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
             if (onSolicitudCreada) {
                 onSolicitudCreada({ id: docRef.id, ...nuevaSolicitudData });
             } else {
-                alert("Solicitud de recursos generada y guardada correctamente.");
+                console.log("LOG: Solicitud creada exitosamente con ID:", docRef.id);
+                Swal.fire({
+                    toast: true,
+                    position: 'bottom-end',
+                    icon: 'success',
+                    title: '¡Solicitud generada!',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true
+                });
             }
             onClose(); // Cierra el modal en cualquier caso
 

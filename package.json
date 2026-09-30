@@ -28,7 +28,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-swipeable": "^7.0.2",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
+    "sweetalert2": "^11.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

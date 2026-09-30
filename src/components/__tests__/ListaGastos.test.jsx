@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
-import { deleteDoc, getDoc } from 'firebase/firestore';
+import { deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
 import ListaGastos from '../ListaGastos';
 import { filtrarGastosParaReporte, resolverGastosPorIds } from '../reportFilters';
 

@@ -15,19 +15,9 @@ import { filtrarGastosParaReporte, resolverGastosPorIds } from './reportFilters'
 import ExcelJS from 'exceljs'; import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { differenceInCalendarDays } from 'date-fns';
-import {
-  Card,
-  Title,
-  Text,
-  Metric,
-  List,
-  ListItem,
-  Badge,
-  Flex,
-  Icon,
-  Divider,
-} from '@tremor/react';
+import {Card, Title, Text, Metric, List, ListItem, Badge, Flex, Icon,Divider,} from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Eye, EyeOff, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }, ref) => {
   const { user } = useAuth();
@@ -102,7 +92,26 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   }, [user, targetUid]);
 
   const eliminarGasto = async (id, idPropina) => {
-    if (!confirm("¿Borrar este registro?")) return;
+    console.log("LOG: Se eliminara el registro: ",id)
+
+    const confirmacion = await Swal.fire({
+        title: '¿Borrar este registro?',
+        text: 'Esta acción no se podrá deshacer',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626', // Rojo
+        cancelButtonColor: '#6b7280',  // Gris
+        confirmButtonText: 'Sí, borrar',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg',
+            cancelButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+        }
+    });
+
+    // Si el usuario cancela o cierra la alerta, salimos de la función
+    if (!confirmacion.isConfirmed) return;
 
     try {
       const gastoRef = doc(db, "gastos", id);
@@ -137,9 +146,30 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       for (const sub of subgastos) {
         await deleteDoc(doc(db, "gastos", sub.id));
       }
+      Swal.fire({
+          toast: true,
+          position: 'bottom-end',
+          icon: 'success',
+          title: '¡Registro eliminado!',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+      });
+      console.log("LOG: Gasto eliminado")
     } catch (error) {
       console.error('Error eliminando gasto:', error);
-      alert(error.message || 'Ocurrió un error al eliminar el gasto.');
+      await Swal.fire({
+          title: 'Error al eliminar',
+          text: error.message || 'Ocurrió un error al eliminar el gasto.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
+      console.log("LOG: Error eliminando gasto ",error.message)
     }
   };
 
@@ -196,11 +226,30 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       await updateDoc(refPrincipal, updateData);
 
 
-      alert("Gasto actualizado correctamente");
+      Swal.fire({
+          toast: true,
+          position: 'bottom-end',
+          icon: 'success',
+          title: '¡Cambios guardados!',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+      });
+      console.log("LOG: Gasto actualizado")
       // El modal se cerrará desde su propio componente
     } catch (error) {
       console.error("Error", error);
-      alert("Error al guardar cambios: " + error.message);
+      await Swal.fire({
+          title: 'Error al guardar cambios',
+          text: error.message || 'Ocurrió un error inesperado al guardar los cambios.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
       throw error; // Re-lanza el error para que el modal sepa que falló
     }
   };
@@ -319,7 +368,18 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     });
 
     if (gastosFiltrados.length === 0) {
-      alert("No hay gastos filtrados para generar un reporte.");
+      Swal.fire({
+          title: 'Sin gastos disponibles',
+          text: 'No hay gastos filtrados para generar un reporte.',
+          icon: 'info',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#3b82f6', // Azul
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
+      console.log("LOG: Filtros sin registros")
       return;
     }
 
@@ -357,7 +417,17 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       await generarReporte(fInicio, fFin, { id: docRef.id, ...nuevaSolicitudData });
     } catch (error) {
       console.error("Error en solicitud automática:", error);
-      alert("Error al automatizar la solicitud: " + error.message);
+      Swal.fire({
+          title: 'Error al automatizar la solicitud',
+          text: error.message || 'Ocurrió un error inesperado al procesar la solicitud.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
     } finally {
       setReporteGenerandose(false);
     }
@@ -379,12 +449,38 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     });
 
     if (archivedVisibleGastos.length === 0) {
-      alert("No hay gastos archivados visibles para desarchivar.");
+      Swal.fire({
+          title: 'Sin gastos archivados',
+          text: 'No hay gastos archivados visibles para desarchivar.',
+          icon: 'info',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#3b82f6', // Azul
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
       return;
     }
 
-    if (!confirm(`¿Estás seguro de que quieres desarchivar ${archivedVisibleGastos.length} registros visibles?`)) {
-      return;
+    const confirmacion = await Swal.fire({
+        title: '¿Desarchivar registros?',
+        text: `¿Estás seguro de que quieres desarchivar ${archivedVisibleGastos.length} registros visibles?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3b82f6', // Azul
+        cancelButtonColor: '#6b7280',  // Gris
+        confirmButtonText: 'Sí, desarchivar',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg',
+            cancelButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+        }
+    });
+
+    if (!confirmacion.isConfirmed) {
+        return;
     }
 
     setIsUnarchiving(true);
@@ -394,10 +490,28 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         return updateDoc(gastoRef, { archivado: false });
       });
       await Promise.all(updates);
-      alert("Registros desarchivados correctamente.");
+      Swal.fire({
+          toast: true,
+          position: 'bottom-end',
+          icon: 'success',
+          title: 'Registros desarchivados correctamente',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+      });
     } catch (error) {
       console.error("Error al desarchivar registros:", error);
-      alert("Ocurrió un error al desarchivar los registros.");
+      Swal.fire({
+          title: 'Error al desarchivar',
+          text: 'Ocurrió un error al desarchivar los registros.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
     } finally {
       setIsUnarchiving(false);
     }
@@ -419,7 +533,17 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       });
 
       if (gastosFiltrados.length === 0) {
-        alert("No hay gastos en el periodo seleccionado para generar un reporte.");
+        Swal.fire({
+            title: 'Sin gastos en el periodo',
+            text: 'No hay gastos en el periodo seleccionado para generar un reporte.',
+            icon: 'info',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#3b82f6', // Azul
+            customClass: {
+                popup: 'rounded-2xl',
+                confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+            }
+        });
         return;
       }
 
@@ -508,24 +632,79 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       await Promise.all(updates); alert("Reporte generado y gastos marcados como archivados.");
     } catch (error) {
       console.error(`Error generando el reporte compilado:`, error);
-      alert("Ocurrió un error al generar el reporte: " + error.message);
+      Swal.fire({
+          title: 'Error al generar el reporte',
+          text: error.message || 'Ocurrió un error inesperado al generar el reporte.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
     } finally {
       setReporteGenerandose(false);
     }
   };
 
   const toggleArchivoGasto = async (gasto) => {
-    if (!confirm(`¿Estás seguro de que quieres ${gasto.archivado ? 'desarchivar' : 'archivar'} este gasto?`)) {
-      return;
-    }
-    try {
-      const gastoRef = doc(db, "gastos", gasto.id);
-      await updateDoc(gastoRef, { archivado: !gasto.archivado });
-      alert(`Gasto ${gasto.archivado ? 'desarchivado' : 'archivado'} correctamente.`);
-    } catch (error) {
-      console.error("Error al cambiar estado de archivo:", error);
-      alert("Ocurrió un error al actualizar el gasto.");
-    }
+      const accion = gasto.archivado ? 'desarchivar' : 'archivar';
+
+      // 1. Confirmación con SweetAlert2
+      const confirmacion = await Swal.fire({
+          title: `¿${accion.charAt(0).toUpperCase() + accion.slice(1)} gasto?`,
+          text: `¿Estás seguro de que quieres ${accion} este gasto?`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonColor: '#3b82f6', // Azul
+          cancelButtonColor: '#6b7280',  // Gris
+          confirmButtonText: `Sí, ${accion}`,
+          cancelButtonText: 'Cancelar',
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg',
+              cancelButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
+
+      if (!confirmacion.isConfirmed) {
+          return;
+      }
+
+      try {
+          const gastoRef = doc(db, "gastos", gasto.id);
+          await updateDoc(gastoRef, { archivado: !gasto.archivado });
+
+          // 2. Notificación de éxito (Toast no invasivo sin await)
+          Swal.fire({
+              toast: true,
+              position: 'bottom-end',
+              icon: 'success',
+              title: `Gasto ${gasto.archivado ? 'desarchivado' : 'archivado'} correctamente`,
+              showConfirmButton: false,
+              timer: 3000,
+              timerProgressBar: true,
+              customClass: {
+              }
+          });
+
+      } catch (error) {
+          console.error("Error al cambiar estado de archivo:", error);
+
+          // 3. Alerta de error
+          Swal.fire({
+              title: 'Error al actualizar',
+              text: 'Ocurrió un error al actualizar el gasto.',
+              icon: 'error',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#ef4444',
+              customClass: {
+                  popup: 'rounded-2xl',
+                  confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+              }
+          });
+      }
   };
 
   const handleGenerarReporteMAF = async (montoRecibido) => {
@@ -539,9 +718,20 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         tipoReporte: 'MAF',
       });
       if (gastosMAF.length === 0) {
-        alert("No hay gastos MAF para generar el reporte.");
-        setReporteGenerandose(false);
-        return;
+    Swal.fire({
+              title: 'Sin gastos MAF',
+              text: 'No hay gastos MAF para generar el reporte.',
+              icon: 'info',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#3b82f6', // Azul
+              customClass: {
+                  popup: 'rounded-2xl',
+                  confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+              }
+          });
+
+          setReporteGenerandose(false);
+          return;
       }
       const fInicio = fechaInicio || gastosMAF.reduce((min, g) => g.fecha < min ? g.fecha : min, gastosMAF[0].fecha);
       const fFin = fechaFin || gastosMAF.reduce((max, g) => g.fecha > max ? g.fecha : max, gastosMAF[0].fecha);
@@ -549,7 +739,17 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       await generarReporte(fInicio, fFin, null, true, montoRecibido);
     } catch (error) {
       console.error("Error reporte MAF:", error);
-      alert("Error: " + error.message);
+      Swal.fire({
+          title: 'Ocurrió un error',
+          text: error.message || 'Se produjo un problema inesperado.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
       setReporteGenerandose(false);
     }
   };
@@ -733,7 +933,17 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         copiedSolicitudPages.forEach((p) => pdfDoc.addPage(p));
       } catch (error) {
         console.error(`No se pudo cargar el PDF de la solicitud ${solicitudVinculada.id}:`, error);
-        alert(`Advertencia: No se pudo adjuntar el PDF de la solicitud ${solicitudVinculada.proyecto}. El reporte continuará sin él.`);
+        Swal.fire({
+            title: 'Advertencia al adjuntar PDF',
+            text: `No se pudo adjuntar el PDF de la solicitud ${solicitudVinculada.proyecto}. El reporte continuará sin él.`,
+            icon: 'warning',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#f59e0b', // Ámbar / Naranja
+            customClass: {
+                popup: 'rounded-2xl',
+                confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+            }
+        });
       }
     }
 

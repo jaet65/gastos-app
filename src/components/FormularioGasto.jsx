@@ -7,6 +7,7 @@ import Footer from './Footer';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 import { getCloudinaryFilename } from './cloudinary';
+import Swal from 'sweetalert2';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
@@ -92,7 +93,18 @@ const FormularioGasto = () => {
         if (file.type === "application/pdf") {
           setArchivo(file);
         } else {
-          alert("Por favor, arrastra solo archivos PDF.");
+          Swal.fire({
+              title: 'Formato no permitido',
+              text: 'Por favor, arrastra solo archivos PDF.',
+              icon: 'warning',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#3b82f6', // Azul
+              customClass: {
+                  popup: 'rounded-2xl',
+                  confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+              }
+          });
+          console.log("LOG: Formato no permitido, solo PDF")
         }
       }
     };
@@ -195,7 +207,19 @@ const FormularioGasto = () => {
           fileData = await subirACloudinary(archivo);
         } catch (uploadError) {
           console.error(uploadError);
-          alert(`No se pudo subir el archivo: ${uploadError.message}`);
+          
+          await Swal.fire({
+              title: 'Error al subir el archivo',
+              text: uploadError.message,
+              icon: 'error',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#ef4444', // Rojo
+              customClass: {
+                  popup: 'rounded-2xl',
+                  confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+              }
+          });
+          console.log("LOG: Error al subir el archivo:", uploadError.message)
           setLoading(false);
           return;
         }
@@ -249,7 +273,18 @@ const FormularioGasto = () => {
               fileDataCaseta = await subirACloudinary(caseta.archivo);
             } catch (uploadError) {
               console.error("Error subiendo caseta:", uploadError);
-              alert(`Error al subir caseta: ${uploadError.message}`);
+              await Swal.fire({
+                  title: 'Error al subir caseta',
+                  text: uploadError.message,
+                  icon: 'error',
+                  confirmButtonText: 'Entendido',
+                  confirmButtonColor: '#ef4444', // Rojo
+                  customClass: {
+                      popup: 'rounded-2xl',
+                      confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+                  }
+              });
+              console.log("LOG: Error al subir caseta:", uploadError.message)
               // Continuamos guardando el monto aunque falle la subida? 
               // Por ahora seguiremos con la caseta sin factura si falla
             }
@@ -269,7 +304,21 @@ const FormularioGasto = () => {
         }
       }
 
-      alert("¡Guardado correctamente!");
+      Swal.fire({
+          title: '¡Guardado correctamente!',
+          text: 'Los cambios se han almacenado con éxito.',
+          icon: 'success',
+          confirmButtonText: 'Aceptar',
+          confirmButtonColor: '#10b981', // Verde
+          timer: 5000, // Opcional: Se cierra automáticamente tras 2 segundos
+          timerProgressBar: true,
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
+      console.log("LOG: Almecenado con exito")
+
       setFormData(INITIAL_STATE);
       setAgregarPropina(false);
       setCasetas([]);
@@ -277,7 +326,18 @@ const FormularioGasto = () => {
 
     } catch (error) {
       console.error("Error general:", error);
-      alert("Error al guardar en la base de datos: " + error.message);
+      await Swal.fire({
+          title: 'Error en la base de datos',
+          text: `No se pudo guardar la información: ${error.message}`,
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#ef4444', // Rojo
+          customClass: {
+              popup: 'rounded-2xl',
+              confirmButton: 'px-4 py-2 text-sm font-medium rounded-lg'
+          }
+      });
+      console.log("LOG: Error en la base de datos")
     } finally {
       setLoading(false);
     }

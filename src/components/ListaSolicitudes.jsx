@@ -8,6 +8,7 @@ import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
 import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown, Eye, X } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer'));
 
@@ -199,20 +200,63 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
     }, [preview]);
 
     const eliminarSolicitud = async (id) => {
-        if (window.confirm("¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.")) {
-            try {
-                const solicitudRef = doc(db, "solicitudes", id);
-                const solicitudDoc = await getDoc(solicitudRef);
-                const solicitudData = solicitudDoc.data();
+        try {
+            // 1. Obtenemos el documento de Firestore para acceder a sus campos
+            const solicitudRef = doc(db, "solicitudes", id);
+            const solicitudDoc = await getDoc(solicitudRef);
 
+            if (!solicitudDoc.exists()) {
+                Swal.fire('Error', 'La solicitud no existe.', 'error');
+                return;
+            }
+
+            const solicitudData = solicitudDoc.data();
+            const valorTotal = solicitudData.totalSolicitado ?? 0;
+
+            const totalFormateado = new Intl.NumberFormat('es-MX', {
+            style: 'currency',
+            currency: 'MXN'
+        }).format(valorTotal);
+
+            // 2. Mostrar la alerta de confirmación usando el campo correcto
+            console.log("LOG: Eliminar solicitud?");
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: `¡Eliminar solicitud de ${totalFormateado}! Esta acción no se puede deshacer.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            // 3. Si el usuario confirma, procedemos con la eliminación
+            if (result.isConfirmed) {
                 if ((solicitudData.url_pdf_solicitud || solicitudData.deleteToken) &&
                     !await eliminarCloudinaryConToken(solicitudData.deleteToken, 'el PDF de la solicitud')) return;
-                await deleteDoc(doc(db, "solicitudes", id));
-                // Opcional: mostrar una notificación de éxito.
-            } catch (error) {
-                console.error("Error al eliminar la solicitud: ", error);
-                alert("Ocurrió un error al eliminar la solicitud.");
+                
+                await deleteDoc(solicitudRef);
+                
+                console.log("LOG: Solicitud eliminada");
+
+                Swal.fire({
+                    toast: true,
+                    position: 'bottom-end',
+                    icon: 'success',
+                    title: '¡Solicitud eliminada!',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true
+                });
             }
+        } catch (error) {
+            console.error("Error al eliminar la solicitud: ", error);
+            Swal.fire(
+                'Error',
+                'Ocurrió un error al eliminar la solicitud.',
+                'error'
+            );
         }
     };
 
