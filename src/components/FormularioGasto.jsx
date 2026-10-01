@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
@@ -8,6 +8,8 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 import { getCloudinaryFilename } from './cloudinary';
 import Swal from 'sweetalert2';
+import { extractInvoiceAmount } from './invoicePdfScanner';
+import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
@@ -35,6 +37,8 @@ const FormularioGasto = () => {
   const [agregarPropina, setAgregarPropina] = useState(false);
   const [casetas, setCasetas] = useState([]); // Nuevo estado para casetas
   const [loading, setLoading] = useState(false);
+  const [analizandoFactura, setAnalizandoFactura] = useState(false);
+  const [mensajeAnalisis, setMensajeAnalisis] = useState('');
   const [modalRecursosAbierto, setModalRecursosAbierto] = useState(false);
 
   // Estado para el Drag & Drop Global
@@ -42,6 +46,11 @@ const FormularioGasto = () => {
   const dragCounter = useRef(0);
 
   const fileInputRef = useRef(null);
+  const invoiceScanId = useRef(0);
+  const casetaScanIds = useRef(new Map());
+  const casetaIdCounter = useRef(0);
+  const casetaMontos = useRef(new Map());
+  const montoActualRef = useRef('');
 
   const CLOUD_NAME = "didj7kuah";
   const UPLOAD_PRESET = "Gastos_Facturas";
@@ -55,6 +64,40 @@ const FormularioGasto = () => {
       setCasetas([]);
     }
   }, [formData.categoria]);
+
+  const handleInvoiceFile = useCallback(async (file) => {
+    const scanId = invoiceScanId.current + 1;
+    invoiceScanId.current = scanId;
+    setArchivo(file);
+    setAnalizandoFactura(true);
+    setMensajeAnalisis('');
+
+    try {
+      const amount = await extractInvoiceAmount(file);
+      if (invoiceScanId.current !== scanId) return;
+
+      if (amount !== null) {
+        const montoDetectado = amount.toFixed(2);
+        const resultado = await confirmInvoiceAmount(amount, montoActualRef.current);
+        if (invoiceScanId.current !== scanId) return;
+
+        montoActualRef.current = resultado.amount;
+        setFormData((current) => ({ ...current, monto: resultado.amount }));
+        setMensajeAnalisis(resultado.source === 'detected'
+          ? `Total detectado: $${montoDetectado}`
+          : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`);
+      } else {
+        setMensajeAnalisis('No se detectó el total; puedes ingresarlo manualmente.');
+      }
+    } catch (error) {
+      console.error('Error analizando la factura:', error);
+      if (invoiceScanId.current === scanId) {
+        setMensajeAnalisis('No se pudo leer el total automáticamente; ingrésalo manualmente.');
+      }
+    } finally {
+      if (invoiceScanId.current === scanId) setAnalizandoFactura(false);
+    }
+  }, []);
 
   // --- LOGICA DE DRAG & DROP GLOBAL ---
   useEffect(() => {
@@ -91,7 +134,7 @@ const FormularioGasto = () => {
       if (files && files.length > 0) {
         const file = files[0];
         if (file.type === "application/pdf") {
-          setArchivo(file);
+          handleInvoiceFile(file);
         } else {
           Swal.fire({
               title: 'Formato no permitido',
@@ -120,33 +163,100 @@ const FormularioGasto = () => {
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
     };
-  }, []);
+  }, [handleInvoiceFile]);
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'monto') montoActualRef.current = value;
+    setFormData((current) => ({ ...current, [name]: value }));
+  };
 
   const handleFileChange = (e) => {
-    if (e.target.files[0]) setArchivo(e.target.files[0]);
+    if (e.target.files[0]) handleInvoiceFile(e.target.files[0]);
   };
 
   const removeFile = () => {
+    invoiceScanId.current += 1;
     setArchivo(null);
+    setAnalizandoFactura(false);
+    setMensajeAnalisis('');
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const addCaseta = () => {
-    setCasetas([...casetas, { monto: '', archivo: null }]);
+    casetaIdCounter.current += 1;
+    const scanKey = `caseta-${casetaIdCounter.current}`;
+    casetaMontos.current.set(scanKey, '');
+    setCasetas((current) => [...current, { scanKey, monto: '', archivo: null }]);
   };
 
   const removeCaseta = (index) => {
-    const newCasetas = [...casetas];
-    newCasetas.splice(index, 1);
-    setCasetas(newCasetas);
+    const caseta = casetas[index];
+    if (caseta) {
+      casetaScanIds.current.delete(caseta.scanKey);
+      casetaMontos.current.delete(caseta.scanKey);
+    }
+    setCasetas((current) => current.filter((_, casetaIndex) => casetaIndex !== index));
   };
 
   const handleCasetaChange = (index, field, value) => {
-    const newCasetas = [...casetas];
-    newCasetas[index][field] = value;
-    setCasetas(newCasetas);
+    const caseta = casetas[index];
+    if (!caseta) return;
+
+    if (field === 'monto') {
+      casetaMontos.current.set(caseta.scanKey, value);
+      setCasetas((current) => current.map((item) => (
+        item.scanKey === caseta.scanKey ? { ...item, monto: value } : item
+      )));
+      return;
+    }
+
+    if (field === 'archivo' && value) {
+      const scanId = (casetaScanIds.current.get(caseta.scanKey) || 0) + 1;
+      casetaScanIds.current.set(caseta.scanKey, scanId);
+      setCasetas((current) => current.map((item) => (
+        item.scanKey === caseta.scanKey
+          ? { ...item, archivo: value, analizandoFactura: true, mensajeAnalisis: '' }
+          : item
+      )));
+
+      extractInvoiceAmount(value).then(async (amount) => {
+        if (casetaScanIds.current.get(caseta.scanKey) !== scanId) return;
+
+        if (amount === null) {
+          setCasetas((current) => current.map((item) => (
+            item.scanKey === caseta.scanKey
+              ? { ...item, analizandoFactura: false, mensajeAnalisis: 'No se detectó el total; puedes ingresarlo manualmente.' }
+              : item
+          )));
+          return;
+        }
+
+        const resultado = await confirmInvoiceAmount(amount, casetaMontos.current.get(caseta.scanKey));
+        if (casetaScanIds.current.get(caseta.scanKey) !== scanId) return;
+        casetaMontos.current.set(caseta.scanKey, resultado.amount);
+        setCasetas((current) => current.map((item) => (
+          item.scanKey === caseta.scanKey
+            ? {
+                ...item,
+                monto: resultado.amount,
+                analizandoFactura: false,
+                mensajeAnalisis: resultado.source === 'detected'
+                  ? `Total detectado: $${amount.toFixed(2)}`
+                  : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`
+              }
+            : item
+        )));
+      }).catch((error) => {
+        console.error('Error analizando la factura de la caseta:', error);
+        if (casetaScanIds.current.get(caseta.scanKey) !== scanId) return;
+        setCasetas((current) => current.map((item) => (
+          item.scanKey === caseta.scanKey
+            ? { ...item, analizandoFactura: false, mensajeAnalisis: 'No se pudo leer el total automáticamente; ingrésalo manualmente.' }
+            : item
+        )));
+      });
+    }
   };
 
   const subirACloudinary = async (file) => {
@@ -197,6 +307,15 @@ const FormularioGasto = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (analizandoFactura || casetas.some((caseta) => caseta.analizandoFactura)) {
+      await Swal.fire({
+        title: 'Análisis en curso',
+        text: 'Espera a que termine el análisis de las facturas antes de guardar.',
+        icon: 'info',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
     setLoading(true);
 
     try {
@@ -320,8 +439,11 @@ const FormularioGasto = () => {
       console.log("LOG: Almecenado con exito")
 
       setFormData(INITIAL_STATE);
+      montoActualRef.current = '';
       setAgregarPropina(false);
       setCasetas([]);
+      casetaScanIds.current.clear();
+      casetaMontos.current.clear();
       removeFile();
 
     } catch (error) {
@@ -451,6 +573,11 @@ const FormularioGasto = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-800 truncate">{archivo.name}</p>
+                  {analizandoFactura ? (
+                    <p className="text-xs text-slate-500">Analizando factura...</p>
+                  ) : mensajeAnalisis ? (
+                    <p className="text-xs text-slate-500">{mensajeAnalisis}</p>
+                  ) : null}
                 </div>
                 <button type="button" onClick={removeFile} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
                   <X size={20} />
@@ -486,6 +613,11 @@ const FormularioGasto = () => {
                         onChange={(e) => handleCasetaChange(index, 'monto', e.target.value)}
                         className="w-full bg-transparent border-none outline-none text-slate-800 font-bold text-sm"
                       />
+                      {caseta.analizandoFactura ? (
+                        <p className="text-[10px] text-slate-500">Analizando factura...</p>
+                      ) : caseta.mensajeAnalisis ? (
+                        <p className="text-[10px] text-slate-500">{caseta.mensajeAnalisis}</p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -494,6 +626,7 @@ const FormularioGasto = () => {
                       <input
                         type="file"
                         accept=".pdf"
+                        aria-label={`Factura de caseta ${index + 1}`}
                         onChange={(e) => handleCasetaChange(index, 'archivo', e.target.files[0])}
                         className="text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 w-full truncate"
                       />
@@ -520,11 +653,11 @@ const FormularioGasto = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || analizandoFactura || casetas.some((caseta) => caseta.analizandoFactura)}
             style={{ height: '48px', fontSize: '18px' }}
             className="w-full mb-2 rounded-full bg-green-700 text-white font-black shadow-lg hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 flex items-center justify-center uppercase tracking-widest"
           >
-            {loading ? 'GUARDANDO...' : 'GUARDAR GASTO'}
+            {loading ? 'GUARDANDO...' : (analizandoFactura || casetas.some((caseta) => caseta.analizandoFactura) ? 'ANALIZANDO FACTURA...' : 'GUARDAR GASTO')}
           </button>
         </form>
       </div>

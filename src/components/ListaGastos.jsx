@@ -91,12 +91,13 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     return () => unsubscribe();
   }, [user, targetUid]);
 
-  const eliminarGasto = async (id, idPropina) => {
+  const eliminarGasto = async (gasto) => {
+    const { id, idPropina } = gasto;
     console.log("LOG: Se eliminara el registro: ",id)
 
     const confirmacion = await Swal.fire({
         title: '¿Borrar este registro?',
-        text: 'Esta acción no se podrá deshacer',
+        html: `<span style="color: #dc2626;">Esta acción no se podrá deshacer</span><br><br><strong>${gasto.concepto || 'Sin concepto'}: ${formatoMoneda(parseFloat(gasto.monto))}</strong>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626', // Rojo
@@ -1636,7 +1637,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
                                                       <Pencil size={20} />
                                                     </button>
 
-                                                    <button onClick={() => eliminarGasto(gasto.id, gasto.idPropina)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
+                                                    <button onClick={() => eliminarGasto(gasto)} className="bg-transparent border-none p-0 cursor-pointer group-hover:scale-110 transition-transform" title="Eliminar">
                                                       <Trash2 size={20} color="#ef4444" strokeWidth={2.5} />
                                                     </button>
                                                   </>

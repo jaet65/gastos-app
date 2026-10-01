@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Trash2, FileCheck, Pencil, X, Save, UploadCloud, ArrowDownCircle, Plus } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { getCloudinaryFilename } from './cloudinary';
+import { extractInvoiceAmount } from './invoicePdfScanner';
+import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";
@@ -22,6 +25,8 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     const { user } = useAuth();
     const [gastoEditado, setGastoEditado] = useState(gasto);
     const [nuevoArchivo, setNuevoArchivo] = useState(null);
+    const [analizandoFactura, setAnalizandoFactura] = useState(false);
+    const [mensajeAnalisis, setMensajeAnalisis] = useState('');
     const [subiendo, setSubiendo] = useState(false);
     const [editarConPropina, setEditarConPropina] = useState(!!gasto.idPropina);
 
@@ -33,6 +38,11 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     const [isDraggingModal, setIsDraggingModal] = useState(false);
     const dragCounterModal = useRef(0);
     const fileInputEditRef = useRef(null);
+    const montoPrincipalRef = useRef(String(gasto.monto ?? ''));
+    const facturaPrincipalScanId = useRef(0);
+    const casetaScanIds = useRef(new Map());
+    const casetaMontos = useRef(new Map());
+    const casetaIdCounter = useRef(0);
 
     useEffect(() => {
         // Si la categoría cambia a algo que no es 'Comida', desactiva la propina.
@@ -50,7 +60,11 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                 try {
                     const q = query(collection(db, "gastos"), where("idPadre", "==", gasto.id));
                     const querySnapshot = await getDocs(q);
-                    const fetchedCasetas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    const fetchedCasetas = querySnapshot.docs.map((casetaDoc) => {
+                        const caseta = { id: casetaDoc.id, ...casetaDoc.data(), scanKey: `caseta-${casetaDoc.id}` };
+                        casetaMontos.current.set(caseta.scanKey, String(caseta.monto ?? ''));
+                        return caseta;
+                    });
                     setMisCasetas(fetchedCasetas);
                 } catch (error) {
                     console.error("Error fetching casetas:", error);
@@ -98,8 +112,112 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         return fileData;
     };
 
+    const handleFacturaPrincipal = async (file) => {
+        if (!file) return;
+        if (file.type !== 'application/pdf') {
+            alert('Por favor, selecciona solo archivos PDF.');
+            return;
+        }
+
+        facturaPrincipalScanId.current += 1;
+        const scanId = facturaPrincipalScanId.current;
+        setNuevoArchivo(file);
+        setAnalizandoFactura(true);
+        setMensajeAnalisis('');
+
+        try {
+            const amount = await extractInvoiceAmount(file);
+            if (facturaPrincipalScanId.current !== scanId) return;
+            if (amount === null) {
+                setMensajeAnalisis('No se detectó el total; puedes ingresarlo manualmente.');
+                return;
+            }
+
+            const resultado = await confirmInvoiceAmount(amount, montoPrincipalRef.current);
+            if (facturaPrincipalScanId.current !== scanId) return;
+            montoPrincipalRef.current = resultado.amount;
+            setGastoEditado((current) => ({ ...current, monto: resultado.amount }));
+            setMensajeAnalisis(resultado.source === 'detected'
+                ? `Total detectado: $${amount.toFixed(2)}`
+                : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`);
+        } catch (error) {
+            console.error('Error analizando la factura del gasto:', error);
+            if (facturaPrincipalScanId.current === scanId) {
+                setMensajeAnalisis('No se pudo leer el total automáticamente; ingrésalo manualmente.');
+            }
+        } finally {
+            if (facturaPrincipalScanId.current === scanId) setAnalizandoFactura(false);
+        }
+    };
+
+    const actualizarCaseta = (scanKey, updater) => {
+        setMisCasetas((current) => current.map((caseta) => (
+            caseta.scanKey === scanKey ? updater(caseta) : caseta
+        )));
+    };
+
+    const handleFacturaCaseta = async (scanKey, file) => {
+        if (!file) return;
+        if (file.type !== 'application/pdf') {
+            alert('Por favor, selecciona solo archivos PDF.');
+            return;
+        }
+
+        const scanId = (casetaScanIds.current.get(scanKey) || 0) + 1;
+        casetaScanIds.current.set(scanKey, scanId);
+        actualizarCaseta(scanKey, (caseta) => ({
+            ...caseta,
+            archivo: file,
+            analizandoFactura: true,
+            mensajeAnalisis: ''
+        }));
+
+        try {
+            const amount = await extractInvoiceAmount(file);
+            if (casetaScanIds.current.get(scanKey) !== scanId) return;
+            if (amount === null) {
+                actualizarCaseta(scanKey, (caseta) => ({
+                    ...caseta,
+                    analizandoFactura: false,
+                    mensajeAnalisis: 'No se detectó el total; puedes ingresarlo manualmente.'
+                }));
+                return;
+            }
+
+            const resultado = await confirmInvoiceAmount(amount, casetaMontos.current.get(scanKey));
+            if (casetaScanIds.current.get(scanKey) !== scanId) return;
+            casetaMontos.current.set(scanKey, resultado.amount);
+            actualizarCaseta(scanKey, (caseta) => ({
+                ...caseta,
+                monto: resultado.amount,
+                analizandoFactura: false,
+                mensajeAnalisis: resultado.source === 'detected'
+                    ? `Total detectado: $${amount.toFixed(2)}`
+                    : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`
+            }));
+        } catch (error) {
+            console.error('Error analizando la factura de la caseta:', error);
+            if (casetaScanIds.current.get(scanKey) === scanId) {
+                actualizarCaseta(scanKey, (caseta) => ({
+                    ...caseta,
+                    analizandoFactura: false,
+                    mensajeAnalisis: 'No se pudo leer el total automáticamente; ingrésalo manualmente.'
+                }));
+            }
+        }
+    };
+
     const handleGuardar = async (e) => {
         e.preventDefault();
+        if (analizandoFactura || misCasetas.some((caseta) => caseta.analizandoFactura)) {
+            await Swal.fire({
+                title: 'Análisis en curso',
+                text: 'Espera a que termine el análisis de las facturas antes de guardar.',
+                icon: 'info',
+                confirmButtonText: 'Entendido'
+            });
+            return;
+        }
         setSubiendo(true);
 
         const tokenABorrar = gasto.deleteToken;
@@ -210,10 +328,18 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     };
 
     const addSubCaseta = () => {
-        setMisCasetas([...misCasetas, { monto: '', archivo: null }]);
+        casetaIdCounter.current += 1;
+        const scanKey = `caseta-nueva-${casetaIdCounter.current}`;
+        casetaMontos.current.set(scanKey, '');
+        setMisCasetas((current) => [...current, { scanKey, monto: '', archivo: null }]);
     };
 
     const removeSubCaseta = (index, id) => {
+        const caseta = misCasetas[index];
+        if (caseta) {
+            casetaScanIds.current.delete(caseta.scanKey);
+            casetaMontos.current.delete(caseta.scanKey);
+        }
         if (id) {
             setCasetasBorradas([...casetasBorradas, id]);
         }
@@ -223,9 +349,14 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     };
 
     const handleCasetaChange = (index, field, value) => {
-        const newCasetas = [...misCasetas];
-        newCasetas[index][field] = value;
-        setMisCasetas(newCasetas);
+        const caseta = misCasetas[index];
+        if (!caseta) return;
+        if (field === 'monto') {
+            casetaMontos.current.set(caseta.scanKey, value);
+            actualizarCaseta(caseta.scanKey, (current) => ({ ...current, monto: value }));
+        } else if (field === 'archivo') {
+            handleFacturaCaseta(caseta.scanKey, value);
+        }
     };
 
     // --- Drag & Drop ---
@@ -234,7 +365,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     const handleDropModal = (e) => {
         e.preventDefault(); e.stopPropagation(); setIsDraggingModal(false); dragCounterModal.current = 0;
         const file = e.dataTransfer.files[0];
-        if (file && file.type === "application/pdf") setNuevoArchivo(file);
+        if (file && file.type === "application/pdf") handleFacturaPrincipal(file);
         else alert("Por favor, arrastra solo archivos PDF.");
     };
 
@@ -263,7 +394,10 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Monto</label>
-                            <input type="number" step="0.01" required value={gastoEditado.monto} onChange={(e) => setGastoEditado({ ...gastoEditado, monto: e.target.value })} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all" />
+                            <input type="number" step="0.01" required value={gastoEditado.monto} onChange={(e) => {
+                                montoPrincipalRef.current = e.target.value;
+                                setGastoEditado({ ...gastoEditado, monto: e.target.value });
+                            }} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all" />
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha</label>
@@ -295,7 +429,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                             ) : (
                                 <div className="space-y-3">
                                     {misCasetas.map((caseta, idx) => (
-                                        <div key={caseta.id || `new-${idx}`} className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
+                                        <div key={caseta.scanKey || caseta.id || `new-${idx}`} className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
                                             <div className="flex-1">
                                                 <input
                                                     type="number"
@@ -305,21 +439,30 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                                                     placeholder="Monto"
                                                     className="w-24 bg-transparent border-none outline-none font-bold text-slate-800 focus:bg-slate-100 rounded px-1 transition-all"
                                                 />
+                                                {caseta.analizandoFactura ? (
+                                                    <p className="text-[10px] text-slate-500">Analizando factura...</p>
+                                                ) : caseta.mensajeAnalisis ? (
+                                                    <p className="text-[10px] text-slate-500">{caseta.mensajeAnalisis}</p>
+                                                ) : null}
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {(caseta.id && caseta.url_factura) ? (
-                                                    <a href={caseta.url_factura} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><FileText size={18} /></a>
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            type="file"
-                                                            accept=".pdf"
-                                                            onChange={(e) => handleCasetaChange(idx, 'archivo', e.target.files[0])}
-                                                            className="w-40 text-[10px] text-slate-400"
-                                                        />
-                                                        {caseta.archivo && <FileCheck size={14} className="text-green-500" />}
-                                                    </div>
+                                                {caseta.url_factura && (
+                                                    <a href={caseta.url_factura} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700" title="Ver factura guardada"><FileText size={18} /></a>
                                                 )}
+                                                <label className="w-40 text-[10px] text-slate-400 cursor-pointer">
+                                                    {caseta.archivo ? caseta.archivo.name : (caseta.url_factura ? 'Reemplazar PDF' : 'Adjuntar PDF')}
+                                                    <input
+                                                        type="file"
+                                                        accept="application/pdf,.pdf"
+                                                        aria-label={`Factura de caseta ${idx + 1}`}
+                                                        onChange={(e) => {
+                                                            handleCasetaChange(idx, 'archivo', e.target.files[0]);
+                                                            e.target.value = '';
+                                                        }}
+                                                        className="sr-only"
+                                                    />
+                                                </label>
+                                                {caseta.archivo && <FileCheck size={14} className="text-green-500" />}
                                                 <button type="button" onClick={() => removeSubCaseta(idx, caseta.id)} className="text-red-400 hover:text-red-600 transition-colors">
                                                     <Trash2 size={18} />
                                                 </button>
@@ -344,13 +487,23 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><FileText size={14} /> Factura Principal PDF</label>
                         {nuevoArchivo ? (
                             <div className="flex items-center justify-between w-full bg-emerald-100 p-2 rounded border border-emerald-200">
-                                <div className="flex items-center gap-2 truncate">
-                                    <UploadCloud size={16} className="text-emerald-600" />
-                                    <span className="text-emerald-800 text-sm font-bold truncate">{nuevoArchivo.name}</span>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 truncate">
+                                        <UploadCloud size={16} className="text-emerald-600" />
+                                        <span className="text-emerald-800 text-sm font-bold truncate">{nuevoArchivo.name}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-600">
+                                        {analizandoFactura ? 'Analizando factura...' : mensajeAnalisis}
+                                    </p>
                                 </div>
-                                <button type="button" onClick={() => setNuevoArchivo(null)} className="text-emerald-700 hover:text-emerald-900 bg-white/50 hover:bg-white rounded-full p-1"><X size={14} /></button>
+                                <button type="button" onClick={() => {
+                                    facturaPrincipalScanId.current += 1;
+                                    setNuevoArchivo(null);
+                                    setAnalizandoFactura(false);
+                                    setMensajeAnalisis('');
+                                }} className="text-emerald-700 hover:text-emerald-900 bg-white/50 hover:bg-white rounded-full p-1"><X size={14} /></button>
                             </div>
-                        ) : (gastoEditado.url_factura) ? (
+                        ) : gastoEditado.url_factura ? (
                             <div className="flex items-center justify-between w-full bg-white p-2 rounded border border-blue-100">
                                 <div className="flex items-center gap-2 text-blue-600">
                                     <FileCheck size={16} />
@@ -358,17 +511,19 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                                 </div>
                                 <button type="button" onClick={quitarArchivoActual} className="text-red-500 hover:text-red-700 bg-red-50 p-1 rounded hover:bg-red-100" title="Eliminar factura actual"><Trash2 size={14} /></button>
                             </div>
-                        ) : (
-                            <div onClick={() => fileInputEditRef.current.click()} className={`py-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors ${isDraggingModal ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                {isDraggingModal ? <ArrowDownCircle size={32} className="text-blue-600 animate-bounce mb-1" /> : <UploadCloud size={24} className="text-slate-400 mb-1" />}
-                                <span className={`text-xs font-bold uppercase ${isDraggingModal ? 'text-blue-600' : 'text-slate-400'}`}>{isDraggingModal ? '¡Suelta para adjuntar!' : 'Click o arrastra para adjuntar'}</span>
-                            </div>
-                        )}
-                        <input type="file" accept="application/pdf" ref={fileInputEditRef} onChange={(e) => setNuevoArchivo(e.target.files[0])} className="hidden" />
+                        ) : null}
+                        <button type="button" onClick={() => fileInputEditRef.current.click()} className={`mt-2 w-full py-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors ${isDraggingModal ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                            {isDraggingModal ? <ArrowDownCircle size={32} className="text-blue-600 animate-bounce mb-1" /> : <UploadCloud size={24} className="text-slate-400 mb-1" />}
+                            <span className={`text-xs font-bold uppercase ${isDraggingModal ? 'text-blue-600' : 'text-slate-400'}`}>{isDraggingModal ? '¡Suelta para adjuntar!' : (gastoEditado.url_factura ? 'Reemplazar factura PDF' : 'Click o arrastra para adjuntar')}</span>
+                        </button>
+                        <input type="file" accept="application/pdf,.pdf" aria-label="Factura principal" ref={fileInputEditRef} onChange={(e) => {
+                            handleFacturaPrincipal(e.target.files[0]);
+                            e.target.value = '';
+                        }} className="hidden" />
                     </div>
 
-                    <button type="submit" disabled={subiendo} className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-6 shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] ${subiendo ? 'opacity-70 cursor-wait' : ''}`}>
-                        {subiendo ? 'Guardando...' : <><Save size={18} /> Guardar Cambios</>}
+                    <button type="submit" disabled={subiendo || analizandoFactura || misCasetas.some((caseta) => caseta.analizandoFactura)} className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-6 shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] ${subiendo ? 'opacity-70 cursor-wait' : ''}`}>
+                        {subiendo ? 'Guardando...' : (analizandoFactura || misCasetas.some((caseta) => caseta.analizandoFactura) ? 'Analizando factura...' : <><Save size={18} /> Guardar Cambios</>)}
                     </button>
                 </form>
             </div>

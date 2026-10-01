@@ -1,7 +1,13 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FormularioGasto from '../FormularioGasto';
 import { AuthProvider } from '../AuthContext';
+import { extractInvoiceAmount } from '../invoicePdfScanner';
+import Swal from 'sweetalert2';
+
+vi.mock('../invoicePdfScanner', () => ({
+    extractInvoiceAmount: vi.fn(),
+}));
 
 // Mock de dependencias externas
 vi.mock('../AuthContext', async (importOriginal) => {
@@ -44,6 +50,10 @@ describe('FormularioGasto Component', () => {
         window.alert = vi.fn();
     });
 
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     it('debería renderizar el formulario con los campos iniciales', () => {
         render(<FormularioGasto />);
 
@@ -81,6 +91,74 @@ describe('FormularioGasto Component', () => {
         // Cambiar a otra categoría
         fireEvent.change(categoriaSelect, { target: { value: 'Comida' } });
         expect(screen.queryByText('Casetas (Tolls)')).not.toBeInTheDocument();
+    });
+
+    it('precarga el monto detectado al adjuntar una factura PDF', async () => {
+        extractInvoiceAmount.mockResolvedValue(987.65);
+        const { container } = render(<FormularioGasto />);
+        const file = new File(['pdf'], 'factura.pdf', { type: 'application/pdf' });
+
+        fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [file] } });
+
+        await waitFor(() => expect(screen.getByPlaceholderText('0.00')).toHaveValue(987.65));
+        expect(screen.getByText('Total detectado: $987.65')).toBeInTheDocument();
+    });
+
+    it('permite conservar el monto ingresado cuando difiere del total detectado', async () => {
+        extractInvoiceAmount.mockResolvedValue(987.65);
+        const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isDenied: true });
+        const { container } = render(<FormularioGasto />);
+        const montoInput = screen.getByPlaceholderText('0.00');
+        fireEvent.change(montoInput, { target: { value: '800.00' } });
+
+        fireEvent.change(container.querySelector('input[type="file"]'), {
+            target: { files: [new File(['pdf'], 'factura.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(fireSpy).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Los montos no coinciden',
+            showDenyButton: true,
+            confirmButtonText: 'Usar detectado ($987.65)',
+            denyButtonText: 'Usar ingresado ($800.00)',
+        })));
+        await waitFor(() => expect(montoInput).toHaveValue(800));
+        expect(screen.getByText('Se conservará el monto ingresado: $800.00')).toBeInTheDocument();
+    });
+
+    it('permite usar el total detectado cuando difiere del monto ingresado', async () => {
+        extractInvoiceAmount.mockResolvedValue(987.65);
+        vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
+        const { container } = render(<FormularioGasto />);
+        const montoInput = screen.getByPlaceholderText('0.00');
+        fireEvent.change(montoInput, { target: { value: '800.00' } });
+
+        fireEvent.change(container.querySelector('input[type="file"]'), {
+            target: { files: [new File(['pdf'], 'factura.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(montoInput).toHaveValue(987.65));
+        expect(screen.getByText('Total detectado: $987.65')).toBeInTheDocument();
+    });
+
+    it('analiza la factura de una caseta y permite elegir entre ambos montos', async () => {
+        extractInvoiceAmount.mockResolvedValue(987.65);
+        const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isDenied: true });
+        render(<FormularioGasto />);
+
+        fireEvent.click(screen.getByRole('button', { name: /\+ Agregar/i }));
+        const casetaMonto = screen.getAllByPlaceholderText('0.00').at(-1);
+        fireEvent.change(casetaMonto, { target: { value: '800.00' } });
+        fireEvent.change(screen.getByLabelText('Factura de caseta 1'), {
+            target: { files: [new File(['pdf'], 'caseta.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(fireSpy).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Los montos no coinciden',
+            confirmButtonText: 'Usar detectado ($987.65)',
+            denyButtonText: 'Usar ingresado ($800.00)',
+        })));
+        await waitFor(() => expect(casetaMonto).toHaveValue(800));
+        expect(screen.getByText('Se conservará el monto ingresado: $800.00')).toBeInTheDocument();
     });
 
     it('debería llamar a addDoc con los datos correctos al enviar el formulario', async () => {

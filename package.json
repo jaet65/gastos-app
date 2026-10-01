@@ -21,6 +21,7 @@
     "framer-motion": "^12.27.5",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "pdf-lib": "^1.17.1",
@@ -28,8 +29,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-swipeable": "^7.0.2",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
-    "sweetalert2": "^11.14.0"
+    "sweetalert2": "^11.14.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

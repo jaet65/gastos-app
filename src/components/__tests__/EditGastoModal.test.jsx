@@ -3,6 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Swal from 'sweetalert2';
 import EditGastoModal from '../EditGastoModal';
+import { extractInvoiceAmount } from '../invoicePdfScanner';
+
+vi.mock('../invoicePdfScanner', () => ({
+    extractInvoiceAmount: vi.fn().mockResolvedValue(null),
+}));
 
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({
@@ -112,6 +117,52 @@ describe('EditGastoModal Component', () => {
         await waitFor(() => {
             expect(screen.queryByDisplayValue('180')).not.toBeInTheDocument();
         });
+    });
+
+    it('analiza la factura principal nueva y confirma el monto detectado', async () => {
+        extractInvoiceAmount.mockResolvedValue(987.65);
+        const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
+        const swalContainer = document.createElement('div');
+        vi.spyOn(Swal, 'getContainer').mockReturnValue(swalContainer);
+        render(<EditGastoModal gasto={mockGastoTransporte} onClose={mockOnClose} onSave={mockOnSave} />);
+
+        fireEvent.change(screen.getByLabelText('Factura principal'), {
+            target: { files: [new File(['pdf'], 'factura-nueva.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(fireSpy).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Los montos no coinciden',
+            confirmButtonText: 'Usar detectado ($987.65)',
+            denyButtonText: 'Usar ingresado ($1500.00)',
+            didOpen: expect.any(Function),
+        })));
+        fireSpy.mock.calls.find(([options]) => options.title === 'Los montos no coinciden')[0].didOpen();
+        expect(swalContainer.style.zIndex).toBe('100000');
+        await waitFor(() => expect(screen.getByDisplayValue('987.65')).toBeInTheDocument());
+        expect(screen.getByText('Total detectado: $987.65')).toBeInTheDocument();
+    });
+
+    it('analiza la factura de una caseta editada y conserva el monto elegido', async () => {
+        extractInvoiceAmount.mockResolvedValue(987.65);
+        vi.spyOn(Swal, 'fire').mockResolvedValue({ isDenied: true });
+        const casetaConFactura = { ...mockCasetas[0], url_factura: 'http://factura.url/caseta.pdf', deleteToken: 'token-caseta' };
+        mockGetDocs.mockResolvedValueOnce({
+            docs: [{ id: casetaConFactura.id, data: () => casetaConFactura }]
+        });
+        render(<EditGastoModal gasto={mockGastoTransporte} onClose={mockOnClose} onSave={mockOnSave} />);
+
+        expect(await screen.findByTitle('Ver factura guardada')).toBeInTheDocument();
+        fireEvent.change(await screen.findByLabelText('Factura de caseta 1'), {
+            target: { files: [new File(['pdf'], 'caseta.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Los montos no coinciden',
+            confirmButtonText: 'Usar detectado ($987.65)',
+            denyButtonText: 'Usar ingresado ($180.00)',
+        })));
+        expect(await screen.findByDisplayValue('180')).toBeInTheDocument();
+        expect(screen.getByText('Se conservará el monto ingresado: $180.00')).toBeInTheDocument();
     });
 
     it('debería llamar a onSave y a las funciones de Firestore al guardar los cambios', async () => {
