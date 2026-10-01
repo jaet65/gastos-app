@@ -8,8 +8,12 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
 import { getCloudinaryFilename } from './cloudinary';
 import Swal from 'sweetalert2';
-import { extractInvoiceAmount } from './invoicePdfScanner';
 import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
+
+const extractInvoiceAmount = async (file) => {
+  const scanner = await import('./invoicePdfScanner');
+  return scanner.extractInvoiceAmount(file);
+};
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars

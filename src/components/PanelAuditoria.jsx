@@ -1,5 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { Download } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react';
@@ -201,7 +199,11 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         );
     }
 
-    const handleGenerateReport = () => {
+    const handleGenerateReport = async () => {
+        const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+            import('jspdf'),
+            import('jspdf-autotable'),
+        ]);
         const doc = new jsPDF();
         
         // 1. Título principal

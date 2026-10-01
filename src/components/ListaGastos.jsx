@@ -7,12 +7,10 @@ import Footer from './Footer';
 import ReporteOpcionesModal from './ReporteOpcionesModal';
 import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { AnimatePresence } from 'framer-motion';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { useSwipeable } from 'react-swipeable';
 import { saveAs } from 'file-saver';
-import JSZip from 'jszip';
 import { filtrarGastosParaReporte, resolverGastosPorIds } from './reportFilters';
-import ExcelJS from 'exceljs'; import { getDoc } from 'firebase/firestore';
+import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { differenceInCalendarDays } from 'date-fns';
 import {Card, Title, Text, Metric, List, ListItem, Badge, Flex, Icon,Divider,} from '@tremor/react';
@@ -299,6 +297,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
   // --- Automatización de Solicitud de Recursos ($0.00) ---
   const generarPdfSolicitudCero = async (fInicio, fFin) => {
+    const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage();
     const { height } = page.getSize();
@@ -566,6 +565,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         generarReportePdf(gastosFiltrados, fInicio, fFin, solicitudVinculada, esMAF, montoMAF)
       ]);
 
+      const { default: JSZip } = await import('jszip');
       const zip = new JSZip();
       zip.file(`${baseFileName}.xlsx`, excelBlob);
       zip.file(`${baseFileName}.pdf`, pdfBlob);
@@ -756,6 +756,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   };
 
   const generarReporteExcel = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null, esMAF = false, montoMAF = 0) => {
+    const { default: ExcelJS } = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Reporte de Gastos');
 
@@ -914,6 +915,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   };
 
   const generarReportePdf = async (gastosFiltrados, fechaInicioReporte, fechaFinReporte, solicitudVinculada = null, esMAF = false, montoMAF = 0) => {
+    const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);

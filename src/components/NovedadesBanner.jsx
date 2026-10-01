@@ -24,7 +24,7 @@ const NovedadesBanner = () => {
       <Sparkles size={18} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
       <p className="flex-1">
         <span className="font-bold">¡Gastos MAF se actualizó!</span>{' '}
-        ¡Nuevas funciones disponibles! Ahora, al adjuntar una factura, el sistema detecta el monto automáticamente y llena el formulario por ti. Además, puedes obtener una vista previa de tus solicitudes y reportes sin necesidad de descargarlos.
+        Ahora, al adjuntar una factura, el sistema detecta el monto automáticamente y llena el formulario por ti. Además, puedes obtener una vista previa de tus solicitudes y reportes sin necesidad de descargarlos.
       </p>
       <button
         type="button"

@@ -1,13 +1,8 @@
-import AuditoriaView from './components/AuditoriaView';
-import FormularioGasto from './components/FormularioGasto';
-import ListaGastos from './components/ListaGastos';
-import ListaSolicitudes from './components/ListaSolicitudes';
-import ListaUsuarios from './components/ListaUsuarios';
 import PanelUsuarioAdmin from './components/PanelUsuarioAdmin';
 import Login from './components/Login';
 import NovedadesBanner from './components/NovedadesBanner';
 import { Menu, X, LogOut, Share2 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
 import { Badge } from "@tremor/react";
@@ -16,6 +11,12 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
+
+const FormularioGasto = lazy(() => import('./components/FormularioGasto'));
+const ListaGastos = lazy(() => import('./components/ListaGastos'));
+const ListaSolicitudes = lazy(() => import('./components/ListaSolicitudes'));
+const ListaUsuarios = lazy(() => import('./components/ListaUsuarios'));
+const AuditoriaView = lazy(() => import('./components/AuditoriaView'));
 
 function App() {
   const { user, userData, logout, loading } = useAuth();
@@ -299,7 +300,9 @@ function App() {
             ) : (
               <>
                 <NovedadesBanner />
-                <FormularioGasto />
+                <Suspense fallback={<div className="p-4 text-center text-slate-500">Cargando formulario...</div>}>
+                  <FormularioGasto />
+                </Suspense>
               </>
             )}
           </div>
@@ -325,13 +328,16 @@ function App() {
 
             <div className="relative">
               <div hidden={activeTab !== 'gastos'} aria-hidden={activeTab !== 'gastos'}>
-                <ListaGastos
-                  ref={listaGastosRef}
-                  adminViewUid={adminSelectedUser?.uid}
-                  adminEditMode={adminEditMode}
-                  adminSelectedUser={adminSelectedUser}
-                />
+                <Suspense fallback={<div className="p-4 text-center text-slate-500">Cargando gastos...</div>}>
+                  <ListaGastos
+                    ref={listaGastosRef}
+                    adminViewUid={adminSelectedUser?.uid}
+                    adminEditMode={adminEditMode}
+                    adminSelectedUser={adminSelectedUser}
+                  />
+                </Suspense>
               </div>
+              <Suspense fallback={<div className="p-4 text-center text-slate-500">Cargando vista...</div>}>
               <AnimatePresence mode="wait">
                 {activeTab === 'solicitudes' && (
                   <motion.div
@@ -371,6 +377,7 @@ function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              </Suspense>
             </div>
           </div>
         </div>

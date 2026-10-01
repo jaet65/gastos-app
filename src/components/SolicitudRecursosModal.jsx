@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { addMonths, differenceInCalendarDays, eachDayOfInterval, endOfMonth, format as formatDate, getDay, isSameDay, isToday, isWithinInterval, startOfMonth, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { format } from 'date-fns-tz';
@@ -98,6 +97,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     }, [calendarioAbierto]);
 
     const generarPdfSolicitud = async () => {
+        const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
         const pdfDoc = await PDFDocument.create();
         const page = pdfDoc.addPage();
         const { width, height } = page.getSize();

@@ -4,7 +4,6 @@ import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateD
 import { Card, Title, Text, Flex, Button, Subtitle } from "@tremor/react";
 import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar, Upload } from 'lucide-react';
 import PanelAuditoria from './PanelAuditoria';
-import * as XLSX from 'xlsx';
 
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
     <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-12 hover:bg-white focus-within:bg-white focus-within:border-blue-300 transition-all">
@@ -83,6 +82,7 @@ const AuditoriaView = () => {
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
+                const XLSX = await import('xlsx');
                 const data = event.target.result;
                 const workbook = XLSX.read(data, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0];

@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -31,9 +32,6 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       if (user) {
         // Verificar/Crear perfil en Firestore
-        const { doc, getDoc, setDoc } = await import('firebase/firestore');
-        const { db } = await import('../firebase');
-
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
 

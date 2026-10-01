@@ -56,15 +56,15 @@ describe('App Component', () => {
         expect(screen.getByTestId('login-screen')).toBeInTheDocument();
     });
 
-    it('debería mostrar la interfaz principal si hay un usuario autenticado', () => {
+    it('debería mostrar la interfaz principal si hay un usuario autenticado', async () => {
         useAuth.mockReturnValue({
             loading: false,
             user: { uid: 'test-user' },
             userData: { role: 'user' }
         });
         render(<App />);
-        expect(screen.getByTestId('formulario-gasto')).toBeInTheDocument();
-        expect(screen.getByTestId('lista-gastos')).toBeInTheDocument();
+        expect(await screen.findByTestId('formulario-gasto')).toBeInTheDocument();
+        expect(await screen.findByTestId('lista-gastos')).toBeInTheDocument();
     });
 
     it('debería avisar de las novedades al detectar una nueva versión y recordar el cierre', async () => {
@@ -78,7 +78,7 @@ describe('App Component', () => {
 
         const banner = await screen.findByRole('status');
         expect(banner).toHaveTextContent(/se actualizó/i);
-        const formulario = screen.getByTestId('formulario-gasto');
+        const formulario = await screen.findByTestId('formulario-gasto');
         expect(banner.compareDocumentPosition(formulario) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: /Cerrar aviso de actualización/i }));
 
@@ -109,7 +109,7 @@ describe('App Component', () => {
         render(<App />);
 
         // La pestaña de gastos es la inicial
-        expect(screen.getByTestId('lista-gastos')).toBeInTheDocument();
+        expect(await screen.findByTestId('lista-gastos')).toBeInTheDocument();
 
         // Cambiar a la pestaña de solicitudes
         const solicitudesTab = screen.getByRole('button', { name: /Solicitudes/i });

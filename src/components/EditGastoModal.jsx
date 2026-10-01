@@ -7,8 +7,12 @@ import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp, u
 import { useAuth } from './AuthContext';
 import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { getCloudinaryFilename } from './cloudinary';
-import { extractInvoiceAmount } from './invoicePdfScanner';
 import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
+
+const extractInvoiceAmount = async (file) => {
+    const scanner = await import('./invoicePdfScanner');
+    return scanner.extractInvoiceAmount(file);
+};
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";

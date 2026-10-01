@@ -9,6 +9,25 @@ export default defineConfig({
     host: true, // Permite acceso desde la red local si lo necesitas
     https: true, // Habilita HTTPS en el servidor de desarrollo
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/@tremor/')) return 'tremor-vendor';
+          if (id.includes('/node_modules/@firebase/')) {
+            const packageName = id.split('/node_modules/@firebase/')[1].split('/')[0];
+            return `firebase-${packageName}`;
+          }
+          if (id.includes('/node_modules/firebase/')) {
+            const packageName = id.split('/node_modules/firebase/')[1].split('/')[0];
+            return `firebase-${packageName}`;
+          }
+          if (id.includes('/node_modules/framer-motion/')) return 'motion-vendor';
+          if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
+        }
+      }
+    }
+  },
   plugins: [
     react(),
     basicSsl(), // Genera el certificado SSL autofirmado automáticamente
@@ -36,9 +55,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Aumenta el límite de tamaño de archivo para el precaching.
-        // El valor está en bytes. 5000000 bytes son ~4.76 MiB.
-        maximumFileSizeToCacheInBytes: 5000000,
+        // El bundle principal supera los 5 MB; Workbox mide este límite en bytes.
+        maximumFileSizeToCacheInBytes: 7000000,
       }
     })
   ],
