@@ -5,6 +5,7 @@ import ListaSolicitudes from './components/ListaSolicitudes';
 import ListaUsuarios from './components/ListaUsuarios';
 import PanelUsuarioAdmin from './components/PanelUsuarioAdmin';
 import Login from './components/Login';
+import NovedadesBanner from './components/NovedadesBanner';
 import { Menu, X, LogOut, Share2 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useSwipeable } from 'react-swipeable';
@@ -296,7 +297,10 @@ function App() {
                 onClearView={clearAdminView}
               />
             ) : (
-              <FormularioGasto />
+              <>
+                <NovedadesBanner />
+                <FormularioGasto />
+              </>
             )}
           </div>
         </div>

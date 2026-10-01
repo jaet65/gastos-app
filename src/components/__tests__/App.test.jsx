@@ -40,6 +40,8 @@ describe('App Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        localStorage.clear();
+        vi.stubEnv('VITE_APP_COMMIT_SHA', 'version-actual');
     });
 
     it('debería mostrar la pantalla de carga inicialmente', () => {
@@ -63,6 +65,39 @@ describe('App Component', () => {
         render(<App />);
         expect(screen.getByTestId('formulario-gasto')).toBeInTheDocument();
         expect(screen.getByTestId('lista-gastos')).toBeInTheDocument();
+    });
+
+    it('debería avisar de las novedades al detectar una nueva versión y recordar el cierre', async () => {
+        useAuth.mockReturnValue({
+            loading: false,
+            user: { uid: 'test-user' },
+            userData: { role: 'user' }
+        });
+        localStorage.setItem('ultimaVersionNovedades', 'version-anterior');
+        render(<App />);
+
+        const banner = await screen.findByRole('status');
+        expect(banner).toHaveTextContent(/se actualizó/i);
+        const formulario = screen.getByTestId('formulario-gasto');
+        expect(banner.compareDocumentPosition(formulario) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: /Cerrar aviso de actualización/i }));
+
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(localStorage.getItem('ultimaVersionNovedades')).toBe('version-actual');
+    });
+
+    it('no debería volver a mostrar el aviso para la versión ya notificada', async () => {
+        useAuth.mockReturnValue({
+            loading: false,
+            user: { uid: 'test-user' },
+            userData: { role: 'user' }
+        });
+        localStorage.setItem('ultimaVersionNovedades', 'version-actual');
+        render(<App />);
+
+        await waitFor(() => {
+            expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        });
     });
 
     it('debería permitir la navegación entre pestañas', async () => {
