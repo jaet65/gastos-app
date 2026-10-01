@@ -74,15 +74,12 @@ describe('SolicitudRecursosModal Component', () => {
     });
 
     it('debería renderizar el modal y calcular los montos al cambiar las fechas', async () => {
-        render(<SolicitudRecursosModal onClose={mockOnClose} />);
+        render(<SolicitudRecursosModal onClose={mockOnClose} fechaInicioInicial="2026-05-10" />);
 
         expect(screen.getByText('Solicitud de Recursos')).toBeInTheDocument();
 
-        const fechaInicioInput = screen.getByLabelText('Fecha de Inicio');
-        const fechaFinInput = screen.getByLabelText('Fecha de Finalización');
-
-        fireEvent.change(fechaInicioInput, { target: { value: '2026-05-10' } });
-        fireEvent.change(fechaFinInput, { target: { value: '2026-05-11' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        fireEvent.click(screen.getByRole('button', { name: '11 mayo 2026' }));
 
         // Esperar a que el resumen aparezca
         expect(await screen.findByText('Resumen de Solicitud (2 días)')).toBeInTheDocument();
@@ -92,19 +89,39 @@ describe('SolicitudRecursosModal Component', () => {
     });
 
     it('debería mostrar un error si la fecha de fin es anterior a la de inicio', async () => {
-        render(<SolicitudRecursosModal onClose={mockOnClose} />);
-
-        fireEvent.change(screen.getByLabelText('Fecha de Inicio'), { target: { value: '2026-05-12' } });
-        fireEvent.change(screen.getByLabelText('Fecha de Finalización'), { target: { value: '2026-05-11' } });
+        render(<SolicitudRecursosModal onClose={mockOnClose} fechaInicioInicial="2026-05-12" fechaFinInicial="2026-05-11" />);
 
         expect(await screen.findByText('La fecha de finalización no puede ser anterior a la fecha de inicio.')).toBeInTheDocument();
     });
 
-    it('debería llamar a addDoc y a las funciones de subida al generar la solicitud', async () => {
-        render(<SolicitudRecursosModal onClose={mockOnClose} onSolicitudCreada={mockOnSolicitudCreada} />);
+    it('debería cerrar el calendario con Escape o al hacer clic fuera', () => {
+        render(<SolicitudRecursosModal onClose={mockOnClose} />);
 
-        fireEvent.change(screen.getByLabelText('Fecha de Inicio'), { target: { value: '2026-05-10' } });
-        fireEvent.change(screen.getByLabelText('Fecha de Finalización'), { target: { value: '2026-05-10' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        expect(screen.getByRole('dialog', { name: 'Seleccionar periodo' })).toBeInTheDocument();
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(screen.queryByRole('dialog', { name: 'Seleccionar periodo' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        const calendario = screen.getByRole('dialog', { name: 'Seleccionar periodo' });
+        fireEvent.click(calendario.parentElement);
+        expect(screen.queryByRole('dialog', { name: 'Seleccionar periodo' })).not.toBeInTheDocument();
+    });
+
+    it('debería resaltar e identificar el día de hoy', () => {
+        render(<SolicitudRecursosModal onClose={mockOnClose} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        const botonHoy = screen.getByRole('button', { name: /hoy$/i });
+
+        expect(botonHoy).toHaveClass('ring-gray-500');
+    });
+
+    it('debería llamar a addDoc y a las funciones de subida al generar la solicitud', async () => {
+        render(<SolicitudRecursosModal onClose={mockOnClose} onSolicitudCreada={mockOnSolicitudCreada} fechaInicioInicial="2026-05-10" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        fireEvent.click(screen.getByRole('button', { name: '10 mayo 2026' }));
 
         const botonGenerar = await screen.findByRole('button', { name: /Generar y Guardar Solicitud/i });
         fireEvent.click(botonGenerar);

@@ -4,10 +4,10 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { collection, addDoc, Timestamp } from 'firebase/firestore'; // Se mantiene addDoc y collection
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { differenceInCalendarDays } from 'date-fns'; // Correct import
+import { addMonths, differenceInCalendarDays, eachDayOfInterval, endOfMonth, format as formatDate, getDay, isSameDay, isToday, isWithinInterval, startOfMonth, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { format } from 'date-fns-tz';
-import { X, FileCog, Send } from 'lucide-react';
+import { X, FileCog, Send, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import Swal from 'sweetalert2';
 
@@ -25,10 +25,33 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const [fechaFin, setFechaFin] = useState(fechaFinInicial);
     const [cantidadPersonas, setCantidadPersonas] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [calendarioAbierto, setCalendarioAbierto] = useState(false);
+    const [mesVisible, setMesVisible] = useState(() => startOfMonth(fechaInicioInicial ? new Date(`${fechaInicioInicial}T00:00:00`) : new Date()));
 
     const nombreConsultor = user?.displayName || user?.email || 'Consultor Desconocido';
 
     const personas = Math.max(1, Number(cantidadPersonas) || 1);
+    const diasDelMes = eachDayOfInterval({ start: startOfMonth(mesVisible), end: endOfMonth(mesVisible) });
+    const espaciosIniciales = (getDay(startOfMonth(mesVisible)) + 6) % 7;
+    const fechaInicioDate = fechaInicio ? new Date(`${fechaInicio}T00:00:00`) : null;
+    const fechaFinDate = fechaFin ? new Date(`${fechaFin}T00:00:00`) : null;
+
+    const seleccionarFecha = (date) => {
+        const fechaSeleccionada = formatDate(date, 'yyyy-MM-dd');
+        if (!fechaInicio || fechaFin || date < fechaInicioDate) {
+            setFechaInicio(fechaSeleccionada);
+            setFechaFin('');
+            return;
+        }
+        setFechaFin(fechaSeleccionada);
+        setCalendarioAbierto(false);
+    };
+
+    const etiquetaRango = fechaInicio && fechaFin
+        ? `${formatDate(fechaInicioDate, 'd MMM yyyy', { locale: es })} - ${formatDate(fechaFinDate, 'd MMM yyyy', { locale: es })}`
+        : fechaInicio
+            ? `${formatDate(fechaInicioDate, 'd MMM yyyy', { locale: es })} - Selecciona fecha final`
+            : 'Seleccionar fechas';
 
     const { dias, montoTransporte, montoComida, totalSolicitado } = useMemo(() => {
         if (!fechaInicio || !fechaFin) return { dias: 0, montoTransporte: 0, montoComida: 0, totalSolicitado: 0 };
@@ -62,6 +85,17 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
             setFechaError('');
         }
     }, [fechaInicio, fechaFin]);
+
+    useEffect(() => {
+        if (!calendarioAbierto) return undefined;
+
+        const cerrarConEscape = (event) => {
+            if (event.key === 'Escape') setCalendarioAbierto(false);
+        };
+
+        window.addEventListener('keydown', cerrarConEscape);
+        return () => window.removeEventListener('keydown', cerrarConEscape);
+    }, [calendarioAbierto]);
 
     const generarPdfSolicitud = async () => {
         const pdfDoc = await PDFDocument.create();
@@ -223,16 +257,41 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                     <div><p className="text-sm"><span className="font-bold">Consultor:</span> {nombreConsultor}</p></div>
                     <div><p className="text-sm"><span className="font-bold">Proyecto:</span> Rally TrackSIM</p></div>
 
-                    <div className="grid grid-cols-[1fr_1fr_auto] gap-4 pt-4 items-end">
-                        <div>
-                            <label htmlFor="fechaInicio" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Inicio</label>
-                            <input id="fechaInicio" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_8rem] gap-4 pt-4 items-end">
+                        <div className="relative min-w-0">
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Periodo de solicitud</label>
+                            <button type="button" aria-label="Seleccionar fechas" aria-expanded={calendarioAbierto} onClick={() => setCalendarioAbierto(!calendarioAbierto)} className="w-full min-w-0 p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 flex items-center gap-2 focus:border-blue-600 focus:ring-1 focus:ring-blue-600">
+                                <CalendarDays size={18} className="shrink-0 text-slate-500" />
+                                <span className="truncate">{etiquetaRango}</span>
+                            </button>
+                            {calendarioAbierto && (
+                                <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/30 p-4" onClick={(event) => {
+                                    if (event.target === event.currentTarget) setCalendarioAbierto(false);
+                                }}>
+                                    <div role="dialog" aria-modal="true" aria-label="Seleccionar periodo" className="calendar-enter max-h-[calc(100dvh-2rem)] w-full max-w-xs overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <button type="button" aria-label="Mes anterior" onClick={() => setMesVisible(subMonths(mesVisible, 1))} className="rounded-full p-2 text-slate-600 hover:bg-slate-100"><ChevronLeft size={18} /></button>
+                                        <h4 className="font-bold capitalize text-slate-800">{formatDate(mesVisible, 'MMMM yyyy', { locale: es })}</h4>
+                                        <button type="button" aria-label="Mes siguiente" onClick={() => setMesVisible(addMonths(mesVisible, 1))} className="rounded-full p-2 text-slate-600 hover:bg-slate-100"><ChevronRight size={18} /></button>
+                                    </div>
+                                    <div className="grid grid-cols-7 text-center text-xs font-bold text-slate-500">
+                                        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((dia, index) => <span key={`${dia}-${index}`} className="py-2">{dia}</span>)}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-y-1 text-center">
+                                        {Array.from({ length: espaciosIniciales }, (_, index) => <span key={`empty-${index}`} />)}
+                                        {diasDelMes.map((date) => {
+                                            const enRango = fechaInicioDate && fechaFinDate && isWithinInterval(date, { start: fechaInicioDate, end: fechaFinDate });
+                                            const seleccionado = (fechaInicioDate && isSameDay(date, fechaInicioDate)) || (fechaFinDate && isSameDay(date, fechaFinDate));
+                                            const esHoy = isToday(date);
+                                            return <button key={date.toISOString()} type="button" aria-label={`${formatDate(date, 'd MMMM yyyy', { locale: es })}${esHoy ? ', hoy' : ''}`} aria-pressed={Boolean(seleccionado)} onClick={() => seleccionarFecha(date)} className={`aspect-square rounded-full text-sm transition-colors ${seleccionado ? 'bg-blue-600 font-bold text-white' : enRango ? 'rounded-none bg-blue-100 text-blue-800' : 'text-slate-700 hover:bg-slate-100'} ${esHoy ? 'ring-1 ring-gray-500 ring-inset font-bold' : ''}`}>{formatDate(date, 'd')}</button>;
+                                        })}
+                                    </div>
+                                    <p className="mt-3 text-center text-xs text-slate-500">{fechaFin ? 'Fechas seleccionadas' : 'Selecciona inicio y fin'}</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <label htmlFor="fechaFin" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fecha de Finalización</label>
-                            <input id="fechaFin" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600" />
-                        </div>
-                        <div>
+                        <div className="min-w-0">
                             <label htmlFor="cantidadPersonas" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Personas</label>
                             <input
                                 id="cantidadPersonas"
@@ -243,7 +302,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                                     const val = parseInt(e.target.value, 10);
                                     setCantidadPersonas(isNaN(val) || val < 1 ? 1 : val);
                                 }}
-                                className="w-20 p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 text-center focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                                className="w-full p-3 bg-white border border-slate-300 rounded-full font-bold text-slate-800 text-center focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                             />
                         </div>
                     </div>
