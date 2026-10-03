@@ -327,18 +327,30 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     y -= 40;
     page.drawText('Desglose de Gastos:', { x: margin, y, font: boldFont, size: 14 });
     y -= 30;
+    const anchoTexto = font.widthOfTextAtSize('$0.00', 12);
     page.drawText('Transporte:', { x: margin + 20, y, font, size: 12 });
     page.drawText('$0.00', { x: margin + 150, y, font, size: 12 });
+    page.drawLine({start: { x: margin + 150, y: y + 4 }, end: { x: margin + 150 + anchoTexto, y: y + 4 }, thickness: 2, color: rgb(0.5, 0, 0.13)});
     y -= 20;
     page.drawText('Comida:', { x: margin + 20, y, font, size: 12 });
     page.drawText('$0.00', { x: margin + 150, y, font, size: 12 });
+    page.drawLine({start: { x: margin + 150, y: y + 4 }, end: { x: margin + 150 + anchoTexto, y: y + 4 }, thickness: 2, color: rgb(0.5, 0, 0.13)});
     y -= 10;
     page.drawLine({ start: { x: margin, y }, end: { x: margin + 250, y }, thickness: 1 });
     y -= 20;
+    const anchoTextoTotal = boldFont.widthOfTextAtSize('$0.00', 14);
     page.drawText('Total Solicitado:', { x: margin, y, font: boldFont, size: 14 });
     page.drawText('$0.00', { x: margin + 150, y, font: boldFont, size: 14 });
+    page.drawLine({start: { x: margin + 150, y: y + 4 }, end: { x: margin + 150 + anchoTextoTotal, y: y + 4 }, thickness: 2, color: rgb(0.5, 0, 0.13)});
 
-    const footerText = `Solicitud generada automáticamente para comprobación de gastos: ${formatearFecha(fInicio)} al ${formatearFecha(fFin)}`;
+    y -= 40;
+    page.drawText('Observaciones:', { x: margin, y, font: boldFont, size: 12 });
+    y -= 20;
+    page.drawText(`Solicitud generada automáticamente para comprobación de recursos con fechas de:`, { x: margin, y, font, size: 10 });
+    y -= 14;
+    page.drawText(`${formatearFecha(fInicio)} al ${formatearFecha(fFin)}`, { x: margin, y, font, size: 10 });
+
+    const footerText = `Solicitud generada automáticamente para comprobación de recursos con fechas de: ${formatearFecha(fInicio)} al ${formatearFecha(fFin)}`;
     page.drawText(footerText, { x: margin, y: 30, size: 8, font: font, color: rgb(0.5, 0.5, 0.5) });
 
     return await pdfDoc.save();
@@ -641,7 +653,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
           timer: 3000,
           timerProgressBar: true
       });
-      
+
       } catch (error) {
       console.error(`Error generando el reporte compilado:`, error);
       Swal.fire({
@@ -1024,6 +1036,14 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       const importeRecibidoAncho = boldFont.widthOfTextAtSize(importeRecibidoTexto, 12);
       page.drawText('Importe recibido:', { x: margin, y: currentY, font: font, size: 12 });
       page.drawText(importeRecibidoTexto, { x: width - margin - importeRecibidoAncho, y: currentY, font: boldFont, size: 12 });
+      if (Number(importeRecibido) === 0) {
+        page.drawLine({
+          start: { x: width - margin - importeRecibidoAncho, y: currentY + 4 },
+          end: { x: width - margin, y: currentY + 4 },
+          thickness: 2,
+          color: rgb(0.5, 0, 0.13),
+        });
+      }
       currentY -= 20;
     }
 

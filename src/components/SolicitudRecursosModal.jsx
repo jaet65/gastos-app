@@ -137,7 +137,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         page.drawText('Personas:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText(`${personas}`, { x: margin + 100, y, font, size: 12 });
         y -= 40;
-        page.drawText('Desglose de Gastos:', { x: margin, y, font: boldFont, size: 14 });
+        page.drawText('Desglose de recursos:', { x: margin, y, font: boldFont, size: 14 });
         y -= 30;
         page.drawText(`Transporte ($700/día x ${personas}):`, { x: margin + 20, y, font, size: 12 });
         page.drawText(formatoMoneda(montoTransporte), { x: margin + 220, y, font, size: 12 });
@@ -149,6 +149,12 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         y -= 20;
         page.drawText('Total Solicitado:', { x: margin, y, font: boldFont, size: 14 });
         page.drawText(formatoMoneda(totalSolicitado), { x: margin + 220, y, font: boldFont, size: 14 });
+        y -= 40;
+        page.drawText('Observaciones:', { x: margin, y, font: boldFont, size: 12 });
+        y -= 20;
+        page.drawText(`Solicitud de recursos por comisión a para el proyecto de TrackSIM comprendido de las fechas de:`, { x: margin, y, font, size: 10 });
+        y -= 14;
+        page.drawText(`${fechaInicio} hasta ${fechaFin}`, { x: margin, y, font, size: 10 });
 
         // --- Pie de página ---
         const footerText = `Solicitud de recursos por comisión a para el proyecto de TrackSIM comprendido de las fechas de: ${fechaInicio} hasta ${fechaFin}`;
