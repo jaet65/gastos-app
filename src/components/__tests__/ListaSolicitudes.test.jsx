@@ -109,18 +109,42 @@ describe('ListaSolicitudes Component', () => {
             expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
             expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { estado: 'Recibida' });
         });
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            toast: true,
+            icon: 'success',
+            title: 'Estado actualizado correctamente',
+        }));
+    });
+
+    it('muestra un SweetAlert si falla el cambio de estado', async () => {
+        mockUpdateDoc.mockRejectedValueOnce(new Error('Firestore unavailable'));
+        render(<ListaSolicitudes />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /^Solicitada$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Error',
+            text: 'Firestore unavailable',
+            icon: 'error',
+        })));
+        expect(alert).not.toHaveBeenCalled();
     });
 
     it('pregunta y elimina el reporte adjunto de Cloudinary y Firestore al confirmar', async () => {
         mockSolicitudes[0].estado = 'Esperando...';
+        mockSolicitudes[0].estadoAnteriorReporte = 'Recibida';
         fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
         render(<ListaSolicitudes />);
 
         fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
-        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Solicitada$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
-        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('¿Deseas cancelar el reporte'));
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            confirmButtonText: 'Sí, cancelar y eliminar',
+            cancelButtonText: 'No, mantener',
+        }));
         const [cloudinaryUrl, cloudinaryOptions] = fetch.mock.calls[0];
         expect(cloudinaryUrl).toContain('/delete_by_token');
         expect(cloudinaryOptions.headers['Content-Type']).toContain('application/x-www-form-urlencoded');
@@ -135,20 +159,28 @@ describe('ListaSolicitudes Component', () => {
             estadoAnteriorReporte: '__DELETE_FIELD__',
             gastosReporteIds: '__DELETE_FIELD__',
         }));
+        expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            toast: true,
+            icon: 'success',
+            title: 'Estado actualizado correctamente',
+        }));
         expect(mockUpdateDoc.mock.calls[0][1]).not.toHaveProperty('deleteToken');
     });
 
-    it('conserva el reporte y cambia el estado si se rechaza la cancelación', async () => {
+    it('no cambia el estado ni elimina el reporte si se rechaza la cancelación', async () => {
         mockSolicitudes[0].estado = 'Esperando...';
-        window.confirm.mockReturnValueOnce(false);
+        mockSolicitudes[0].estadoAnteriorReporte = 'Recibida';
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
         render(<ListaSolicitudes />);
 
         fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
-        fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: /^Solicitada$/ }));
 
-        await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            confirmButtonText: 'Sí, cancelar y eliminar',
+        })));
         expect(fetch).not.toHaveBeenCalled();
-        expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { estado: 'Recibida' });
+        expect(mockUpdateDoc).not.toHaveBeenCalled();
     });
 
     it('elimina el token legado del ZIP MAF sin adjunto de solicitud', async () => {
@@ -173,7 +205,6 @@ describe('ListaSolicitudes Component', () => {
             status: 400,
             json: async () => ({ error: { message: 'Stale request - reported time is more than 1 hour ago' } }),
         });
-        window.confirm.mockReturnValueOnce(true);
         Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaSolicitudes />);
 
@@ -181,7 +212,6 @@ describe('ListaSolicitudes Component', () => {
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
-        expect(window.confirm).toHaveBeenCalledTimes(1);
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
             title: 'Token caducado',
         }));
@@ -194,8 +224,7 @@ describe('ListaSolicitudes Component', () => {
 
     it('mantiene el reporte si se rechaza eliminar manualmente un ZIP con token caducado', async () => {
         mockSolicitudes[0].estado = 'Esperando...';
-        window.confirm.mockReturnValueOnce(true);
-        Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true }).mockResolvedValueOnce({ isConfirmed: false });
         fetch.mockResolvedValue({
             ok: false,
             status: 400,
@@ -207,7 +236,6 @@ describe('ListaSolicitudes Component', () => {
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
-        expect(window.confirm).toHaveBeenCalledTimes(1);
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
             title: 'Token caducado',
         }));

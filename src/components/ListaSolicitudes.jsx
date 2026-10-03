@@ -263,12 +263,30 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
     const handleStatusChange = async (solicitud, nuevoEstado) => {
         const solicitudRef = doc(db, "solicitudes", solicitud.id);
         try {
-            const cancelarReporte = solicitud.estado === 'Esperando...' &&
+            // 1. Verificamos si cumple con las condiciones para mostrar la advertencia del reporte
+            const requiereConfirmacionReporte = 
+                solicitud.estado === 'Esperando...' &&
                 solicitud.url_reporte_gastos &&
-                ['Recibida', 'Solicitada'].includes(nuevoEstado) &&
-                window.confirm('Esta solicitud tiene un reporte adjunto. ¿Deseas cancelar el reporte y eliminar el ZIP de Cloudinary?');
+                ['Recibida', 'Solicitada'].includes(nuevoEstado);
 
-            if (cancelarReporte) {
+            if (requiereConfirmacionReporte) {
+                // Mostramos el SweetAlert y esperamos la respuesta del usuario
+                const resultado = await Swal.fire({
+                    title: '¿Estás seguro?',
+                    text: 'Esta solicitud tiene un reporte adjunto. ¿Deseas cancelar el reporte y eliminar el ZIP de Cloudinary?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Sí, cancelar y eliminar',
+                    cancelButtonText: 'No, mantener'
+                });
+
+                if (!resultado.isConfirmed) return;
+            }
+
+            // 2. Si el usuario confirmó la cancelación del reporte
+            if (requiereConfirmacionReporte) {
                 const deleteTokenReporte = solicitud.deleteTokenReporte ||
                     (!solicitud.url_pdf_solicitud ? solicitud.deleteToken : '');
                 const continuarCancelacion = await eliminarCloudinaryConToken(deleteTokenReporte, 'el ZIP del reporte');
@@ -280,7 +298,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                 ));
 
                 await updateDoc(solicitudRef, {
-                    estado: solicitud.estadoAnteriorReporte || 'Solicitada',
+                    estado: nuevoEstado,
                     url_reporte_gastos: deleteField(),
                     nombre_archivo_reporte: deleteField(),
                     deleteTokenReporte: deleteField(),
@@ -292,15 +310,40 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                     resumen_porReembolsar: deleteField(),
                     resumen_porReintegrar: deleteField(),
                 });
+                Swal.fire({
+                    toast: true,
+                    position: 'bottom-end',
+                    icon: 'success',
+                    title: 'Estado actualizado correctamente a ' + nuevoEstado + ' y reporte cancelado',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true
+                });
                 return;
             }
 
+            // 3. Comportamiento normal si no aplica el reporte o si el usuario decidió no cancelarlo
             await updateDoc(solicitudRef, {
                 estado: nuevoEstado
             });
+            Swal.fire({
+                toast: true,
+                position: 'bottom-end',
+                icon: 'success',
+                title: 'Estado actualizado correctamente a ' + nuevoEstado,
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true
+            });
+
         } catch (error) {
             console.error("Error al actualizar el estado: ", error);
-            alert(error.message || "Ocurrió un error al cambiar el estado de la solicitud.");
+            Swal.fire({
+                title: 'Error',
+                text: error.message || 'Ocurrió un error al cambiar el estado de la solicitud.',
+                icon: 'error',
+                confirmButtonText: 'Entendido'
+            });
         }
     };
 

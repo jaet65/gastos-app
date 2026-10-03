@@ -630,8 +630,19 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       }
 
       const updates = gastosFiltrados.map(gasto => updateDoc(doc(db, "gastos", gasto.id), { archivado: true }));
-      await Promise.all(updates); alert("Reporte generado y gastos marcados como archivados.");
-    } catch (error) {
+      await Promise.all(updates);
+
+      Swal.fire({
+          icon: 'success',
+          title: 'Reporte generado y gastos marcados como archivados.',
+          toast: true,
+          position: 'bottom-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+      });
+      
+      } catch (error) {
       console.error(`Error generando el reporte compilado:`, error);
       Swal.fire({
           title: 'Error al generar el reporte',
@@ -779,7 +790,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
     const titleStyle = { font: { bold: true, size: 16 } };
     const resumenTitleCell = worksheet.getCell('A3');
-    resumenTitleCell.value = "Resumen de Gastos";
+    resumenTitleCell.value = "Comprobacion de recursos";
     resumenTitleCell.style = titleStyle;
     worksheet.mergeCells('A3:E3');
 
@@ -988,7 +999,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     }
     currentY -= 100;
 
-    page.drawText('Resumen de Gastos', { x: margin, y: currentY, font: boldFont, size: 24, color: rgb(0, 0, 0) });
+    page.drawText('Comprobacion de recursos', { x: margin, y: currentY, font: boldFont, size: 24, color: rgb(0, 0, 0) });
     currentY -= 40;
 
     if (solicitudVinculada) {
