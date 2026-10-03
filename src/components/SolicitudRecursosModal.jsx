@@ -8,7 +8,7 @@ import { es } from 'date-fns/locale';
 import { format } from 'date-fns-tz';
 import { X, FileCog, Send, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { saveAs } from 'file-saver';
-import Swal from 'sweetalert2';
+import mostrarToastConVistaPrevia from './pdfPreviewToast';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Solicitudes";
@@ -229,15 +229,10 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                 onSolicitudCreada({ id: docRef.id, ...nuevaSolicitudData });
             } else {
                 console.log("LOG: Solicitud creada exitosamente con ID:", docRef.id);
-                Swal.fire({
-                    toast: true,
-                    position: 'bottom-end',
-                    icon: 'success',
-                    title: '¡Solicitud generada!',
-                    showConfirmButton: false,
-                    timer: 3000,
-                    timerProgressBar: true
-                });
+                mostrarToastConVistaPrevia(
+                    '¡Solicitud generada! Haz clic para previsualizar el PDF.',
+                    blob
+                );
             }
             onClose(); // Cierra el modal en cualquier caso
 

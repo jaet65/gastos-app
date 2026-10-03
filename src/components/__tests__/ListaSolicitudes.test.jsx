@@ -112,7 +112,7 @@ describe('ListaSolicitudes Component', () => {
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
             toast: true,
             icon: 'success',
-            title: 'Estado actualizado correctamente',
+            title: 'Estado actualizado correctamente a Recibida',
         }));
     });
 
@@ -162,7 +162,7 @@ describe('ListaSolicitudes Component', () => {
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
             toast: true,
             icon: 'success',
-            title: 'Estado actualizado correctamente',
+            title: 'Estado actualizado correctamente a Solicitada y reporte cancelado',
         }));
         expect(mockUpdateDoc.mock.calls[0][1]).not.toHaveProperty('deleteToken');
     });
@@ -256,7 +256,7 @@ describe('ListaSolicitudes Component', () => {
 
         await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
-            title: '¿Estás seguro?',
+            title: '¿Eliminar solicitud?',
         }));
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
             title: 'Token caducado',
@@ -273,7 +273,7 @@ describe('ListaSolicitudes Component', () => {
         await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
         expect(fetch).not.toHaveBeenCalled();
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
-            title: '¿Estás seguro?',
+            title: '¿Eliminar solicitud?',
         }));
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
             title: 'Sin token de eliminación',
@@ -329,8 +329,59 @@ describe('ListaSolicitudes Component', () => {
             expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
         });
         expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
-            title: '¿Estás seguro?',
+            title: '¿Eliminar solicitud?',
         }));
+    });
+
+    it('permite eliminar una solicitud en espera tras escribir la confirmación y limpia el reporte', async () => {
+        mockSolicitudes[0].estado = 'Esperando...';
+        mockGetDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                estado: 'Esperando...',
+                totalSolicitado: 1000,
+                url_pdf_solicitud: 'https://res.cloudinary.com/request.pdf',
+                deleteToken: 'request-token',
+                url_reporte_gastos: 'https://res.cloudinary.com/report.zip',
+                deleteTokenReporte: 'report-token',
+                gastosReporteIds: ['g1'],
+            }),
+        });
+        fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true })
+            .mockResolvedValueOnce({ isConfirmed: true, value: 'ELIMINAR' });
+        render(<ListaSolicitudes />);
+
+        const deleteButton = await screen.findByTitle('Eliminar solicitud');
+        expect(deleteButton).toBeEnabled();
+        fireEvent.click(deleteButton);
+
+        await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
+        expect(Swal.fire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            title: 'Confirmación adicional',
+            input: 'text',
+        }));
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { archivado: false });
+    });
+
+    it('permite cancelar el borrado de una solicitud cerrada en la confirmación adicional', async () => {
+        mockSolicitudes[0].estado = 'Cerrada';
+        mockGetDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({ estado: 'Cerrada', totalSolicitado: 1000 }),
+        });
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true })
+            .mockResolvedValueOnce({ isConfirmed: false });
+        render(<ListaSolicitudes />);
+
+        const deleteButton = await screen.findByTitle('Eliminar solicitud');
+        expect(deleteButton).toBeEnabled();
+        fireEvent.click(deleteButton);
+
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(2));
+        expect(mockDeleteDoc).not.toHaveBeenCalled();
+        expect(fetch).not.toHaveBeenCalled();
     });
 
     it('ofrece Visualizar y Descargar, y visualiza reportes nuevos desde sus IDs', async () => {

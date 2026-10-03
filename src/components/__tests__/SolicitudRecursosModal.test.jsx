@@ -1,7 +1,9 @@
 /* globals global */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import Swal from 'sweetalert2';
 import SolicitudRecursosModal from '../SolicitudRecursosModal';
+import mostrarToastConVistaPrevia from '../pdfPreviewToast';
 
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({
@@ -68,9 +70,41 @@ describe('SolicitudRecursosModal Component', () => {
 
     beforeEach(async () => {
         vi.clearAllMocks();
+        vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
         window.alert = vi.fn();
         const firestore = await import('firebase/firestore');
         mockAddDoc = firestore.addDoc;
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
+    it('abre el PDF al hacer clic en el toast de vista previa', () => {
+        const archivoPdf = new Blob(['pdf'], { type: 'application/pdf' });
+        const createObjectURL = vi.fn(() => 'blob:solicitud-preview');
+        const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+        vi.spyOn(window, 'setTimeout').mockReturnValue(1);
+        vi.stubGlobal('URL', {
+            createObjectURL,
+            revokeObjectURL: vi.fn(),
+        });
+        let manejarClic;
+        const elementoToast = {
+            style: {},
+            addEventListener: vi.fn((_evento, callback) => {
+                manejarClic = callback;
+            }),
+        };
+
+        mostrarToastConVistaPrevia('Solicitud generada', archivoPdf);
+        const opcionesToast = Swal.fire.mock.calls[0][0];
+        opcionesToast.didOpen(elementoToast);
+        manejarClic();
+
+        expect(createObjectURL).toHaveBeenCalledWith(archivoPdf);
+        expect(openSpy).toHaveBeenCalledWith('blob:solicitud-preview', '_blank', 'noopener,noreferrer');
     });
 
     it('debería renderizar el modal y calcular los montos al cambiar las fechas', async () => {

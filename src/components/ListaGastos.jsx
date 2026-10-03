@@ -16,6 +16,7 @@ import { differenceInCalendarDays } from 'date-fns';
 import {Card, Title, Text, Metric, List, ListItem, Badge, Flex, Icon,Divider,} from '@tremor/react';
 import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Eye, EyeOff, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
 import Swal from 'sweetalert2';
+import mostrarToastConVistaPrevia from './pdfPreviewToast';
 
 const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }, ref) => {
   const { user } = useAuth();
@@ -644,15 +645,10 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       const updates = gastosFiltrados.map(gasto => updateDoc(doc(db, "gastos", gasto.id), { archivado: true }));
       await Promise.all(updates);
 
-      Swal.fire({
-          icon: 'success',
-          title: 'Reporte generado y gastos marcados como archivados.',
-          toast: true,
-          position: 'bottom-end',
-          showConfirmButton: false,
-          timer: 3000,
-          timerProgressBar: true
-      });
+      mostrarToastConVistaPrevia(
+        'Reporte generado. Haz clic para previsualizar el PDF.',
+        pdfBlob
+      );
 
       } catch (error) {
       console.error(`Error generando el reporte compilado:`, error);

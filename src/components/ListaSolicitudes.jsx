@@ -212,44 +212,102 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
 
             const solicitudData = solicitudDoc.data();
             const valorTotal = solicitudData.totalSolicitado ?? 0;
+            const estadoSolicitud = solicitudData.estado || 'Solicitada';
+            const tieneReporte = Boolean(solicitudData.url_reporte_gastos || solicitudData.deleteTokenReporte);
 
             const totalFormateado = new Intl.NumberFormat('es-MX', {
-            style: 'currency',
-            currency: 'MXN'
-        }).format(valorTotal);
+                style: 'currency',
+                currency: 'MXN'
+            }).format(valorTotal);
+
+            if (estadoSolicitud === 'Recibida') {
+                await Swal.fire({
+                    title: 'No se puede eliminar',
+                    text: 'Las solicitudes recibidas deben conservarse para mantener el historial de recursos.',
+                    icon: 'warning',
+                    confirmButtonText: 'Entendido'
+                });
+                return;
+            }
 
             // 2. Mostrar la alerta de confirmación usando el campo correcto
             console.log("LOG: Eliminar solicitud?");
+            const detalleConfirmacion = document.createElement('div');
+            detalleConfirmacion.className = 'space-y-2 text-center';
+            [
+                { texto: `Estado: ${estadoSolicitud}.` },
+                { texto: `Importe: ${totalFormateado}.` },
+                ...(tieneReporte ? [{ texto: 'También se eliminará el reporte adjunto y se restaurarán sus gastos.' }] : []),
+                { texto: 'Esta acción no se puede deshacer.', className: 'font-bold text-red-600' }
+            ].forEach(({ texto, className = '' }) => {
+                const parrafo = document.createElement('p');
+                parrafo.className = className;
+                parrafo.textContent = texto;
+                detalleConfirmacion.appendChild(parrafo);
+            });
+
             const result = await Swal.fire({
-                title: '¿Estás seguro?',
-                text: `¡Eliminar solicitud de ${totalFormateado}! Esta acción no se puede deshacer.`,
+                title: '¿Eliminar solicitud?',
+                html: detalleConfirmacion,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Sí, eliminar',
+                confirmButtonText: 'Continuar',
                 cancelButtonText: 'Cancelar'
             });
 
-            // 3. Si el usuario confirma, procedemos con la eliminación
-            if (result.isConfirmed) {
-                if ((solicitudData.url_pdf_solicitud || solicitudData.deleteToken) &&
-                    !await eliminarCloudinaryConToken(solicitudData.deleteToken, 'el PDF de la solicitud')) return;
-                
-                await deleteDoc(solicitudRef);
-                
-                console.log("LOG: Solicitud eliminada");
+            if (!result.isConfirmed) return;
 
-                Swal.fire({
-                    toast: true,
-                    position: 'bottom-end',
-                    icon: 'success',
-                    title: '¡Solicitud eliminada!',
-                    showConfirmButton: false,
-                    timer: 3000,
-                    timerProgressBar: true
+            if (['Esperando...', 'Cerrada'].includes(estadoSolicitud) || tieneReporte) {
+                const confirmacionFinal = await Swal.fire({
+                    title: 'Confirmación adicional',
+                    text: `Escribe ELIMINAR para confirmar el borrado de la solicitud en estado ${estadoSolicitud}.`,
+                    input: 'text',
+                    inputPlaceholder: 'ELIMINAR',
+                    inputValidator: (value) => value?.trim() === 'ELIMINAR'
+                        ? undefined
+                        : 'Debes escribir ELIMINAR para continuar.',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Eliminar definitivamente',
+                    cancelButtonText: 'Cancelar'
                 });
+
+                if (!confirmacionFinal.isConfirmed || confirmacionFinal.value?.trim() !== 'ELIMINAR') return;
             }
+
+            const tienePdfSolicitud = Boolean(solicitudData.url_pdf_solicitud);
+            const tokenPdfSolicitud = tienePdfSolicitud || !solicitudData.url_reporte_gastos
+                ? solicitudData.deleteToken
+                : '';
+            const tokenReporte = solicitudData.deleteTokenReporte ||
+                (!tienePdfSolicitud ? solicitudData.deleteToken : '');
+
+            if ((solicitudData.url_pdf_solicitud || tokenPdfSolicitud) &&
+                !await eliminarCloudinaryConToken(tokenPdfSolicitud, 'el PDF de la solicitud')) return;
+            if ((solicitudData.url_reporte_gastos || tokenReporte) &&
+                !await eliminarCloudinaryConToken(tokenReporte, 'el ZIP del reporte')) return;
+
+            const gastosReporteIds = Array.isArray(solicitudData.gastosReporteIds)
+                ? solicitudData.gastosReporteIds
+                : [];
+            await Promise.all(gastosReporteIds.map(gastoId =>
+                updateDoc(doc(db, 'gastos', gastoId), { archivado: false })
+            ));
+            await deleteDoc(solicitudRef);
+
+            console.log("LOG: Solicitud eliminada");
+            Swal.fire({
+                toast: true,
+                position: 'bottom-end',
+                icon: 'success',
+                title: '¡Solicitud eliminada!',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true
+            });
         } catch (error) {
             console.error("Error al eliminar la solicitud: ", error);
             Swal.fire(
@@ -466,18 +524,11 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                                 {!esVistaAdmin && (
                                     <button
                                         onClick={() => eliminarSolicitud(solicitud.id)}
-                                        disabled={
-                                            solicitud.estado === 'Recibida' ||
-                                            solicitud.estado === 'Esperando...' ||
-                                            solicitud.estado === 'Cerrada'
-                                        }
-                                        className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Recibida' ||
-                                                solicitud.estado === 'Esperando...' ||
-                                                solicitud.estado === 'Cerrada' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
-                                        title={
-                                            solicitud.estado === 'Recibida' ||
-                                                solicitud.estado === 'Esperando...' ||
-                                                solicitud.estado === 'Cerrada' ? 'No se puede eliminar una solicitud que haya sido RECIBIDA' : 'Eliminar solicitud'}
+                                        disabled={solicitud.estado === 'Recibida'}
+                                        className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Recibida' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
+                                        title={solicitud.estado === 'Recibida'
+                                            ? 'No se puede eliminar una solicitud recibida'
+                                            : 'Eliminar solicitud'}
                                     >
                                         <Trash2 size={16} />
                                         <span className="text-xs font-bold">Eliminar</span>
