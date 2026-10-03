@@ -524,14 +524,21 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                                 {!esVistaAdmin && (
                                     <button
                                         onClick={() => eliminarSolicitud(solicitud.id)}
-                                        disabled={solicitud.estado === 'Recibida'}
-                                        className={`flex items-center gap-1 p-2 transition-colors ${solicitud.estado === 'Recibida' ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600'}`}
-                                        title={solicitud.estado === 'Recibida'
-                                            ? 'No se puede eliminar una solicitud recibida'
-                                            : 'Eliminar solicitud'}
+                                        disabled={['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)}
+                                        className={`flex items-center gap-1 p-2 transition-colors ${
+                                            ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
+                                                ? 'text-slate-300 cursor-not-allowed'
+                                                : 'text-slate-500 hover:text-red-600'
+                                        }`}
+                                        title={
+                                            ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
+                                                ? 'No se puede eliminar una solicitud ' + solicitud.estado
+                                                : 'Eliminar solicitud'
+                                        }
                                     >
                                         <Trash2 size={16} />
-                                        <span className="text-xs font-bold">Eliminar</span>
+                                        <span className="text-xs font-bold">{['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado) ? 'No disponible' : 'Eliminar'}
+            </span>
                                     </button>
                                 )}
                             </div>
