@@ -431,7 +431,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         nombre_archivo: fileData.nombreArchivo,
         deleteToken: fileData.delete_token,
         creado_en: Timestamp.now(),
-        estado: 'Esperando...',
+        estado: 'En revisión',
         userId: targetUid
       };
       const docRef = await addDoc(collection(db, "solicitudes"), nuevaSolicitudData);
@@ -608,7 +608,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         const { url: reporteUrl, nombreArchivo: nombreReporte, deleteToken: deleteTokenReporte } = await subirReporteACloudinary(zipBlob, cloudinaryFileName, 'zip');
         const solicitudRef = doc(db, "solicitudes", solicitudVinculada.id);
         await updateDoc(solicitudRef, {
-          estado: 'Esperando...',
+          estado: 'En revisión',
           estadoAnteriorReporte: solicitudVinculada.estado || 'Solicitada',
           url_reporte_gastos: reporteUrl,
           nombre_archivo_reporte: nombreReporte,
@@ -641,7 +641,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
           deleteTokenReporte: deleteToken || '',
           estadoAnteriorReporte: 'Solicitada',
           creado_en: Timestamp.now(),
-          estado: 'Esperando...',
+          estado: 'En revisión',
           userId: targetUid,
           esMAF: true,
           resumen_sumaFacturado: sumaFacturado,

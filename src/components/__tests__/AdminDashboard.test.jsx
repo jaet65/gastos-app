@@ -9,8 +9,9 @@ const mockGastos = vi.hoisted(() => [
 const mockSolicitudes = vi.hoisted(() => [
   { id: 's1', estado: 'Enviada' },
   { id: 's2', estado: 'Recibida' },
-  { id: 's3', estado: 'Finalizada' },
-  { id: 's4', estado: 'Cerrada' },
+  { id: 's3', estado: 'Esperando...' },
+  { id: 's4', estado: 'Finalizada' },
+  { id: 's5', estado: 'Cerrada' },
 ]);
 const mockUsuarios = vi.hoisted(() => [
   { uid: 'u1', displayName: 'Ana Consultora', role: 'user' },
@@ -44,9 +45,10 @@ describe('AdminDashboard', () => {
     const gastoCard = screen.getByText('Gasto del mes').closest('article');
     expect(within(gastoCard).getByText('$1,200.00')).toBeInTheDocument();
     expect(within(screen.getByText('Movimientos').closest('article')).getByText('1')).toBeInTheDocument();
-    expect(within(screen.getByText('Solicitudes abiertas').closest('article')).getByText('3')).toBeInTheDocument();
+    expect(within(screen.getByText('Solicitudes abiertas').closest('article')).getByText('4')).toBeInTheDocument();
     expect(within(screen.getByText('Consultores').closest('article')).getByText('2')).toBeInTheDocument();
     expect(screen.getByText('Comida de trabajo')).toBeInTheDocument();
+    expect(screen.getAllByText('En revisión').length).toBeGreaterThan(0);
     expect(screen.queryByText('Gasto archivado')).not.toBeInTheDocument();
   });
 

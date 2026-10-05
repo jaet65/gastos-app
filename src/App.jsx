@@ -42,7 +42,7 @@ function App() {
   const [solicitudCounts, setSolicitudCounts] = useState({
     'Solicitada': 0,
     'Recibida': 0,
-    'Esperando...': 0
+    'En revisión': 0
   });
   const notificacionEnviadaRef = useRef(false);
 
@@ -56,11 +56,11 @@ function App() {
       where("userId", "==", targetUid)
     );
     const unsub = onSnapshot(q, (snap) => {
-      const counts = { 'Solicitada': 0, 'Recibida': 0, 'Esperando...': 0 };
+      const counts = { 'Solicitada': 0, 'Recibida': 0, 'En revisión': 0 };
       snap.docs.forEach(doc => {
         let estado = doc.data().estado;
         if (estado === 'Enviada') estado = 'Solicitada';
-        if (estado === 'Finalizada') estado = 'Esperando...';
+        if (estado === 'Finalizada' || estado === 'Esperando...') estado = 'En revisión';
         if (Object.prototype.hasOwnProperty.call(counts, estado)) {
           counts[estado]++;
         }
@@ -78,7 +78,7 @@ function App() {
     const totalPendientes =
       solicitudCounts['Solicitada'] +
       solicitudCounts['Recibida'] +
-      solicitudCounts['Esperando...'];
+      solicitudCounts['En revisión'];
 
     if (totalPendientes === 0) return;
     if (notificacionEnviadaRef.current) return;
@@ -95,7 +95,7 @@ function App() {
       const partes = [];
       if (solicitudCounts['Solicitada'] > 0) partes.push(`${solicitudCounts['Solicitada']} solicitada(s)`);
       if (solicitudCounts['Recibida'] > 0) partes.push(`${solicitudCounts['Recibida']} recibida(s)`);
-      if (solicitudCounts['Esperando...'] > 0) partes.push(`${solicitudCounts['Esperando...']} esperando...`);
+      if (solicitudCounts['En revisión'] > 0) partes.push(`${solicitudCounts['En revisión']} en revisión`);
       const cuerpo = `Tienes ${totalPendientes} solicitud(es) de recursos pendientes (${partes.join(', ')}). ¡No olvides revisarlas!`;
       try {
         const registration = await navigator.serviceWorker.ready;
@@ -122,7 +122,7 @@ function App() {
   const solicitudBadges = [
     { key: 'Solicitada', title: 'Solicitada', count: solicitudCounts['Solicitada'], colorClass: 'bg-yellow-500 text-white', pingClass: 'bg-yellow-400' },
     { key: 'Recibida', title: 'Recibida', count: solicitudCounts['Recibida'], colorClass: 'bg-blue-500 text-white', pingClass: 'bg-blue-400' },
-    { key: 'Esperando...', title: 'Esperando...', count: solicitudCounts['Esperando...'], colorClass: 'bg-green-500 text-white', pingClass: 'bg-green-400' },
+    { key: 'En revisión', title: 'En revisión', count: solicitudCounts['En revisión'], colorClass: 'bg-green-500 text-white', pingClass: 'bg-green-400' },
   ].filter(b => b.count > 0);
 
   // Handlers para abrir el sidebar (swipe a la derecha en el contenido principal)

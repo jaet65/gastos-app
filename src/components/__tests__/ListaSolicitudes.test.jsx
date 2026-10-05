@@ -101,6 +101,14 @@ describe('ListaSolicitudes Component', () => {
         expect(updateDoc).not.toHaveBeenCalled();
     });
 
+    it('muestra En revisión y migra el estado legado Esperando...', async () => {
+        mockSolicitudes[0].estado = 'Esperando...';
+        render(<ListaSolicitudes />);
+
+        expect(await screen.findByRole('button', { name: /^En revisión$/ })).toBeInTheDocument();
+        await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { estado: 'En revisión' }));
+    });
+
     it('debería permitir cambiar el estado de una solicitud', async () => {
         render(<ListaSolicitudes />);
 
@@ -109,7 +117,7 @@ describe('ListaSolicitudes Component', () => {
         expect(menuButton.closest('.tremor-Card-root')).toHaveClass('focus-within:z-20');
         fireEvent.click(menuButton);
 
-        expect(await screen.findByRole('menuitem', { name: /Esperando\.\.\./i })).toBeVisible();
+        expect(await screen.findByRole('menuitem', { name: /^En revisión$/i })).toBeVisible();
         expect(screen.getByRole('menuitem', { name: /^Cerrada$/ })).toBeVisible();
 
         // Hacer clic en la opción "Recibida"
@@ -143,12 +151,12 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('pregunta y elimina el reporte adjunto de Cloudinary y Firestore al confirmar', async () => {
-        mockSolicitudes[0].estado = 'Esperando...';
+        mockSolicitudes[0].estado = 'En revisión';
         mockSolicitudes[0].estadoAnteriorReporte = 'Recibida';
         fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
         render(<ListaSolicitudes />);
 
-        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /^En revisión$/ }));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Solicitada$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
@@ -179,12 +187,12 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('no cambia el estado ni elimina el reporte si se rechaza la cancelación', async () => {
-        mockSolicitudes[0].estado = 'Esperando...';
+        mockSolicitudes[0].estado = 'En revisión';
         mockSolicitudes[0].estadoAnteriorReporte = 'Recibida';
         Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
         render(<ListaSolicitudes />);
 
-        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /^En revisión$/ }));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Solicitada$/ }));
 
         await waitFor(() => expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
@@ -195,13 +203,13 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('elimina el token legado del ZIP MAF sin adjunto de solicitud', async () => {
-        mockSolicitudes[1].estado = 'Esperando...';
+        mockSolicitudes[1].estado = 'En revisión';
         mockSolicitudes[1].url_pdf_solicitud = '';
         mockSolicitudes[1].deleteToken = 'legacy-maf-report-token';
         fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
         render(<ListaSolicitudes />);
 
-        fireEvent.click(await screen.findAllByRole('button', { name: /^Esperando\.\.\.$/ }).then(buttons => buttons[0]));
+        fireEvent.click(await screen.findAllByRole('button', { name: /^En revisión$/ }).then(buttons => buttons[0]));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
@@ -210,7 +218,7 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('continúa cancelando el reporte si el usuario acepta borrar manualmente el ZIP caducado', async () => {
-        mockSolicitudes[0].estado = 'Esperando...';
+        mockSolicitudes[0].estado = 'En revisión';
         fetch.mockResolvedValue({
             ok: false,
             status: 400,
@@ -219,7 +227,7 @@ describe('ListaSolicitudes Component', () => {
         Swal.fire.mockResolvedValue({ isConfirmed: true });
         render(<ListaSolicitudes />);
 
-        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /^En revisión$/ }));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(2));
@@ -234,7 +242,7 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('mantiene el reporte si se rechaza eliminar manualmente un ZIP con token caducado', async () => {
-        mockSolicitudes[0].estado = 'Esperando...';
+        mockSolicitudes[0].estado = 'En revisión';
         Swal.fire.mockResolvedValueOnce({ isConfirmed: true }).mockResolvedValueOnce({ isConfirmed: false });
         fetch.mockResolvedValue({
             ok: false,
@@ -243,7 +251,7 @@ describe('ListaSolicitudes Component', () => {
         });
         render(<ListaSolicitudes />);
 
-        fireEvent.click(await screen.findByRole('button', { name: /^Esperando\.\.\.$/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /^En revisión$/ }));
         fireEvent.click(await screen.findByRole('menuitem', { name: /^Recibida$/ }));
 
         await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
@@ -345,10 +353,10 @@ describe('ListaSolicitudes Component', () => {
     });
 
     it('bloquea la eliminación de solicitudes en espera', async () => {
-        mockSolicitudes[0].estado = 'Esperando...';
+        mockSolicitudes[0].estado = 'En revisión';
         render(<ListaSolicitudes />);
 
-        const deleteButton = await screen.findByTitle('No se puede eliminar una solicitud Esperando...');
+        const deleteButton = await screen.findByTitle('No se puede eliminar una solicitud En revisión');
         expect(deleteButton).toBeDisabled();
         fireEvent.click(deleteButton);
 

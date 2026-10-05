@@ -23,9 +23,17 @@ const formatoMoneda = (cantidad) => {
 const statusColors = {
     'Solicitada': { badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-500', tremor: 'warning' },
     'Recibida': { badge: 'bg-blue-500 text-white', dot: 'bg-blue-500', tremor: 'info' },
-    'Esperando...': { badge: 'bg-green-500 text-white', dot: 'bg-green-500', tremor: 'success' },
+    'En revisión': { badge: 'bg-green-500 text-white', dot: 'bg-green-500', tremor: 'success' },
     'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
 };
+
+const normalizarEstado = (estado) => {
+    if (estado === 'Enviada') return 'Solicitada';
+    if (estado === 'Esperando...' || estado === 'Finalizada') return 'En revisión';
+    return estado || 'Solicitada';
+};
+
+const estadosNoEliminables = new Set(['Recibida', 'En revisión', 'Esperando...', 'Finalizada', 'Cerrada']);
 
 const OpcionesArchivoModal = ({ titulo, cancelLabel, onClose, onDownload, onPreview }) => createPortal(
     <div
@@ -212,7 +220,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
 
             const solicitudData = solicitudDoc.data();
             const valorTotal = solicitudData.totalSolicitado ?? 0;
-            const estadoSolicitud = solicitudData.estado || 'Solicitada';
+            const estadoSolicitud = normalizarEstado(solicitudData.estado);
             const tieneReporte = Boolean(solicitudData.url_reporte_gastos || solicitudData.deleteTokenReporte);
 
             const totalFormateado = new Intl.NumberFormat('es-MX', {
@@ -220,7 +228,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                 currency: 'MXN'
             }).format(valorTotal);
 
-            if (['Recibida', 'Esperando...', 'Cerrada'].includes(estadoSolicitud)) {
+            if (estadosNoEliminables.has(estadoSolicitud)) {
                 await Swal.fire({
                     title: 'No se puede eliminar',
                     text: estadoSolicitud === 'Recibida'
@@ -325,7 +333,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
         try {
             // 1. Verificamos si cumple con las condiciones para mostrar la advertencia del reporte
             const requiereConfirmacionReporte = 
-                solicitud.estado === 'Esperando...' &&
+                ['En revisión', 'Esperando...', 'Finalizada'].includes(solicitud.estado) &&
                 solicitud.url_reporte_gastos &&
                 ['Recibida', 'Solicitada'].includes(nuevoEstado);
 
@@ -415,16 +423,17 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
         const q = query(collection(db, "solicitudes"), ...constraints);
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setSolicitudes(data);
+            setSolicitudes(data.map((solicitud) => ({
+                ...solicitud,
+                estado: normalizarEstado(solicitud.estado),
+            })));
             setLoading(false);
 
             if (!adminGlobalView) {
                 data.forEach(async (s) => {
-                    let nuevoEstado = null;
-                    if (s.estado === 'Enviada') nuevoEstado = 'Solicitada';
-                    if (s.estado === 'Finalizada') nuevoEstado = 'Esperando...';
+                    const nuevoEstado = normalizarEstado(s.estado);
 
-                    if (nuevoEstado) {
+                    if (nuevoEstado !== s.estado) {
                         try {
                             await updateDoc(doc(db, "solicitudes", s.id), { estado: nuevoEstado });
                         } catch (e) {
@@ -530,20 +539,20 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                 {!esVistaAdmin && (
                                     <button
                                         onClick={() => eliminarSolicitud(solicitud.id)}
-                                            disabled={['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)}
+                                            disabled={estadosNoEliminables.has(solicitud.estado)}
                                         className={`flex items-center gap-1 p-2 transition-colors ${
-                                                ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
+                                                estadosNoEliminables.has(solicitud.estado)
                                                 ? 'text-slate-300 cursor-not-allowed'
                                                 : 'text-slate-500 hover:text-red-600'
                                         }`}
                                         title={
-                                                ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
+                                                estadosNoEliminables.has(solicitud.estado)
                                                     ? `No se puede eliminar una solicitud ${solicitud.estado}`
                                                 : 'Eliminar solicitud'
                                         }
                                     >
                                             <Trash2 size={16} />
-                                            <span className="text-xs font-bold">{['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado) ? 'No disponible' : 'Eliminar'}
+                                            <span className="text-xs font-bold">{estadosNoEliminables.has(solicitud.estado) ? 'No disponible' : 'Eliminar'}
             </span>
                                     </button>
                                 )}

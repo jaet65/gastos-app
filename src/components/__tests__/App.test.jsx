@@ -201,6 +201,6 @@ describe('App Component', () => {
         expect(solicitudesTab).toBeInTheDocument();
 
         // Muestra el estado activo actual
-        expect(screen.getByTitle(/Solicitada: 1|Recibida: 1|Esperando...: 1/)).toBeInTheDocument();
+        expect(screen.getByTitle(/Solicitada: 1|Recibida: 1|En revisión: 1/)).toBeInTheDocument();
     });
 });

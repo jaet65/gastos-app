@@ -16,7 +16,7 @@ const formatDate = (date) => new Date(`${date}T00:00:00`).toLocaleDateString('es
 
 const normalizeStatus = (status) => {
   if (status === 'Enviada') return 'Solicitada';
-  if (status === 'Finalizada') return 'Esperando...';
+  if (status === 'Finalizada' || status === 'Esperando...') return 'En revisión';
   return status;
 };
 
@@ -79,11 +79,11 @@ const AdminDashboard = ({ onNavigate }) => {
   const totalMes = gastosActivos.reduce((total, gasto) => total + (Number(gasto.monto) || 0), 0);
   const solicitudesPorEstado = solicitudes.reduce((counts, solicitud) => {
     const status = normalizeStatus(solicitud.estado);
-    if (['Solicitada', 'Recibida', 'Esperando...'].includes(status)) {
+    if (['Solicitada', 'Recibida', 'En revisión'].includes(status)) {
       counts[status] += 1;
     }
     return counts;
-  }, { Solicitada: 0, Recibida: 0, 'Esperando...': 0 });
+  }, { Solicitada: 0, Recibida: 0, 'En revisión': 0 });
   const totalPendientes = Object.values(solicitudesPorEstado).reduce((total, count) => total + count, 0);
   const consultores = usuarios.filter((usuario) => usuario.role !== 'admin').length;
   const usuariosPorId = new Map(usuarios.map((usuario) => [usuario.uid || usuario.id, usuario]));
@@ -166,7 +166,7 @@ const AdminDashboard = ({ onNavigate }) => {
             {[
               ['Solicitada', 'bg-amber-500'],
               ['Recibida', 'bg-blue-500'],
-              ['Esperando...', 'bg-emerald-600'],
+              ['En revisión', 'bg-emerald-600'],
             ].map(([status, color]) => (
               <div key={status} className="flex items-center justify-between border-b border-slate-100 px-4 py-3 last:border-0">
                 <span className="flex items-center gap-2 text-sm font-semibold text-slate-600">

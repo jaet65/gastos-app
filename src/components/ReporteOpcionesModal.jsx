@@ -27,7 +27,7 @@ const ReporteOpcionesModal = ({ userId, onClose, onGenerarConFechasPersonalizada
             let isMounted = true;
             const q = query(
                 collection(db, "solicitudes"), 
-                where("estado", "not-in", ["Esperando...", "Cerrada", "Finalizada"]),
+                where("estado", "not-in", ["En revisión", "Esperando...", "Cerrada", "Finalizada"]),
                 where("userId", "==", targetUserId),
                 orderBy("fechaInicio", "desc")
             );
@@ -78,7 +78,7 @@ const ReporteOpcionesModal = ({ userId, onClose, onGenerarConFechasPersonalizada
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-99999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative border border-slate-200">
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                     <h3 className="text-xl font-black text-slate-800">Generar Reporte de Gastos</h3>
