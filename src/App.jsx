@@ -1,7 +1,7 @@
 import PanelUsuarioAdmin from './components/PanelUsuarioAdmin';
 import Login from './components/Login';
 import NovedadesBanner from './components/NovedadesBanner';
-import { Menu, X, LogOut, Share2 } from 'lucide-react';
+import { Menu, X, LogOut, Share2, ShieldCheck } from 'lucide-react';
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
@@ -17,6 +17,7 @@ const ListaGastos = lazy(() => import('./components/ListaGastos'));
 const ListaSolicitudes = lazy(() => import('./components/ListaSolicitudes'));
 const ListaUsuarios = lazy(() => import('./components/ListaUsuarios'));
 const AuditoriaView = lazy(() => import('./components/AuditoriaView'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
 function App() {
   const { user, userData, logout, loading } = useAuth();
@@ -27,7 +28,7 @@ function App() {
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    if (tabParam && ['gastos', 'solicitudes', 'usuarios', 'auditoria'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'gastos', 'solicitudes', 'usuarios', 'auditoria'].includes(tabParam)) {
       // Limpiar el parámetro de la URL sin recargar la página
       window.history.replaceState({}, '', window.location.pathname);
       return tabParam;
@@ -36,6 +37,7 @@ function App() {
   });
   const [adminSelectedUser, setAdminSelectedUser] = useState(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
+  const [adminGlobalView, setAdminGlobalView] = useState(false);
   const listaGastosRef = useRef(null);
   const [solicitudCounts, setSolicitudCounts] = useState({
     'Solicitada': 0,
@@ -138,12 +140,18 @@ function App() {
     }, // Cierra el sidebar
   });
 
-  const changeTab = (tab) => {
-    if (tab === 'auditoria' || tab === 'usuarios') {
+  const changeTab = (tab, globalScope = false) => {
+    if (globalScope || tab === 'auditoria' || tab === 'usuarios') {
       setAdminSelectedUser(null);
+      setAdminEditMode(false);
     }
+    setAdminGlobalView(globalScope || (adminGlobalView && ['gastos', 'solicitudes'].includes(tab)));
     setActiveTab(tab);
   }
+
+  const handleDashboardNavigate = (tab) => {
+    changeTab(tab, ['gastos', 'solicitudes'].includes(tab));
+  };
 
   // Handlers para deslizar entre pestañas (swipe horizontal)
   const tabSwipeHandlers = useSwipeable({
@@ -160,6 +168,7 @@ function App() {
   const clearAdminView = () => {
     setAdminSelectedUser(null);
     setAdminEditMode(false);
+    setAdminGlobalView(false);
   };
 
   const handleLogout = async () => {
@@ -174,6 +183,7 @@ function App() {
   const handleSelectUser = (u) => {
     setAdminSelectedUser(u);
     setAdminEditMode(false);
+    setAdminGlobalView(false);
     setActiveTab('gastos');
     setIsSidebarOpen(false);
   };
@@ -247,13 +257,17 @@ function App() {
       <div className="w-full min-h-screen lg:h-screen bg-slate-50 flex flex-col lg:flex-row font-sans selection:bg-blue-200 selection:text-blue-900 overflow-x-hidden">
 
         {/* Banner de Modo Administrador */}
-        {adminSelectedUser && (
+        {(adminSelectedUser || adminGlobalView) && (
           <div className="fixed top-0 left-0 right-0 z-100 bg-amber-500 text-white py-1 px-4 text-center text-xs font-black uppercase tracking-widest shadow-lg flex justify-center items-center gap-4 flex-wrap">
-            <span>Viendo datos de: {adminSelectedUser.displayName} ({adminSelectedUser.email})</span>
+            <span>{adminSelectedUser
+              ? `Viendo datos de: ${adminSelectedUser.displayName} (${adminSelectedUser.email})`
+              : `Modo administrador: vista global de ${activeTab === 'gastos' ? 'gastos' : 'solicitudes'} (solo lectura)`}</span>
             <div className="flex gap-2">
-              <button onClick={() => setAdminEditMode(!adminEditMode)} className={`px-3 py-1 rounded-full text-[10px] transition-all shadow-sm ${adminEditMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white text-amber-600 hover:bg-amber-50'}`}>
-                {adminEditMode ? 'Deshabilitar Edición' : 'Habilitar Edición'}
-              </button>
+              {adminSelectedUser && (
+                <button onClick={() => setAdminEditMode(!adminEditMode)} className={`px-3 py-1 rounded-full text-[10px] transition-all shadow-sm ${adminEditMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white text-amber-600 hover:bg-amber-50'}`}>
+                  {adminEditMode ? 'Deshabilitar Edición' : 'Habilitar Edición'}
+                </button>
+              )}
               <button onClick={clearAdminView} className="bg-white text-amber-600 px-3 py-1 rounded-full text-[10px] hover:bg-amber-50 transition-colors shadow-sm">
                 Cerrar Vista
               </button>
@@ -262,7 +276,7 @@ function App() {
         )}
 
         {/* COLUMNA IZQUIERDA */}
-        <div {...openHandlers} className={`w-full lg:w-112.5 xl:w-125 shrink-0 h-dvh lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100 ${adminSelectedUser ? 'pt-6' : ''}`}>
+        <div {...openHandlers} className={`w-full lg:w-112.5 xl:w-125 shrink-0 h-dvh lg:h-full bg-white relative z-20 flex flex-col border-r border-slate-100 ${adminSelectedUser || adminGlobalView ? 'pt-6' : ''}`}>
 
           <nav className="w-full pt-4 px-4 pb-0 flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -297,6 +311,21 @@ function App() {
                 adminEditMode={adminEditMode}
                 onClearView={clearAdminView}
               />
+            ) : adminGlobalView ? (
+              <div className="border border-amber-200 bg-amber-50 p-5 text-slate-700">
+                <ShieldCheck size={22} className="mb-3 text-amber-700" />
+                <h2 className="text-lg font-black text-slate-800">Consulta global</h2>
+                <p className="mt-2 text-sm leading-relaxed">
+                  El formulario de gastos está bloqueado mientras revisas información de todos los usuarios.
+                </p>
+                <button
+                  type="button"
+                  onClick={clearAdminView}
+                  className="mt-4 w-full bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
+                >
+                  Volver a mis gastos
+                </button>
+              </div>
             ) : (
               <>
                 <NovedadesBanner />
@@ -309,7 +338,7 @@ function App() {
         </div>
 
         {/* COLUMNA DERECHA */}
-        <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser ? 'pt-6' : ''}`}>
+        <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser || adminGlobalView ? 'pt-6' : ''}`}>
           <div className="h-full w-full overflow-y-auto px-4 lg:px-16 pb-32 pt-4">
             <div {...tabSwipeHandlers} className="tabs-container pb-2 -mt-2 pt-2">
               <div className="flex justify-end lg:hidden mb-4">
@@ -319,6 +348,7 @@ function App() {
               </div>
 
               <div className="flex border-b border-slate-200 mb-4">
+                {isAdmin && <TabButton label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => changeTab('dashboard')} />}
                 <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => changeTab('gastos')} />
                 <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { changeTab('solicitudes'); }} badges={solicitudBadges} />
                 {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
@@ -334,11 +364,23 @@ function App() {
                     adminViewUid={adminSelectedUser?.uid}
                     adminEditMode={adminEditMode}
                     adminSelectedUser={adminSelectedUser}
+                    adminGlobalView={isAdmin && adminGlobalView}
                   />
                 </Suspense>
               </div>
               <Suspense fallback={<div className="p-4 text-center text-slate-500">Cargando vista...</div>}>
               <AnimatePresence mode="wait">
+                {isAdmin && activeTab === 'dashboard' && (
+                  <motion.div
+                    key="dashboard"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <AdminDashboard onNavigate={handleDashboardNavigate} />
+                  </motion.div>
+                )}
                 {activeTab === 'solicitudes' && (
                   <motion.div
                     key="solicitudes"
@@ -350,6 +392,7 @@ function App() {
                     <ListaSolicitudes
                       adminViewUid={adminSelectedUser?.uid}
                       adminEditMode={adminEditMode}
+                      adminGlobalView={isAdmin && adminGlobalView}
                       onPreviewReport={(solicitud) => listaGastosRef.current?.generarVistaPreviaSolicitud(solicitud)}
                     />
                   </motion.div>

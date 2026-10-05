@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
-import { deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, getDoc, updateDoc, where } from 'firebase/firestore';
 import Swal from 'sweetalert2';
 import ListaGastos from '../ListaGastos';
 import { filtrarGastosParaReporte, resolverGastosPorIds } from '../reportFilters';
@@ -14,7 +14,7 @@ vi.mock('../AuthContext', () => ({
 }));
 
 const mockGastos = [
-    { id: 'g1', concepto: 'Comida de mediodía', monto: 250, fecha: '2026-04-15', categoria: 'Comida', url_factura: 'http://factura.url/1', deleteToken: 'invoice-token', archivado: false, creado_en: { toDate: () => new Date() } },
+    { id: 'g1', concepto: 'Comida de mediodía', monto: 250, fecha: '2026-04-15', categoria: 'Comida', userId: 'user-1', url_factura: 'http://factura.url/1', deleteToken: 'invoice-token', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g2', concepto: 'Gasolina para viaje', monto: 800, fecha: '2026-04-16', categoria: 'Transporte', url_factura: '', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g3', concepto: 'Gasto especial MAF', monto: 1200, fecha: '2026-04-17', categoria: 'MAF', url_factura: 'http://factura.url/3', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g4', concepto: 'Gasto archivado', monto: 100, fecha: '2026-04-10', categoria: 'Otros', url_factura: '', archivado: true, creado_en: { toDate: () => new Date() } },
@@ -30,7 +30,12 @@ vi.mock('firebase/firestore', async (importOriginal) => {
         ...actual,
         onSnapshot: vi.fn((queryObj, callback) => {
             const isSolicitudes = queryObj?._collection === 'solicitudes' || (queryObj?.type === 'solicitudes');
-            const dataList = isSolicitudes ? mockSolicitudes : mockGastos;
+            const isUsuarios = queryObj?._collection === 'users';
+            const dataList = isSolicitudes
+                ? mockSolicitudes
+                : isUsuarios
+                    ? [{ uid: 'user-1', displayName: 'Ana Consultora', email: 'ana@example.com' }]
+                    : mockGastos;
             const snapshot = {
                 docs: dataList.map(doc => ({
                     id: doc.id,
@@ -159,6 +164,17 @@ describe('ListaGastos Component', () => {
         const restanteValue = screen.getByText('$950.00');
         const restanteCard = restanteValue.closest('.tremor-Card-root');
         expect(within(restanteCard).getByText('Restantes')).toBeInTheDocument();
+    });
+
+    it('consulta gastos globales en modo admin sin filtro por usuario ni acciones de edición', async () => {
+        render(<ListaGastos adminGlobalView />);
+
+        expect(await screen.findByText('Comida de mediodía')).toBeInTheDocument();
+        expect(screen.getByText('Vista global de gastos de todos los usuarios. Solo lectura.')).toBeInTheDocument();
+        expect(await screen.findByText('De: Ana Consultora')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Generar Reporte/i })).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Editar gasto')).not.toBeInTheDocument();
+        expect(where).not.toHaveBeenCalled();
     });
 
     it('debería filtrar gastos por término de búsqueda', async () => {

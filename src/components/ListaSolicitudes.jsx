@@ -29,7 +29,7 @@ const statusColors = {
 
 const OpcionesArchivoModal = ({ titulo, cancelLabel, onClose, onDownload, onPreview }) => createPortal(
     <div
-        className="fixed inset-0 z-[99998] flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-99998 flex items-center justify-center bg-black/50 p-4"
         onMouseDown={(event) => {
             if (event.target === event.currentTarget) onClose();
         }}
@@ -70,10 +70,10 @@ const OpcionesArchivoModal = ({ titulo, cancelLabel, onClose, onDownload, onPrev
     document.body
 );
 
-const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPreviewReport }) => {
+const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlobalView = false, onPreviewReport }) => {
     const { user } = useAuth();
-    const esVistaAdmin = !!adminViewUid && !adminEditMode;
-    const targetUid = adminViewUid || user?.uid;
+    const esVistaAdmin = adminGlobalView || (!!adminViewUid && !adminEditMode);
+    const targetUid = adminGlobalView ? null : (adminViewUid || user?.uid);
     const [solicitudes, setSolicitudes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [estadoFiltro, setEstadoFiltro] = useState('Todos');
@@ -220,10 +220,12 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                 currency: 'MXN'
             }).format(valorTotal);
 
-            if (estadoSolicitud === 'Recibida') {
+            if (['Recibida', 'Esperando...', 'Cerrada'].includes(estadoSolicitud)) {
                 await Swal.fire({
                     title: 'No se puede eliminar',
-                    text: 'Las solicitudes recibidas deben conservarse para mantener el historial de recursos.',
+                    text: estadoSolicitud === 'Recibida'
+                        ? 'Las solicitudes recibidas deben conservarse para mantener el historial de recursos.'
+                        : `Las solicitudes en estado ${estadoSolicitud} no se pueden eliminar.`,
                     icon: 'warning',
                     confirmButtonText: 'Entendido'
                 });
@@ -259,7 +261,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
 
             if (!result.isConfirmed) return;
 
-            if (['Esperando...', 'Cerrada'].includes(estadoSolicitud) || tieneReporte) {
+            if (tieneReporte) {
                 const confirmacionFinal = await Swal.fire({
                     title: 'Confirmación adicional',
                     text: `Escribe ELIMINAR para confirmar el borrado de la solicitud en estado ${estadoSolicitud}.`,
@@ -408,33 +410,32 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
     useEffect(() => {
         if (!user) return;
 
-        const q = query(
-            collection(db, "solicitudes"),
-            where("userId", "==", targetUid),
-            orderBy("fechaInicio", "desc")
-        );
+        const constraints = [orderBy("fechaInicio", "desc")];
+        if (targetUid) constraints.unshift(where("userId", "==", targetUid));
+        const q = query(collection(db, "solicitudes"), ...constraints);
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setSolicitudes(data);
             setLoading(false);
 
-            // Migración automática de estados antiguos
-            data.forEach(async (s) => {
-                let nuevoEstado = null;
-                if (s.estado === 'Enviada') nuevoEstado = 'Solicitada';
-                if (s.estado === 'Finalizada') nuevoEstado = 'Esperando...';
+            if (!adminGlobalView) {
+                data.forEach(async (s) => {
+                    let nuevoEstado = null;
+                    if (s.estado === 'Enviada') nuevoEstado = 'Solicitada';
+                    if (s.estado === 'Finalizada') nuevoEstado = 'Esperando...';
 
-                if (nuevoEstado) {
-                    try {
-                        await updateDoc(doc(db, "solicitudes", s.id), { estado: nuevoEstado });
-                    } catch (e) {
-                        console.error("Error migrando solicitud:", s.id, e);
+                    if (nuevoEstado) {
+                        try {
+                            await updateDoc(doc(db, "solicitudes", s.id), { estado: nuevoEstado });
+                        } catch (e) {
+                            console.error("Error migrando solicitud:", s.id, e);
+                        }
                     }
-                }
-            });
+                });
+            }
         });
         return () => unsubscribe();
-    }, [user, targetUid]);
+    }, [user, targetUid, adminGlobalView]);
 
     if (loading) {
         return <Text className="text-center mt-8">Cargando solicitudes...</Text>;
@@ -442,6 +443,11 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
 
     return (
         <div className="space-y-4">
+            {adminGlobalView && (
+                <p className="border-l-4 border-emerald-600 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900">
+                    Vista global de solicitudes de todos los usuarios. Solo lectura.
+                </p>
+            )}
             {solicitudes.length > 0 && (
                 <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-thin select-none">
                     <button
@@ -524,20 +530,20 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                                 {!esVistaAdmin && (
                                     <button
                                         onClick={() => eliminarSolicitud(solicitud.id)}
-                                        disabled={['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)}
+                                            disabled={['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)}
                                         className={`flex items-center gap-1 p-2 transition-colors ${
-                                            ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
+                                                ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
                                                 ? 'text-slate-300 cursor-not-allowed'
                                                 : 'text-slate-500 hover:text-red-600'
                                         }`}
                                         title={
-                                            ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
-                                                ? 'No se puede eliminar una solicitud ' + solicitud.estado
+                                                ['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado)
+                                                    ? `No se puede eliminar una solicitud ${solicitud.estado}`
                                                 : 'Eliminar solicitud'
                                         }
                                     >
-                                        <Trash2 size={16} />
-                                        <span className="text-xs font-bold">{['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado) ? 'No disponible' : 'Eliminar'}
+                                            <Trash2 size={16} />
+                                            <span className="text-xs font-bold">{['Recibida', 'Esperando...', 'Cerrada'].includes(solicitud.estado) ? 'No disponible' : 'Eliminar'}
             </span>
                                     </button>
                                 )}
@@ -655,7 +661,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, onPrevie
                     role="dialog"
                     aria-modal="true"
                     aria-label={preview.vistaTipo === 'solicitud' ? 'Vista previa de la solicitud' : 'Vista previa del reporte'}
-                    className="fixed inset-0 z-[99999] flex flex-col bg-slate-950 text-white"
+                    className="fixed inset-0 z-99999 flex flex-col bg-slate-950 text-white"
                     style={{
                         paddingTop: 'env(safe-area-inset-top, 0px)',
                         paddingRight: 'env(safe-area-inset-right, 0px)',

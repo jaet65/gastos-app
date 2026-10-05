@@ -18,10 +18,10 @@ import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, La
 import Swal from 'sweetalert2';
 import mostrarToastConVistaPrevia from './pdfPreviewToast';
 
-const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null }, ref) => {
+const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null, adminGlobalView = false }, ref) => {
   const { user } = useAuth();
-  const esVistaAdmin = !!adminViewUid && !adminEditMode;
-  const targetUid = adminViewUid || user?.uid;
+  const esVistaAdmin = adminGlobalView || (!!adminViewUid && !adminEditMode);
+  const targetUid = adminGlobalView ? null : (adminViewUid || user?.uid);
   const targetEmail = adminSelectedUser?.email || user?.email || '';
   const nombreConsultor = adminSelectedUser
     ? (adminSelectedUser.displayName || adminSelectedUser.email || 'Consultor Desconocido')
@@ -36,6 +36,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
   const [selectedCategories, setSelectedCategories] = useState([]); // Nuevo estado
+  const [usuarios, setUsuarios] = useState([]);
 
 
   const handleCategoryClick = (categoria) => {
@@ -62,15 +63,17 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
   const [solicitudes, setSolicitudes] = useState([]);
 
+  const nombresUsuarios = useMemo(() => new Map(usuarios.map((usuario) => [
+    usuario.uid || usuario.id,
+    usuario.displayName || usuario.email || 'Usuario sin nombre',
+  ])), [usuarios]);
+
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, "gastos"),
-      where("userId", "==", targetUid),
-      orderBy("fecha", "asc"),
-      orderBy("creado_en", "asc")
-    );
+    const constraints = [orderBy("fecha", "asc"), orderBy("creado_en", "asc")];
+    if (targetUid) constraints.unshift(where("userId", "==", targetUid));
+    const q = query(collection(db, "gastos"), ...constraints);
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -78,12 +81,19 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   }, [user, targetUid]);
 
   useEffect(() => {
+    if (!user || !adminGlobalView) return;
+
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setUsuarios(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() })));
+    });
+    return () => unsubscribe();
+  }, [user, adminGlobalView]);
+
+  useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, "solicitudes"),
-      where("userId", "==", targetUid)
-    );
+    const constraints = targetUid ? [where("userId", "==", targetUid)] : [];
+    const q = query(collection(db, "solicitudes"), ...constraints);
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setSolicitudes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -1415,6 +1425,11 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
   return (
     <div className="space-y-4 relative">
+      {adminGlobalView && (
+        <p className="mb-3 border-l-4 border-emerald-600 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900">
+          Vista global de gastos de todos los usuarios. Solo lectura.
+        </p>
+      )}
       <div className="sticky top-0 z-10 bg-slate-100 pt-1 pb-4 -mt-4 -mx-4 px-4 border-b border-slate-200">
         <div className="space-y-3">
           <div className="flex gap-2 items-center">
@@ -1454,10 +1469,12 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
               className="border-none bg-transparent w-full text-xs outline-none text-gray-600"
             />
           </div>
-          <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
-            <FileDown size={16} />
-            <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Generar Reporte'}</span>
-          </button>
+          {!adminGlobalView && (
+            <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
+              <FileDown size={16} />
+              <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Generar Reporte'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1522,7 +1539,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         />
       )}
 
-      {modalReporteAbierto && (
+      {modalReporteAbierto && !adminGlobalView && (
         <ReporteOpcionesModal
           userId={targetUid}
           onClose={() => setModalReporteAbierto(false)}
@@ -1628,9 +1645,16 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
                                                 {gasto.archivado && esVistaAdmin && (
                                                   <div className="text-slate-400 shrink-0" title="Gasto archivado"><EyeOff size={12} /></div>
                                                 )}
-                                                <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm grow" title={gasto.concepto}>
-                                                  {gasto.idPadre ? `Caseta de: ${padreGasto?.concepto || 'Gasto Eliminado'}` : gasto.concepto}
-                                                </Text>
+                                                <div className="min-w-0 flex-1">
+                                                  <Text className="font-bold text-slate-700 truncate text-xs sm:text-sm" title={gasto.concepto}>
+                                                    {gasto.idPadre ? `Caseta de: ${padreGasto?.concepto || 'Gasto Eliminado'}` : gasto.concepto}
+                                                  </Text>
+                                                  {adminGlobalView && (
+                                                    <p className="truncate text-[10px] font-medium text-slate-500">
+                                                      De: {nombresUsuarios.get(gasto.userId) || gasto.userId || 'Usuario sin identificar'}
+                                                    </p>
+                                                  )}
+                                                </div>
                                                 {gasto.idPropina && (
                                                   <div className="bg-transparent text-yellow-600 p-0.5 rounded shrink-0" title="Tiene propina asignada">
                                                     <Coins size={10} strokeWidth={2.5} />

@@ -31,9 +31,15 @@ vi.mock('firebase/firestore', () => ({
 
 // Mock de los componentes hijos para aislar la lógica de App.jsx
 vi.mock('../FormularioGasto', () => ({ default: () => <div data-testid="formulario-gasto">Formulario Gasto</div> }));
-vi.mock('../ListaGastos', () => ({ default: () => <div data-testid="lista-gastos">Lista Gastos</div> }));
-vi.mock('../ListaSolicitudes', () => ({ default: () => <div data-testid="lista-solicitudes">Lista Solicitudes</div> }));
+vi.mock('../ListaGastos', () => ({ default: ({ adminGlobalView }) => <div data-testid="lista-gastos" data-global={String(adminGlobalView)}>Lista Gastos</div> }));
+vi.mock('../ListaSolicitudes', () => ({ default: ({ adminGlobalView }) => <div data-testid="lista-solicitudes" data-global={String(adminGlobalView)}>Lista Solicitudes</div> }));
 vi.mock('../ListaUsuarios', () => ({ default: () => <div data-testid="lista-usuarios">Lista Usuarios</div> }));
+vi.mock('../AdminDashboard', () => ({ default: ({ onNavigate }) => (
+    <div data-testid="admin-dashboard">
+        <button onClick={() => onNavigate('gastos')}>Ver Gastos</button>
+        <button onClick={() => onNavigate('solicitudes')}>Revisar solicitudes</button>
+    </div>
+) }));
 vi.mock('../Login', () => ({ default: () => <div data-testid="login-screen">Login Screen</div> }));
 
 describe('App Component', () => {
@@ -137,6 +143,39 @@ describe('App Component', () => {
         });
     });
 
+    it('debería mostrar el dashboard solo para administradores', async () => {
+        useAuth.mockReturnValue({
+            loading: false,
+            user: { uid: 'admin-user' },
+            userData: { role: 'admin' }
+        });
+        render(<App />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Dashboard/i }));
+        expect(await screen.findByTestId('admin-dashboard')).toBeInTheDocument();
+    });
+
+    it('debería abrir las listas globales desde los accesos del dashboard', async () => {
+        useAuth.mockReturnValue({
+            loading: false,
+            user: { uid: 'admin-user' },
+            userData: { role: 'admin' }
+        });
+        render(<App />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Dashboard/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Ver Gastos/i }));
+        expect(screen.getByTestId('lista-gastos')).toHaveAttribute('data-global', 'true');
+        expect(screen.queryByTestId('formulario-gasto')).not.toBeInTheDocument();
+        expect(screen.getByText(/Modo administrador: vista global de gastos/i)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Dashboard/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Revisar solicitudes/i }));
+        expect(await screen.findByTestId('lista-solicitudes')).toHaveAttribute('data-global', 'true');
+        expect(screen.queryByTestId('formulario-gasto')).not.toBeInTheDocument();
+        expect(screen.getByText(/Modo administrador: vista global de solicitudes/i)).toBeInTheDocument();
+    });
+
     it('no debería mostrar la pestaña de Usuarios para usuarios normales', () => {
         useAuth.mockReturnValue({
             loading: false,
@@ -147,6 +186,7 @@ describe('App Component', () => {
 
         const adminTab = screen.queryByRole('button', { name: /Usuarios/i });
         expect(adminTab).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Dashboard/i })).not.toBeInTheDocument();
     });
 
     it('debería renderizar un único badge dinámico que rota entre los estados activos', () => {

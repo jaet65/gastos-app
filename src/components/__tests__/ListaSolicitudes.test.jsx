@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Swal from 'sweetalert2';
 import ListaSolicitudes from '../ListaSolicitudes';
+import { updateDoc, where } from 'firebase/firestore';
 import JSZip from 'jszip';
 
 const mockPdfViewer = vi.hoisted(() => vi.fn(() => null));
@@ -88,6 +89,16 @@ describe('ListaSolicitudes Component', () => {
         expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument();
         expect(screen.getByText('$7,800.00')).toBeInTheDocument();
         expect(screen.getByText('$6,500.00')).toBeInTheDocument();
+    });
+
+    it('consulta solicitudes globales en modo admin sin migrar ni habilitar cambios', async () => {
+        render(<ListaSolicitudes adminGlobalView />);
+
+        expect(await screen.findByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
+        expect(screen.getByText('Vista global de solicitudes de todos los usuarios. Solo lectura.')).toBeInTheDocument();
+        expect(screen.queryByTitle('Eliminar solicitud')).not.toBeInTheDocument();
+        expect(where).not.toHaveBeenCalled();
+        expect(updateDoc).not.toHaveBeenCalled();
     });
 
     it('debería permitir cambiar el estado de una solicitud', async () => {
@@ -333,55 +344,30 @@ describe('ListaSolicitudes Component', () => {
         }));
     });
 
-    it('permite eliminar una solicitud en espera tras escribir la confirmación y limpia el reporte', async () => {
+    it('bloquea la eliminación de solicitudes en espera', async () => {
         mockSolicitudes[0].estado = 'Esperando...';
-        mockGetDoc.mockResolvedValue({
-            exists: () => true,
-            data: () => ({
-                estado: 'Esperando...',
-                totalSolicitado: 1000,
-                url_pdf_solicitud: 'https://res.cloudinary.com/request.pdf',
-                deleteToken: 'request-token',
-                url_reporte_gastos: 'https://res.cloudinary.com/report.zip',
-                deleteTokenReporte: 'report-token',
-                gastosReporteIds: ['g1'],
-            }),
-        });
-        fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
-        Swal.fire.mockResolvedValueOnce({ isConfirmed: true })
-            .mockResolvedValueOnce({ isConfirmed: true, value: 'ELIMINAR' });
         render(<ListaSolicitudes />);
 
-        const deleteButton = await screen.findByTitle('Eliminar solicitud');
-        expect(deleteButton).toBeEnabled();
+        const deleteButton = await screen.findByTitle('No se puede eliminar una solicitud Esperando...');
+        expect(deleteButton).toBeDisabled();
         fireEvent.click(deleteButton);
 
-        await waitFor(() => expect(mockDeleteDoc).toHaveBeenCalledTimes(1));
-        expect(Swal.fire).toHaveBeenNthCalledWith(2, expect.objectContaining({
-            title: 'Confirmación adicional',
-            input: 'text',
-        }));
-        expect(fetch).toHaveBeenCalledTimes(2);
-        expect(mockUpdateDoc).toHaveBeenCalledWith(undefined, { archivado: false });
+        expect(mockGetDoc).not.toHaveBeenCalled();
+        expect(mockDeleteDoc).not.toHaveBeenCalled();
+        expect(Swal.fire).not.toHaveBeenCalled();
     });
 
-    it('permite cancelar el borrado de una solicitud cerrada en la confirmación adicional', async () => {
+    it('bloquea la eliminación de solicitudes cerradas', async () => {
         mockSolicitudes[0].estado = 'Cerrada';
-        mockGetDoc.mockResolvedValue({
-            exists: () => true,
-            data: () => ({ estado: 'Cerrada', totalSolicitado: 1000 }),
-        });
-        Swal.fire.mockResolvedValueOnce({ isConfirmed: true })
-            .mockResolvedValueOnce({ isConfirmed: false });
         render(<ListaSolicitudes />);
 
-        const deleteButton = await screen.findByTitle('Eliminar solicitud');
-        expect(deleteButton).toBeEnabled();
+        const deleteButton = await screen.findByTitle('No se puede eliminar una solicitud Cerrada');
+        expect(deleteButton).toBeDisabled();
         fireEvent.click(deleteButton);
 
-        await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(2));
+        expect(mockGetDoc).not.toHaveBeenCalled();
         expect(mockDeleteDoc).not.toHaveBeenCalled();
-        expect(fetch).not.toHaveBeenCalled();
+        expect(Swal.fire).not.toHaveBeenCalled();
     });
 
     it('ofrece Visualizar y Descargar, y visualiza reportes nuevos desde sus IDs', async () => {
