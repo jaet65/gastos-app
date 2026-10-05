@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
+import Footer from './Footer';
 
 const Login = () => {
   const [error, setError] = useState('');
@@ -15,7 +16,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="relative min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="absolute top-4 right-4">
+        <Footer className="text-right" />
+      </div>
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
         <div>
           <div className="flex items-center justify-center">

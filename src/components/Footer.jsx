@@ -5,10 +5,10 @@ import { Text } from '@tremor/react';
 const buildTime = import.meta.env.VITE_APP_BUILD_TIME;
 const isDev = import.meta.env.DEV;
 
-const Footer = () => {
+const Footer = ({ className = 'text-left mb-2' }) => {
     if (isDev) {
         return (
-            <div className="text-left mb-2">
+            <div className={className}>
                 <Text className="text-[10px] text-slate-400">Versión: LOCALHOST</Text>
             </div>
         );
@@ -26,7 +26,7 @@ const Footer = () => {
     }
 
     return (
-        <div className="text-left mb-2">
+        <div className={className}>
             <Text className="text-[10px] text-slate-400">Versión: {versionInfo}</Text>
         </div>
     );

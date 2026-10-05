@@ -15,6 +15,7 @@ describe('Login Component', () => {
     
     expect(screen.getByText(/Iniciar sesión para control de gastos/i)).toBeInTheDocument();
     expect(screen.getByText(/Continuar con Google/i)).toBeInTheDocument();
+    expect(screen.getByText(/Versión:/i)).toBeInTheDocument();
   });
 
   it('calls login function when button is clicked', async () => {
