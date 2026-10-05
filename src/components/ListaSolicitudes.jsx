@@ -7,7 +7,7 @@ import Footer from './Footer';
 import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { Card, Title, Text, Flex, Badge } from "@tremor/react";
 import { Menu, Transition } from '@headlessui/react';
-import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown, Eye, X } from 'lucide-react';
+import { FileText, Calendar, User, Briefcase, Trash2, FileDown, Check, ChevronDown, Eye, X, Send, CheckCircle2, XCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer'));
@@ -21,10 +21,10 @@ const formatoMoneda = (cantidad) => {
 };
 
 const statusColors = {
-    'Solicitada': { badge: 'bg-yellow-500 text-white', dot: 'bg-yellow-500', tremor: 'warning' },
-    'Recibida': { badge: 'bg-blue-500 text-white', dot: 'bg-blue-500', tremor: 'info' },
-    'En revisión': { badge: 'bg-green-500 text-white', dot: 'bg-green-500', tremor: 'success' },
-    'Cerrada': { badge: 'bg-slate-500 text-white', dot: 'bg-slate-500', tremor: 'default' },
+    'Solicitada': { badge: 'bg-yellow-500 text-white', icon: Send, tremor: 'warning' },
+    'Recibida': { badge: 'bg-blue-500 text-white', icon: CheckCircle2, tremor: 'info' },
+    'En revisión': { badge: 'bg-green-500 text-white', icon: Eye, tremor: 'success' },
+    'Cerrada': { badge: 'bg-slate-500 text-white', icon: XCircle, tremor: 'default' },
 };
 
 const normalizarEstado = (estado) => {
@@ -485,7 +485,10 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                                 }`}
                             >
-                                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : statusColors[estado].dot}`}></span>
+                                {(() => {
+                                    const StatusIcon = statusColors[estado].icon;
+                                    return <StatusIcon size={13} strokeWidth={2.2} className={isSelected ? 'text-white' : 'text-slate-400'} aria-hidden="true" />;
+                                })()}
                                 {estado} ({count})
                             </button>
                         );
@@ -565,11 +568,19 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                 <div className="relative w-fit">
                                     {esVistaAdmin ? (
                                         <div className={`inline-flex items-center justify-center w-full rounded-full border border-gray-300 px-4 py-1.5 text-sm font-black shadow-sm transition-colors ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
+                                            {statusColors[solicitud.estado]?.icon && (() => {
+                                                const StatusIcon = statusColors[solicitud.estado].icon;
+                                                return <StatusIcon size={14} strokeWidth={2.2} className="mr-1.5 opacity-80" aria-hidden="true" />;
+                                            })()}
                                             {solicitud.estado || 'Solicitada'}
                                         </div>
                                     ) : (
                                         <Menu as="div" className="relative inline-block text-left">
                                             <Menu.Button className={`inline-flex items-center justify-center w-full rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${statusColors[solicitud.estado]?.badge || 'bg-gray-100 text-gray-800'}`}>
+                                                {statusColors[solicitud.estado]?.icon && (() => {
+                                                    const StatusIcon = statusColors[solicitud.estado].icon;
+                                                    return <StatusIcon size={14} strokeWidth={2.2} className="mr-1.5 opacity-80" aria-hidden="true" />;
+                                                })()}
                                                 {solicitud.estado || 'Solicitada'}
                                                 <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
                                             </Menu.Button>
@@ -581,7 +592,10 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                                             <Menu.Item key={estado}>
                                                                 {({ active }) => (
                                                                         <button onClick={() => handleStatusChange(solicitud, estado)} className={`${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}>
-                                                                        <span className={`w-2 h-2 rounded-full mr-3 ${statusColors[estado].dot}`}></span>
+                                                                        {(() => {
+                                                                            const StatusIcon = statusColors[estado].icon;
+                                                                            return <StatusIcon size={14} strokeWidth={2} className="mr-3 text-slate-400" aria-hidden="true" />;
+                                                                        })()}
                                                                         {estado}
                                                                         {solicitud.estado === estado && <Check className="ml-auto h-5 w-5 text-blue-600" />}
                                                                     </button>

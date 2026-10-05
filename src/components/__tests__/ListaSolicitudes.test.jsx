@@ -115,9 +115,12 @@ describe('ListaSolicitudes Component', () => {
         // Abrir el menú de la primera solicitud (usamos RegExp exacto para evitar el botón de filtro "Solicitada (1)")
         const menuButton = await screen.findByRole('button', { name: /^Solicitada$/ });
         expect(menuButton.closest('.tremor-Card-root')).toHaveClass('focus-within:z-20');
+        expect(menuButton.querySelector('svg')).toBeInTheDocument();
         fireEvent.click(menuButton);
 
-        expect(await screen.findByRole('menuitem', { name: /^En revisión$/i })).toBeVisible();
+        const estadoEnRevision = await screen.findByRole('menuitem', { name: /^En revisión$/i });
+        expect(estadoEnRevision).toBeVisible();
+        expect(estadoEnRevision.querySelector('svg')).toBeInTheDocument();
         expect(screen.getByRole('menuitem', { name: /^Cerrada$/ })).toBeVisible();
 
         // Hacer clic en la opción "Recibida"
