@@ -5,7 +5,7 @@ import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestor
 import SolicitudRecursosModal from './SolicitudRecursosModal';
 import Footer from './Footer';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog } from 'lucide-react';
+import { Calendar, AlignLeft, DollarSign, Layers, UploadCloud, X, FileCheck, ArrowDownCircle, FileCog, QrCode } from 'lucide-react';
 import { getCloudinaryFilename } from './cloudinary';
 import Swal from 'sweetalert2';
 import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
@@ -603,6 +603,16 @@ const FormularioGasto = () => {
                 </button>
               </div>
             )}
+            <div className="mt-1 flex justify-center">
+              <span
+                aria-label="Autocompletado por QR disponible"
+                title="Autocompletado por QR disponible"
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700"
+              >
+                <QrCode size={13} strokeWidth={2.2} aria-hidden="true" />
+                <span>Autocompletado por QR disponible</span>
+              </span>
+            </div>
           </div>
 
           {/* SECCIÓN DE CASETAS */}

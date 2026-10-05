@@ -312,7 +312,7 @@ function App() {
                 onClearView={clearAdminView}
               />
             ) : adminGlobalView ? (
-              <div className="border border-amber-200 bg-amber-50 p-5 text-slate-700">
+              <div className="border border-amber-200 bg-amber-50 p-5 text-slate-700 rounded-2xl">
                 <ShieldCheck size={22} className="mb-3 text-amber-700" />
                 <h2 className="text-lg font-black text-slate-800">Consulta global</h2>
                 <p className="mt-2 text-sm leading-relaxed">
@@ -321,7 +321,7 @@ function App() {
                 <button
                   type="button"
                   onClick={clearAdminView}
-                  className="mt-4 w-full bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
+                  className="mt-4 w-full bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900 rounded-2xl"
                 >
                   Volver a mis gastos
                 </button>

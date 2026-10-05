@@ -62,6 +62,7 @@ describe('FormularioGasto Component', () => {
         expect(screen.getByText('Nuevo Gasto')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Descripción')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('0.00')).toBeInTheDocument();
+        expect(screen.getByLabelText('Autocompletado por QR disponible')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /GUARDAR GASTO/i })).toBeInTheDocument();
     });
 
