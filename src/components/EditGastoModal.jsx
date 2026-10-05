@@ -8,11 +8,8 @@ import { useAuth } from './AuthContext';
 import { eliminarCloudinaryConToken } from './cloudinaryDelete';
 import { getCloudinaryFilename } from './cloudinary';
 import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
-
-const extractInvoiceAmount = async (file) => {
-    const scanner = await import('./invoicePdfScanner');
-    return scanner.extractInvoiceAmount(file);
-};
+import { analyzeInvoice, appendInvoiceRfcStatus } from './invoiceAnalysis';
+import { hasMafRfcMismatch, isMafRfc } from './invoiceRfcRules';
 
 const CLOUD_NAME = "didj7kuah";
 const UPLOAD_PRESET = "Gastos_Facturas";
@@ -44,6 +41,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     const fileInputEditRef = useRef(null);
     const montoPrincipalRef = useRef(String(gasto.monto ?? ''));
     const facturaPrincipalScanId = useRef(0);
+    const invoiceReceiverRfc = useRef(null);
     const casetaScanIds = useRef(new Map());
     const casetaMontos = useRef(new Map());
     const casetaIdCounter = useRef(0);
@@ -130,10 +128,15 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         setMensajeAnalisis('');
 
         try {
-            const amount = await extractInvoiceAmount(file);
+            const analysis = await analyzeInvoice(file);
+            const amount = analysis.amount;
             if (facturaPrincipalScanId.current !== scanId) return;
+            invoiceReceiverRfc.current = analysis.receiverRfc || null;
+            if (isMafRfc(analysis.receiverRfc)) {
+                setGastoEditado((current) => ({ ...current, categoria: 'MAF' }));
+            }
             if (amount === null) {
-                setMensajeAnalisis('No se detectó el total; puedes ingresarlo manualmente.');
+                setMensajeAnalisis(appendInvoiceRfcStatus('No se detectó el total; puedes ingresarlo manualmente.', analysis));
                 return;
             }
 
@@ -141,9 +144,9 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
             if (facturaPrincipalScanId.current !== scanId) return;
             montoPrincipalRef.current = resultado.amount;
             setGastoEditado((current) => ({ ...current, monto: resultado.amount }));
-            setMensajeAnalisis(resultado.source === 'detected'
+            setMensajeAnalisis(appendInvoiceRfcStatus(resultado.source === 'detected'
                 ? `Total detectado: $${amount.toFixed(2)}`
-                : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`);
+                : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`, analysis));
         } catch (error) {
             console.error('Error analizando la factura del gasto:', error);
             if (facturaPrincipalScanId.current === scanId) {
@@ -177,13 +180,14 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         }));
 
         try {
-            const amount = await extractInvoiceAmount(file);
+            const analysis = await analyzeInvoice(file);
+            const amount = analysis.amount;
             if (casetaScanIds.current.get(scanKey) !== scanId) return;
             if (amount === null) {
                 actualizarCaseta(scanKey, (caseta) => ({
                     ...caseta,
                     analizandoFactura: false,
-                    mensajeAnalisis: 'No se detectó el total; puedes ingresarlo manualmente.'
+                    mensajeAnalisis: appendInvoiceRfcStatus('No se detectó el total; puedes ingresarlo manualmente.', analysis)
                 }));
                 return;
             }
@@ -195,9 +199,9 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                 ...caseta,
                 monto: resultado.amount,
                 analizandoFactura: false,
-                mensajeAnalisis: resultado.source === 'detected'
+                mensajeAnalisis: appendInvoiceRfcStatus(resultado.source === 'detected'
                     ? `Total detectado: $${amount.toFixed(2)}`
-                    : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`
+                    : `Se conservará el monto ingresado: $${Number(resultado.amount).toFixed(2)}`, analysis)
             }));
         } catch (error) {
             console.error('Error analizando la factura de la caseta:', error);
@@ -213,6 +217,15 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
 
     const handleGuardar = async (e) => {
         e.preventDefault();
+        if (hasMafRfcMismatch(gastoEditado.categoria, invoiceReceiverRfc.current, Boolean(nuevoArchivo))) {
+            await Swal.fire({
+                title: 'RFC incompatible con MAF',
+                text: 'Los gastos de categoría MAF solo pueden llevar una factura con RFC receptora MCE170119JC0.',
+                icon: 'error',
+                confirmButtonText: 'Entendido'
+            });
+            return;
+        }
         if (analizandoFactura || misCasetas.some((caseta) => caseta.analizandoFactura)) {
             await Swal.fire({
                 title: 'Análisis en curso',
@@ -502,6 +515,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                                 </div>
                                 <button type="button" onClick={() => {
                                     facturaPrincipalScanId.current += 1;
+                                    invoiceReceiverRfc.current = null;
                                     setNuevoArchivo(null);
                                     setAnalizandoFactura(false);
                                     setMensajeAnalisis('');

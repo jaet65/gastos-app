@@ -3,10 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Swal from 'sweetalert2';
 import EditGastoModal from '../EditGastoModal';
-import { extractInvoiceAmount } from '../invoicePdfScanner';
+import { analyzeInvoice } from '../invoiceAnalysis';
 
-vi.mock('../invoicePdfScanner', () => ({
-    extractInvoiceAmount: vi.fn().mockResolvedValue(null),
+vi.mock('../invoiceAnalysis', () => ({
+    analyzeInvoice: vi.fn(),
+    appendInvoiceRfcStatus: vi.fn((message) => message),
 }));
 
 // Mock de dependencias externas
@@ -66,6 +67,7 @@ describe('EditGastoModal Component', () => {
 
     beforeEach(async () => {
         vi.clearAllMocks();
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: null });
         window.alert = vi.fn();
         window.confirm = vi.fn(() => true);
         vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
@@ -120,7 +122,7 @@ describe('EditGastoModal Component', () => {
     });
 
     it('analiza la factura principal nueva y confirma el monto detectado', async () => {
-        extractInvoiceAmount.mockResolvedValue(987.65);
+        analyzeInvoice.mockResolvedValue({ amount: 987.65, receiverRfc: null });
         const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
         const swalContainer = document.createElement('div');
         vi.spyOn(Swal, 'getContainer').mockReturnValue(swalContainer);
@@ -142,8 +144,39 @@ describe('EditGastoModal Component', () => {
         expect(screen.getByText('Total detectado: $987.65')).toBeInTheDocument();
     });
 
+    it('cambia automáticamente a categoría MAF cuando la factura tiene RFC MAF', async () => {
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: 'MCE170119JC0' });
+        render(<EditGastoModal gasto={mockGastoTransporte} onClose={mockOnClose} onSave={mockOnSave} />);
+
+        fireEvent.change(screen.getByLabelText('Factura principal'), {
+            target: { files: [new File(['pdf'], 'factura-maf.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('MAF'));
+    });
+
+    it('no guarda un gasto MAF editado con RFC distinta en el QR', async () => {
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: 'CCI190920376' });
+        const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
+        const gastoMaf = { ...mockGastoTransporte, categoria: 'MAF' };
+        render(<EditGastoModal gasto={gastoMaf} onClose={mockOnClose} onSave={mockOnSave} />);
+
+        fireEvent.change(screen.getByLabelText('Factura principal'), {
+            target: { files: [new File(['pdf'], 'factura-otra-rfc.pdf', { type: 'application/pdf' })] },
+        });
+
+        const saveButton = screen.getByRole('button', { name: /Guardar Cambios|Analizando factura/i });
+        await waitFor(() => expect(saveButton).toBeEnabled());
+        fireEvent.click(saveButton);
+
+        await waitFor(() => expect(fireSpy).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'RFC incompatible con MAF',
+        })));
+        expect(mockOnSave).not.toHaveBeenCalled();
+    });
+
     it('analiza la factura de una caseta editada y conserva el monto elegido', async () => {
-        extractInvoiceAmount.mockResolvedValue(987.65);
+        analyzeInvoice.mockResolvedValue({ amount: 987.65, receiverRfc: null });
         vi.spyOn(Swal, 'fire').mockResolvedValue({ isDenied: true });
         const casetaConFactura = { ...mockCasetas[0], url_factura: 'http://factura.url/caseta.pdf', deleteToken: 'token-caseta' };
         mockGetDocs.mockResolvedValueOnce({

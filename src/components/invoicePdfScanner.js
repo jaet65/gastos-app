@@ -20,6 +20,16 @@ const getAmountFromQr = (value) => {
     return match ? parseAmount(match[1]) : null;
 };
 
+export const parseInvoiceQr = (value) => {
+    const query = value.includes('?') ? value.slice(value.indexOf('?') + 1) : value;
+    const params = new URLSearchParams(query);
+    const receiverRfc = params.get('rr');
+    return {
+        amount: getAmountFromQr(value),
+        receiverRfc: receiverRfc?.trim().toUpperCase() || null
+    };
+};
+
 const getAmountFromText = (value) => {
     const totalLabels = /\btotal\b(?!\s+(?:de\s+impuestos|impuestos|trasladados|retenidos|descuento))/gi;
     let label;
@@ -33,9 +43,10 @@ const getAmountFromText = (value) => {
     return null;
 };
 
-export const extractInvoiceAmount = async (file) => {
+export const extractInvoiceDetails = async (file) => {
     let loadingTask;
     let text = '';
+    let qrDetails = null;
 
     try {
         loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
@@ -57,10 +68,11 @@ export const extractInvoiceAmount = async (file) => {
                 await page.render({ canvasContext: context, viewport }).promise;
                 const image = context.getImageData(0, 0, canvas.width, canvas.height);
                 const qr = jsQR(image.data, image.width, image.height, { inversionAttempts: 'attemptBoth' });
-                const amount = qr ? getAmountFromQr(qr.data) : null;
-                if (amount !== null) {
-                    console.log(`[invoicePdfScanner] Total detectado por QR en página ${pageNumber}: $${amount.toFixed(2)}`);
-                    return amount;
+                const details = qr ? parseInvoiceQr(qr.data) : null;
+                if (details?.receiverRfc && !qrDetails) qrDetails = details;
+                if (details?.amount !== null && details?.amount !== undefined) {
+                    console.log(`[invoicePdfScanner] Total detectado por QR en página ${pageNumber}: $${details.amount.toFixed(2)}`);
+                    return details;
                 }
                 if (qr) {
                     console.log(`[invoicePdfScanner] Se encontró un QR en página ${pageNumber}, pero no contiene un total válido.`);
@@ -73,11 +85,11 @@ export const extractInvoiceAmount = async (file) => {
         const amount = getAmountFromText(text);
         if (amount !== null) {
             console.log(`[invoicePdfScanner] Total detectado por texto: $${amount.toFixed(2)}`);
-            return amount;
+            return { ...(qrDetails || {}), amount };
         }
 
         console.warn('[invoicePdfScanner] No se detectó un total ni por QR ni por texto.');
-        return null;
+        return qrDetails || { amount: null, receiverRfc: null };
     } catch (error) {
         console.error('[invoicePdfScanner] Falló el escaneo de la factura.', error);
         throw error;
@@ -90,4 +102,9 @@ export const extractInvoiceAmount = async (file) => {
             }
         }
     }
+};
+
+export const extractInvoiceAmount = async (file) => {
+    const details = await extractInvoiceDetails(file);
+    return details.amount;
 };

@@ -2,11 +2,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FormularioGasto from '../FormularioGasto';
 import { AuthProvider } from '../AuthContext';
-import { extractInvoiceAmount } from '../invoicePdfScanner';
+import { analyzeInvoice } from '../invoiceAnalysis';
 import Swal from 'sweetalert2';
 
-vi.mock('../invoicePdfScanner', () => ({
-    extractInvoiceAmount: vi.fn(),
+vi.mock('../invoiceAnalysis', () => ({
+    analyzeInvoice: vi.fn(),
+    appendInvoiceRfcStatus: vi.fn((message) => message),
 }));
 
 // Mock de dependencias externas
@@ -46,6 +47,7 @@ describe('FormularioGasto Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: null });
         // Mock de alert para que no interrumpa las pruebas
         window.alert = vi.fn();
     });
@@ -94,7 +96,7 @@ describe('FormularioGasto Component', () => {
     });
 
     it('precarga el monto detectado al adjuntar una factura PDF', async () => {
-        extractInvoiceAmount.mockResolvedValue(987.65);
+        analyzeInvoice.mockResolvedValue({ amount: 987.65, receiverRfc: null });
         const { container } = render(<FormularioGasto />);
         const file = new File(['pdf'], 'factura.pdf', { type: 'application/pdf' });
 
@@ -104,8 +106,41 @@ describe('FormularioGasto Component', () => {
         expect(screen.getByText('Total detectado: $987.65')).toBeInTheDocument();
     });
 
+    it('cambia automáticamente la categoría a MAF para la RFC MAF', async () => {
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: 'MCE170119JC0' });
+        const { container } = render(<FormularioGasto />);
+
+        fireEvent.change(container.querySelector('input[type="file"]'), {
+            target: { files: [new File(['pdf'], 'factura-maf.pdf', { type: 'application/pdf' })] },
+        });
+
+        await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('MAF'));
+    });
+
+    it('no guarda un gasto MAF si su factura tiene otra RFC', async () => {
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: 'CCI190920376' });
+        const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
+        const firestore = await import('firebase/firestore');
+        const { container } = render(<FormularioGasto />);
+        fireEvent.change(screen.getByPlaceholderText('Descripción'), { target: { value: 'Gasto MAF' } });
+        fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '200' } });
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: 'MAF' } });
+        fireEvent.change(container.querySelector('input[type="file"]'), {
+            target: { files: [new File(['pdf'], 'factura-otra-rfc.pdf', { type: 'application/pdf' })] },
+        });
+
+        const saveButton = container.querySelector('form button[type="submit"]');
+        await waitFor(() => expect(saveButton).toBeEnabled());
+        fireEvent.click(saveButton);
+
+        await waitFor(() => expect(fireSpy).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'RFC incompatible con MAF',
+        })));
+        expect(firestore.addDoc).not.toHaveBeenCalled();
+    });
+
     it('permite conservar el monto ingresado cuando difiere del total detectado', async () => {
-        extractInvoiceAmount.mockResolvedValue(987.65);
+        analyzeInvoice.mockResolvedValue({ amount: 987.65, receiverRfc: null });
         const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isDenied: true });
         const { container } = render(<FormularioGasto />);
         const montoInput = screen.getByPlaceholderText('0.00');
@@ -126,7 +161,7 @@ describe('FormularioGasto Component', () => {
     });
 
     it('permite usar el total detectado cuando difiere del monto ingresado', async () => {
-        extractInvoiceAmount.mockResolvedValue(987.65);
+        analyzeInvoice.mockResolvedValue({ amount: 987.65, receiverRfc: null });
         vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
         const { container } = render(<FormularioGasto />);
         const montoInput = screen.getByPlaceholderText('0.00');
@@ -141,7 +176,7 @@ describe('FormularioGasto Component', () => {
     });
 
     it('analiza la factura de una caseta y permite elegir entre ambos montos', async () => {
-        extractInvoiceAmount.mockResolvedValue(987.65);
+        analyzeInvoice.mockResolvedValue({ amount: 987.65, receiverRfc: null });
         const fireSpy = vi.spyOn(Swal, 'fire').mockResolvedValue({ isDenied: true });
         render(<FormularioGasto />);
 
