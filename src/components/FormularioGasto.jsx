@@ -14,11 +14,11 @@ import { hasMafRfcMismatch, isMafRfc } from './invoiceRfcRules';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
-  <div className="flex items-center bg-white/50 transition-all overflow-hidden h-18 hover:bg-white/80 focus-within:bg-white backdrop-blur-md">
-    <div className="pl-8 text-slate-400">
+  <div className="flex items-center bg-white/50 transition-all overflow-hidden h-14 hover:bg-white/80 focus-within:bg-white backdrop-blur-md">
+    <div className="pl-4 text-slate-400">
       <Icon size={16} strokeWidth={2.5} />
     </div>
-    <div className="flex-1 h-full flex items-center pr-8">
+    <div className="flex-1 h-full flex items-center pr-4">
       {children}
     </div>
   </div>
@@ -496,19 +496,19 @@ const FormularioGasto = () => {
 
         <Footer />
 
-        <div className="flex justify-between items-start mb-4">
-          <h2 className="text-4xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
-          <button type="button" onClick={() => setModalRecursosAbierto(true)} className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Generar solicitud de recursos">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Nuevo Gasto</h2>
+          <button type="button" onClick={() => setModalRecursosAbierto(true)} className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-2.5 py-1.5 rounded-full transition-colors" title="Generar solicitud de recursos">
             <FileCog size={16} />
             <span>Solicitar Recursos</span>
           </button>
         </div>
-        <div className="mb-0">
-          <p className="text-slate-500 font-medium text-base mt-2">Ingresa los detalles del movimiento</p>
+        <div className="mb-1">
+          <p className="text-slate-500 font-medium text-sm">Ingresa los detalles del movimiento</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+        <form onSubmit={handleSubmit} className="space-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
             <InputGroup icon={Calendar}>
               <input type="date" name="fecha" required value={formData.fecha} onChange={handleChange}
                 className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base" />
@@ -526,25 +526,26 @@ const FormularioGasto = () => {
             </InputGroup>
           </div>
 
-          <InputGroup icon={AlignLeft}>
-            <input type="text" name="concepto" placeholder="Descripción" required value={formData.concepto} onChange={handleChange}
-              className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-lg placeholder-slate-400" />
-          </InputGroup>
-
-          <InputGroup icon={DollarSign}>
-            <input type="number" name="monto" placeholder="0.00" step="0.01" required value={formData.monto} onChange={handleChange}
-              className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 text-3xl font-black placeholder-slate-300" />
-          </InputGroup>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+            <InputGroup icon={AlignLeft}>
+              <input type="text" name="concepto" placeholder="Descripción" required value={formData.concepto} onChange={handleChange}
+                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-base placeholder-slate-400" />
+            </InputGroup>
+            <InputGroup icon={DollarSign}>
+              <input type="number" name="monto" placeholder="0.00" step="0.01" required value={formData.monto} onChange={handleChange}
+                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 text-2xl font-black placeholder-slate-300" />
+            </InputGroup>
+          </div>
 
           {/* CHECKBOX DE PROPINA */}
           {formData.categoria === 'Comida' && (
-            <div className="flex items-center gap-3 bg-blue-50/50 p-1 border-l-4 border-blue-500">
+            <div className="flex items-center gap-2 bg-blue-50/50 px-2 py-1 border-l-4 border-blue-500">
               <input
                 type="checkbox"
                 id="checkPropina"
                 checked={agregarPropina}
                 onChange={(e) => setAgregarPropina(e.target.checked)}
-                className="w-6 h-6 text-blue-600 rounded focus:ring-blue-500 cursor-pointer accent-blue-600"
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer accent-blue-600"
               />
               <label htmlFor="checkPropina" className="text-slate-500 font-bold text-sm cursor-pointer select-none">
                 ¿Agregar Propina (10%)?
@@ -558,7 +559,7 @@ const FormularioGasto = () => {
           )}
 
           {/* ZONA DE ARCHIVO (Compacta) */}
-          <div className="mt-2 mb-2">
+          <div className="mt-0 mb-0">
             {!archivo ? (
               <div
                 onClick={() => fileInputRef.current.click()}
@@ -603,7 +604,7 @@ const FormularioGasto = () => {
                 </button>
               </div>
             )}
-            <div className="mt-1 flex justify-center">
+            <div className="mt-0.5 flex justify-center">
               <span
                 aria-label="Autocompletado por QR disponible"
                 title="Autocompletado por QR disponible"
@@ -617,7 +618,7 @@ const FormularioGasto = () => {
 
           {/* SECCIÓN DE CASETAS */}
           {formData.categoria === 'Transporte' && (
-            <div className="bg-slate-50/80 p-4 space-y-3 border-y border-slate-200 mb-4 rounded-xl">
+            <div className="bg-slate-50/80 p-3 space-y-2 border-y border-slate-200 mb-2 rounded-xl">
               <div className="flex justify-between items-center">
                 <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Casetas (Tolls)</h3>
                 <button
@@ -630,7 +631,7 @@ const FormularioGasto = () => {
               </div>
 
               {casetas.map((caseta, index) => (
-                <div key={index} className="flex flex-col md:flex-row gap-2 items-start md:items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                <div key={index} className="flex flex-col md:flex-row gap-1.5 items-start md:items-center bg-white p-2 rounded-lg shadow-sm border border-slate-200">
                   <div className="md:w-32 w-full shrink-0">
                     <div className="flex items-center gap-1">
                       <span className="text-slate-400 font-bold font-mono text-sm">$</span>
@@ -683,7 +684,7 @@ const FormularioGasto = () => {
           <button
             type="submit"
             disabled={loading || analizandoFactura || casetas.some((caseta) => caseta.analizandoFactura)}
-            style={{ height: '48px', fontSize: '18px' }}
+            style={{ height: '42px', fontSize: '15px' }}
             className="w-full mb-2 rounded-full bg-green-700 text-white font-black shadow-lg hover:bg-blue-900 active:scale-95 transition-all duration-200 disabled:opacity-50 flex items-center justify-center uppercase tracking-widest"
           >
             {loading ? 'GUARDANDO...' : (analizandoFactura || casetas.some((caseta) => caseta.analizandoFactura) ? 'ANALIZANDO FACTURA...' : 'GUARDAR GASTO')}

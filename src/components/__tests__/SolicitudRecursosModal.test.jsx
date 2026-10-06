@@ -128,6 +128,8 @@ describe('SolicitudRecursosModal Component', () => {
         render(<SolicitudRecursosModal onClose={mockOnClose} fechaInicioInicial="2026-05-12" fechaFinInicial="2026-05-11" />);
 
         expect(await screen.findByText('La fecha de finalización no puede ser anterior a la fecha de inicio.')).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText(/Empresa\(s\)/), { target: { value: 'CECAI' } });
+        expect(screen.getByRole('button', { name: /Generar y Guardar Solicitud/i })).toBeDisabled();
     });
 
     it('debería cerrar el calendario con Escape o al hacer clic fuera', () => {
@@ -156,7 +158,7 @@ describe('SolicitudRecursosModal Component', () => {
     it('debería llamar a addDoc y a las funciones de subida al generar la solicitud', async () => {
         render(<SolicitudRecursosModal onClose={mockOnClose} onSolicitudCreada={mockOnSolicitudCreada} fechaInicioInicial="2026-05-10" />);
 
-        fireEvent.change(screen.getByLabelText('Empresa(s):'), { target: { value: 'CECAI y MAF' } });
+        fireEvent.change(screen.getByLabelText(/Empresa\(s\)/), { target: { value: 'CECAI y MAF' } });
         fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
         fireEvent.click(screen.getByRole('button', { name: '10 mayo 2026' }));
 
@@ -175,5 +177,33 @@ describe('SolicitudRecursosModal Component', () => {
             expect(mockOnSolicitudCreada).toHaveBeenCalledTimes(1);
             expect(mockOnClose).toHaveBeenCalledTimes(1);
         });
+    });
+
+    it('no debería generar la solicitud si Empresa(s) está vacío', async () => {
+        render(<SolicitudRecursosModal onClose={mockOnClose} fechaInicioInicial="2026-05-10" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        fireEvent.click(screen.getByRole('button', { name: '10 mayo 2026' }));
+        const botonGenerar = await screen.findByRole('button', { name: /Generar y Guardar Solicitud/i });
+
+        expect(botonGenerar).toBeDisabled();
+        expect(screen.getByLabelText(/Empresa\(s\)/)).toBeRequired();
+        expect(mockAddDoc).not.toHaveBeenCalled();
+        expect(mockOnClose).not.toHaveBeenCalled();
+    });
+
+    it('habilita el botón solo cuando Empresa(s) y el periodo son válidos', async () => {
+        render(<SolicitudRecursosModal onClose={mockOnClose} fechaInicioInicial="2026-05-10" />);
+        const botonGenerar = screen.getByRole('button', { name: /Generar y Guardar Solicitud/i });
+
+        expect(botonGenerar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText(/Empresa\(s\)/), { target: { value: '   ' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
+        fireEvent.click(screen.getByRole('button', { name: '10 mayo 2026' }));
+        expect(botonGenerar).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText(/Empresa\(s\)/), { target: { value: 'CECAI' } });
+        await waitFor(() => expect(botonGenerar).toBeEnabled());
     });
 });

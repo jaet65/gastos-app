@@ -23,6 +23,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const [fechaError, setFechaError] = useState('');
     const [fechaFin, setFechaFin] = useState(fechaFinInicial);
     const [empresas, setEmpresas] = useState('');
+    const [empresasError, setEmpresasError] = useState('');
     const [cantidadPersonas, setCantidadPersonas] = useState(1);
     const [loading, setLoading] = useState(false);
     const [calendarioAbierto, setCalendarioAbierto] = useState(false);
@@ -193,6 +194,10 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     };
 
     const handleSolicitar = async () => {
+        if (!empresas.trim()) {
+            setEmpresasError('Indica al menos una empresa para continuar.');
+            return;
+        }
         if (dias <= 0) {
             alert("Por favor, selecciona un rango de fechas válido.");
             return;
@@ -263,15 +268,22 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                     <div><p className="text-sm"><span className="font-bold">Consultor:</span> {nombreConsultor}</p></div>
                     <div><p className="text-sm"><span className="font-bold">Proyecto:</span> TrackSIM</p></div>
                     <div>
-                        <label htmlFor="empresas" className="text-sm font-bold">Empresa(s):</label>
+                        <label htmlFor="empresas" className="text-sm font-bold">Empresa(s): <span aria-hidden="true">*</span></label>
                         <input
                             id="empresas"
                             type="text"
+                            required
                             value={empresas}
-                            onChange={(event) => setEmpresas(event.target.value)}
+                            aria-invalid={Boolean(empresasError)}
+                            aria-describedby={empresasError ? 'empresas-error' : undefined}
+                            onChange={(event) => {
+                                setEmpresas(event.target.value);
+                                if (event.target.value.trim()) setEmpresasError('');
+                            }}
                             placeholder="Escribe una o varias empresas"
                             className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                         />
+                        {empresasError && <p id="empresas-error" role="alert" className="mt-1 text-sm text-red-600">{empresasError}</p>}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_8rem] gap-4 pt-4 items-end">
@@ -336,7 +348,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                     )}
 
 
-                    <button onClick={handleSolicitar} disabled={loading || dias <= 0} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-6 shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button onClick={handleSolicitar} disabled={loading || !empresas.trim() || !Number.isFinite(dias) || dias <= 0 || Boolean(fechaError)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-full flex justify-center items-center gap-2 mt-6 shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                         {loading ? 'Procesando...' : <><Send size={18} /> Generar y Guardar Solicitud</>}
                     </button>
                 </div>
