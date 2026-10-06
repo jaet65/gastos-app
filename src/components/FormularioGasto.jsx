@@ -526,10 +526,10 @@ const FormularioGasto = () => {
             </InputGroup>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+          <div className="grid grid-cols-1 gap-1">
             <InputGroup icon={AlignLeft}>
               <input type="text" name="concepto" placeholder="Descripción" required value={formData.concepto} onChange={handleChange}
-                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-base placeholder-slate-400" />
+                className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-2xl placeholder-slate-400" />
             </InputGroup>
             <InputGroup icon={DollarSign}>
               <input type="number" name="monto" placeholder="0.00" step="0.01" required value={formData.monto} onChange={handleChange}
