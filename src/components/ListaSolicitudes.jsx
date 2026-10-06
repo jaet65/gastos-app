@@ -507,7 +507,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                             <div className="truncate">
                                 <Flex alignItems='center' className='gap-2 mb-2'>
                                     <Briefcase size={14} className='text-slate-500' />
-                                    <Title>{`Rally TrackSIM - ${solicitud.esMAF ? 'MAF' : 'CECAI'}`}</Title>
+                                    <Title>{`TrackSIM - ${solicitud.esMAF ? 'MAF' : 'CECAI'}`}</Title>
                                 </Flex>
                                 <Flex alignItems='center' className='gap-2'>
                                     <User size={14} className='text-slate-500' />

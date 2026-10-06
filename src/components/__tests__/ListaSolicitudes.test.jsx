@@ -17,8 +17,8 @@ vi.mock('../AuthContext', () => ({
 }));
 
 const mockSolicitudes = [
-    { id: 'sol1', proyecto: 'Rally TrackSIM - CECAI', consultor: 'Usuario de Prueba', fechaInicio: '2026-04-20', fechaFin: '2026-04-25', dias: 6, totalSolicitado: 7800, estado: 'Solicitada', url_pdf_solicitud: 'http://solicitud.url/1', url_reporte_gastos: 'http://reporte.url/1.zip', nombre_archivo_reporte: 'reporte-nuevo.zip', deleteTokenReporte: 'report-delete-token', estadoAnteriorReporte: 'Solicitada', gastosReporteIds: ['g1'] },
-    { id: 'sol2', proyecto: 'Rally TrackSIM - MAF', consultor: 'Usuario de Prueba', fechaInicio: '2026-05-01', fechaFin: '2026-05-05', dias: 5, totalSolicitado: 6500, estado: 'Recibida', esMAF: true, url_pdf_solicitud: 'http://solicitud.url/2', url_reporte_gastos: 'http://reporte.url/2.zip', nombre_archivo_reporte: 'reporte-historico.zip' },
+    { id: 'sol1', proyecto: 'TrackSIM - CECAI', consultor: 'Usuario de Prueba', fechaInicio: '2026-04-20', fechaFin: '2026-04-25', dias: 6, totalSolicitado: 7800, estado: 'Solicitada', url_pdf_solicitud: 'http://solicitud.url/1', url_reporte_gastos: 'http://reporte.url/1.zip', nombre_archivo_reporte: 'reporte-nuevo.zip', deleteTokenReporte: 'report-delete-token', estadoAnteriorReporte: 'Solicitada', gastosReporteIds: ['g1'] },
+    { id: 'sol2', proyecto: 'TrackSIM - MAF', consultor: 'Usuario de Prueba', fechaInicio: '2026-05-01', fechaFin: '2026-05-05', dias: 5, totalSolicitado: 6500, estado: 'Recibida', esMAF: true, url_pdf_solicitud: 'http://solicitud.url/2', url_reporte_gastos: 'http://reporte.url/2.zip', nombre_archivo_reporte: 'reporte-historico.zip' },
 ];
 
 vi.mock('firebase/firestore', async (importOriginal) => {
@@ -85,8 +85,8 @@ describe('ListaSolicitudes Component', () => {
     it('debería renderizar la lista de solicitudes', async () => {
         render(<ListaSolicitudes />);
 
-        expect(await screen.findByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
-        expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument();
+        expect(await screen.findByText('TrackSIM - CECAI')).toBeInTheDocument();
+        expect(screen.getByText('TrackSIM - MAF')).toBeInTheDocument();
         expect(screen.getByText('$7,800.00')).toBeInTheDocument();
         expect(screen.getByText('$6,500.00')).toBeInTheDocument();
     });
@@ -94,7 +94,7 @@ describe('ListaSolicitudes Component', () => {
     it('consulta solicitudes globales en modo admin sin migrar ni habilitar cambios', async () => {
         render(<ListaSolicitudes adminGlobalView />);
 
-        expect(await screen.findByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
+        expect(await screen.findByText('TrackSIM - CECAI')).toBeInTheDocument();
         expect(screen.getByText('Vista global de solicitudes de todos los usuarios. Solo lectura.')).toBeInTheDocument();
         expect(screen.queryByTitle('Eliminar solicitud')).not.toBeInTheDocument();
         expect(where).not.toHaveBeenCalled();
@@ -306,8 +306,8 @@ describe('ListaSolicitudes Component', () => {
         render(<ListaSolicitudes />);
 
         // Al inicio, deberían estar ambas solicitudes ("Solicitada" y "Recibida")
-        expect(await screen.findByText('Rally TrackSIM - CECAI')).toBeInTheDocument(); // Solicitada
-        expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument(); // Recibida
+        expect(await screen.findByText('TrackSIM - CECAI')).toBeInTheDocument(); // Solicitada
+        expect(screen.getByText('TrackSIM - MAF')).toBeInTheDocument(); // Recibida
 
         // Hacer clic en el botón de filtro "Recibida (1)"
         const filtroRecibida = await screen.findByRole('button', { name: /Recibida \(1\)/i });
@@ -315,8 +315,8 @@ describe('ListaSolicitudes Component', () => {
 
         // Debería mostrar solo la solicitud de MAF (Recibida) y ocultar la de CECAI (Solicitada)
         await waitFor(() => {
-            expect(screen.queryByText('Rally TrackSIM - CECAI')).not.toBeInTheDocument();
-            expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument();
+            expect(screen.queryByText('TrackSIM - CECAI')).not.toBeInTheDocument();
+            expect(screen.getByText('TrackSIM - MAF')).toBeInTheDocument();
         });
 
         // Hacer clic en el botón de filtro "Solicitada (1)"
@@ -325,8 +325,8 @@ describe('ListaSolicitudes Component', () => {
 
         // Debería mostrar solo la de CECAI (Solicitada) y ocultar la de MAF (Recibida)
         await waitFor(() => {
-            expect(screen.getByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
-            expect(screen.queryByText('Rally TrackSIM - MAF')).not.toBeInTheDocument();
+            expect(screen.getByText('TrackSIM - CECAI')).toBeInTheDocument();
+            expect(screen.queryByText('TrackSIM - MAF')).not.toBeInTheDocument();
         });
 
         // Hacer clic en el botón de filtro "Todas (2)"
@@ -335,8 +335,8 @@ describe('ListaSolicitudes Component', () => {
 
         // Debería mostrar ambas nuevamente
         await waitFor(() => {
-            expect(screen.getByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
-            expect(screen.getByText('Rally TrackSIM - MAF')).toBeInTheDocument();
+            expect(screen.getByText('TrackSIM - CECAI')).toBeInTheDocument();
+            expect(screen.getByText('TrackSIM - MAF')).toBeInTheDocument();
         });
     });
 
@@ -468,6 +468,6 @@ describe('ListaSolicitudes Component', () => {
         fireEvent(window, new PopStateEvent('popstate', { state: null }));
 
         await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Vista previa de la solicitud' })).not.toBeInTheDocument());
-        expect(screen.getByText('Rally TrackSIM - CECAI')).toBeInTheDocument();
+        expect(screen.getByText('TrackSIM - CECAI')).toBeInTheDocument();
     });
 });

@@ -331,7 +331,10 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     page.drawText(nombreConsultor, { x: margin + 100, y, font, size: 12 });
     y -= 20;
     page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
-    page.drawText('Rally TrackSIM - CECAI', { x: margin + 100, y, font, size: 12 });
+    page.drawText('TrackSIM - CECAI', { x: margin + 100, y, font, size: 12 });
+    y -= 20;
+    page.drawText('Empresa(s):', { x: margin, y, font: boldFont, size: 12 });
+    page.drawText('CECAI', { x: margin + 100, y, font, size: 12 });
     y -= 20;
     page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
     page.drawText(`${formatearFecha(fInicio)} al ${formatearFecha(fFin)} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
@@ -420,7 +423,8 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
       const nuevaSolicitudData = {
         consultor: nombreConsultor,
-        proyecto: 'Rally TrackSIM - CECAI',
+        proyecto: 'TrackSIM - CECAI',
+        empresas: 'CECAI',
         fechaInicio: fInicio,
         fechaFin: fFin,
         dias: differenceInCalendarDays(new Date(`${fFin}T00:00:00`), new Date(`${fInicio}T00:00:00`)) + 1,
@@ -631,7 +635,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
         await addDoc(collection(db, "solicitudes"), {
           consultor: nombreConsultor,
-          proyecto: 'Rally TrackSIM - MAF',
+          proyecto: 'TrackSIM - MAF',
           fechaInicio: fechaInicioReporte || '',
           fechaFin: fechaFinReporte || '',
           totalSolicitado: montoMAF,
@@ -644,6 +648,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
           estado: 'En revisión',
           userId: targetUid,
           esMAF: true,
+          empresas: 'MAF',
           resumen_sumaFacturado: sumaFacturado,
           resumen_sumaSinFactura: sumaSinFactura,
           resumen_porReembolsar: porReembolsar,
@@ -820,12 +825,18 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       worksheet.getCell(`A${currentRow}`).value = "Proyecto:";
       worksheet.getCell(`B${currentRow}`).value = solicitudVinculada.proyecto;
       currentRow++;
+      worksheet.getCell(`A${currentRow}`).value = "Empresa(s):";
+      worksheet.getCell(`B${currentRow}`).value = solicitudVinculada.empresas || '';
+      currentRow++;
     } else if (esMAF) {
       worksheet.getCell(`A${currentRow}`).value = "Consultor:";
       worksheet.getCell(`B${currentRow}`).value = nombreConsultor;
       currentRow++;
       worksheet.getCell(`A${currentRow}`).value = "Proyecto:";
-      worksheet.getCell(`B${currentRow}`).value = 'Rally TrackSIM - MAF';
+      worksheet.getCell(`B${currentRow}`).value = 'TrackSIM - MAF';
+      currentRow++;
+      worksheet.getCell(`A${currentRow}`).value = "Empresa(s):";
+      worksheet.getCell(`B${currentRow}`).value = 'MAF';
       currentRow++;
     }
     worksheet.getCell(`A${currentRow}`).value = "Periodo:";
@@ -1025,10 +1036,14 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       currentY -= 20;
       page.drawText(`Proyecto: ${solicitudVinculada.proyecto}`, { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
+      page.drawText(`Empresa(s): ${solicitudVinculada.empresas || ''}`, { x: margin, y: currentY, font: font, size: 14 });
+      currentY -= 20;
     } else if (esMAF) {
       page.drawText(`Consultor: ${nombreConsultor}`, { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
-      page.drawText('Proyecto: Rally TrackSIM - MAF', { x: margin, y: currentY, font: font, size: 14 });
+      page.drawText('Proyecto: TrackSIM - MAF', { x: margin, y: currentY, font: font, size: 14 });
+      currentY -= 20;
+      page.drawText('Empresa(s): MAF', { x: margin, y: currentY, font: font, size: 14 });
       currentY -= 20;
     }
     page.drawText(`Periodo: ${formatearFecha(fechaInicioReporte) || 'N/A'} al ${formatearFecha(fechaFinReporte) || 'N/A'}`, { x: margin, y: currentY, font: font, size: 14 });

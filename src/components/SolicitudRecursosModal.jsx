@@ -22,6 +22,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     const [fechaInicio, setFechaInicio] = useState(fechaInicioInicial);
     const [fechaError, setFechaError] = useState('');
     const [fechaFin, setFechaFin] = useState(fechaFinInicial);
+    const [empresas, setEmpresas] = useState('');
     const [cantidadPersonas, setCantidadPersonas] = useState(1);
     const [loading, setLoading] = useState(false);
     const [calendarioAbierto, setCalendarioAbierto] = useState(false);
@@ -129,7 +130,10 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
         page.drawText(nombreConsultor, { x: margin + 100, y, font, size: 12 });
         y -= 20;
         page.drawText('Proyecto:', { x: margin, y, font: boldFont, size: 12 });
-        page.drawText('Rally TrackSIM', { x: margin + 100, y, font, size: 12 });
+        page.drawText('TrackSIM', { x: margin + 100, y, font, size: 12 });
+        y -= 20;
+        page.drawText('Empresa(s):', { x: margin, y, font: boldFont, size: 12 });
+        page.drawText(empresas.trim(), { x: margin + 100, y, font, size: 12 });
         y -= 20;
         page.drawText('Periodo:', { x: margin, y, font: boldFont, size: 12 });
         page.drawText(`${format(new Date(`${fechaInicio}T00:00:00`), 'dd \'de\' MMMM \'de\' yyyy', { locale: es })} al ${format(new Date(`${fechaFin}T00:00:00`), 'dd \'de\' MMMM \'de\' yyyy', { locale: es })} (${dias} días)`, { x: margin + 100, y, font, size: 12 });
@@ -208,7 +212,8 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
             // 3. Guardar en la nueva colección "solicitudes"
             const nuevaSolicitudData = {
                 consultor: nombreConsultor,
-                proyecto: 'Rally TrackSIM - CECAI',
+                proyecto: 'TrackSIM - CECAI',
+                empresas: empresas.trim(),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 dias: dias,
@@ -245,7 +250,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-99999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 relative border border-slate-200">
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                     <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><FileCog size={24} /> Solicitud de Recursos</h3>
@@ -256,7 +261,18 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
 
                 <div className="space-y-4">
                     <div><p className="text-sm"><span className="font-bold">Consultor:</span> {nombreConsultor}</p></div>
-                    <div><p className="text-sm"><span className="font-bold">Proyecto:</span> Rally TrackSIM</p></div>
+                    <div><p className="text-sm"><span className="font-bold">Proyecto:</span> TrackSIM</p></div>
+                    <div>
+                        <label htmlFor="empresas" className="text-sm font-bold">Empresa(s):</label>
+                        <input
+                            id="empresas"
+                            type="text"
+                            value={empresas}
+                            onChange={(event) => setEmpresas(event.target.value)}
+                            placeholder="Escribe una o varias empresas"
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                        />
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_8rem] gap-4 pt-4 items-end">
                         <div className="relative min-w-0">
@@ -266,7 +282,7 @@ const SolicitudRecursosModal = ({ onClose, fechaInicioInicial = '', fechaFinInic
                                 <span className="truncate">{etiquetaRango}</span>
                             </button>
                             {calendarioAbierto && (
-                                <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/30 p-4" onClick={(event) => {
+                                <div className="fixed inset-0 z-100000 flex items-center justify-center bg-black/30 p-4" onClick={(event) => {
                                     if (event.target === event.currentTarget) setCalendarioAbierto(false);
                                 }}>
                                     <div role="dialog" aria-modal="true" aria-label="Seleccionar periodo" className="calendar-enter max-h-[calc(100dvh-2rem)] w-full max-w-xs overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">

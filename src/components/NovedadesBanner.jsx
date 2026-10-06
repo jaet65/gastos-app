@@ -20,7 +20,7 @@ const NovedadesBanner = () => {
   if (!visible) return null;
 
   return (
-    <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm">
+    <div role="status" className="backdrop-blur-md bg-blue-50/50 fixed top-0 left-0 right-0 flex items-start gap-3 rounded-xl border border-blue-100 px-4 py-3 text-sm text-blue-900 shadow-sm">
       <Sparkles size={18} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
       <p className="flex-1">
         <span className="font-bold">¡Gastos MAF se actualizó!</span>{' '}

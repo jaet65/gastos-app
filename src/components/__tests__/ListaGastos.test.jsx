@@ -134,7 +134,7 @@ describe('ListaGastos Component', () => {
             gastosReporteIds: ['g4'],
             fechaInicio: '2026-04-10',
             fechaFin: '2026-04-10',
-            proyecto: 'Rally TrackSIM - CECAI',
+            proyecto: 'TrackSIM - CECAI',
             consultor: 'Usuario de Prueba',
         });
 

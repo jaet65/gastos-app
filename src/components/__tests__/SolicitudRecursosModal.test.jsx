@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import SolicitudRecursosModal from '../SolicitudRecursosModal';
 import mostrarToastConVistaPrevia from '../pdfPreviewToast';
 
+const mockDrawText = vi.hoisted(() => vi.fn());
+
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({
     useAuth: () => ({
@@ -27,7 +29,7 @@ vi.mock('pdf-lib', () => ({
         create: vi.fn().mockResolvedValue({
             addPage: vi.fn(() => ({
                 getSize: () => ({ width: 500, height: 800 }),
-                drawText: vi.fn(),
+                drawText: mockDrawText,
                 drawImage: vi.fn(),
                 drawLine: vi.fn(),
             })),
@@ -154,6 +156,7 @@ describe('SolicitudRecursosModal Component', () => {
     it('debería llamar a addDoc y a las funciones de subida al generar la solicitud', async () => {
         render(<SolicitudRecursosModal onClose={mockOnClose} onSolicitudCreada={mockOnSolicitudCreada} fechaInicioInicial="2026-05-10" />);
 
+        fireEvent.change(screen.getByLabelText('Empresa(s):'), { target: { value: 'CECAI y MAF' } });
         fireEvent.click(screen.getByRole('button', { name: 'Seleccionar fechas' }));
         fireEvent.click(screen.getByRole('button', { name: '10 mayo 2026' }));
 
@@ -165,7 +168,10 @@ describe('SolicitudRecursosModal Component', () => {
             expect(mockAddDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
                 totalSolicitado: 1300,
                 userId: 'test-user-id',
+                empresas: 'CECAI y MAF',
             }));
+            expect(mockDrawText).toHaveBeenCalledWith('Empresa(s):', expect.any(Object));
+            expect(mockDrawText).toHaveBeenCalledWith('CECAI y MAF', expect.any(Object));
             expect(mockOnSolicitudCreada).toHaveBeenCalledTimes(1);
             expect(mockOnClose).toHaveBeenCalledTimes(1);
         });
