@@ -452,23 +452,27 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
 
     return (
         <div className="space-y-4">
-            {adminGlobalView && (
-                <p className="border-l-4 border-emerald-600 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900">
-                    Vista global de solicitudes de todos los usuarios. Solo lectura.
-                </p>
-            )}
-            {solicitudes.length > 0 && (
-                <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-thin select-none">
-                    <button
-                        onClick={() => setEstadoFiltro('Todos')}
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shadow-sm border ${
-                            estadoFiltro === 'Todos'
-                                ? 'bg-slate-800 text-white border-slate-800'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                        }`}
-                    >
-                        Todas ({solicitudes.length})
-                    </button>
+            {adminGlobalView}
+            {solicitudes.length > 0 && (() => {
+                const estadosDisponibles = Object.keys(statusColors).filter(
+                    (estado) => solicitudes.filter((s) => s.estado === estado).length > 0
+                );
+                const hayVariosFiltros = estadosDisponibles.length > 0;
+
+                return (
+                    <div className="flex flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2 pb-2 sm:overflow-x-auto sm:scrollbar-thin select-none">
+                        <button
+                            onClick={() => setEstadoFiltro('Todos')}
+                            className={`${
+                                hayVariosFiltros ? 'w-full sm:w-auto sm:flex-initial' : 'flex-1 sm:flex-initial'
+                            } justify-center px-2.5 sm:px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shadow-sm border ${
+                                estadoFiltro === 'Todos'
+                                    ? 'bg-slate-800 text-white border-slate-800'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            Todas ({solicitudes.length})
+                        </button>
                     {Object.keys(statusColors).map((estado) => {
                         const count = solicitudes.filter(s => s.estado === estado).length;
                         if (count === 0) return null;
@@ -479,7 +483,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                             <button
                                 key={estado}
                                 onClick={() => setEstadoFiltro(estado)}
-                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shadow-sm border flex items-center gap-1.5 ${
+                                className={`flex-1 sm:flex-initial justify-center px-2.5 sm:px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shadow-sm border flex items-center gap-1 sm:gap-1.5 ${
                                     isSelected
                                         ? `${activeClass} border-transparent`
                                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -489,12 +493,13 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                     const StatusIcon = statusColors[estado].icon;
                                     return <StatusIcon size={13} strokeWidth={2.2} className={isSelected ? 'text-white' : 'text-slate-400'} aria-hidden="true" />;
                                 })()}
-                                {estado} ({count})
+                                <span>{estado} ({count})</span>
                             </button>
                         );
                     })}
                 </div>
-            )}
+                );
+            })()}
 
             {solicitudes.length === 0 ? (
                 <Text className="text-center mt-8">No hay solicitudes de recursos todavía.</Text>
@@ -504,28 +509,28 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                 solicitudesFiltradas.map(solicitud => (
                     <Card key={solicitud.id} className="relative rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80 focus-within:z-20">
                         <Flex alignItems="start" className="border-none">
-                            <div className="truncate">
-                                <Flex alignItems='center' className='gap-2 mb-2'>
+                            <div className="w-full">
+                                <Flex justifyContent='start' alignItems='center' className='gap-2 mb-2'>
                                     <Briefcase size={14} className='text-slate-500' />
                                     <Title>{`TrackSIM - ${solicitud.esMAF ? 'MAF' : 'CECAI'}`}</Title>
                                 </Flex>
-                                <Flex alignItems='center' className='gap-2'>
+                                <Flex justifyContent='start' alignItems='center' className='gap-2'>
                                     <User size={14} className='text-slate-500' />
                                     <Text>{solicitud.consultor}</Text>
                                 </Flex>
-                                <Flex alignItems='center' className='gap-2 mt-1'>
+                                <Flex justifyContent='start' alignItems='center' className='gap-2 mt-1'>
                                     <Calendar size={14} className='text-slate-500' />
                                     <Text>{solicitud.fechaInicio} al {solicitud.fechaFin} ({solicitud.dias} días)</Text>
                                 </Flex>
                             </div>
-                            <div className="flex flex-col items-end">
+                            <div className="flex flex-col items-start w-auto shrink-0">
                                 {solicitud.url_pdf_solicitud && (
                                     <button
                                         onClick={() => setSolicitudOpciones(solicitud)}
                                         className="flex items-center gap-1 p-2 text-slate-500 hover:text-blue-600 transition-colors"
                                         title="Opciones de la solicitud"
                                     >
-                                        <FileText size={16} />
+                                        <FileText size={12} />
                                         <span className="text-xs font-bold">Solicitud</span>
                                     </button>
                                 )}
@@ -535,7 +540,7 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                         className="flex items-center gap-1 p-2 text-slate-500 hover:text-emerald-600 transition-colors"
                                         title="Opciones del reporte"
                                     >
-                                        <FileDown size={16} />
+                                        <FileDown size={12} />
                                         <span className="text-xs font-bold">Reporte</span>
                                     </button>
                                 )}
@@ -554,9 +559,9 @@ const ListaSolicitudes = ({ adminViewUid = null, adminEditMode = false, adminGlo
                                                 : 'Eliminar solicitud'
                                         }
                                     >
-                                            <Trash2 size={16} />
+                                            <Trash2 size={12} />
                                             <span className="text-xs font-bold">{estadosNoEliminables.has(solicitud.estado) ? 'No disponible' : 'Eliminar'}
-            </span>
+                                            </span>
                                     </button>
                                 )}
                             </div>

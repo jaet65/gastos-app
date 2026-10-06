@@ -351,8 +351,8 @@ function App() {
                 {isAdmin && <TabButton label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => changeTab('dashboard')} />}
                 <TabButton label="Gastos" isActive={activeTab === 'gastos'} onClick={() => changeTab('gastos')} />
                 <TabButton label="Solicitudes" isActive={activeTab === 'solicitudes'} onClick={() => { changeTab('solicitudes'); }} badges={solicitudBadges} />
-                {isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
-                {isAdmin && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />}
+                {/*isAdmin && <TabButton label="Usuarios" isActive={activeTab === 'usuarios'} onClick={() => changeTab('usuarios')} />}
+                {isAdmin && <TabButton label="Auditoría" isActive={activeTab === 'auditoria'} onClick={() => changeTab('auditoria')} />*/}
               </div>
             </div>
 

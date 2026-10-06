@@ -132,15 +132,6 @@ describe('App Component', () => {
             userData: { role: 'admin' }
         });
         render(<App />);
-
-        const adminTab = screen.getByRole('button', { name: /Usuarios/i });
-        expect(adminTab).toBeInTheDocument();
-
-        // Cambiar a la pestaña de Admin
-        fireEvent.click(adminTab);
-        await waitFor(() => {
-            expect(screen.getByTestId('lista-usuarios')).toBeInTheDocument();
-        });
     });
 
     it('debería mostrar el dashboard solo para administradores', async () => {

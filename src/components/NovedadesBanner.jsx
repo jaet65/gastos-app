@@ -20,16 +20,27 @@ const NovedadesBanner = () => {
   if (!visible) return null;
 
   return (
-    <div role="status" className="backdrop-blur-md bg-blue-50/50 fixed top-0 left-0 right-0 flex items-start gap-3 rounded-xl border border-blue-100 px-4 py-3 text-sm text-blue-900 shadow-sm">
-      <Sparkles size={18} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
-      <p className="flex-1">
-        <span className="font-bold">¡Gastos MAF se actualizó!</span>{' '}
-        Ahora, al adjuntar una factura, el sistema detecta el monto automáticamente y llena el formulario por ti. Además, puedes obtener una vista previa de tus solicitudes y reportes sin necesidad de descargarlos.
-      </p>
+    <div 
+      role="status" 
+      className="relative mb-4 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs md:text-sm text-blue-900 shadow-xs backdrop-blur-xs transition-all"
+    >
+      <div className="rounded-lg bg-blue-100 p-1.5 text-blue-600 shrink-0 mt-0.5">
+        <Sparkles size={16} aria-hidden="true" />
+      </div>
+      
+      <div className="flex-1 space-y-1">
+        <p className="font-semibold leading-snug">
+          ¡Gastos MAF se actualizó!
+        </p>
+        <p className="text-blue-700 leading-relaxed">
+          Ahora el sistema detecta el monto de tus facturas automáticamente y puedes previsualizar reportes sin descargarlos.
+        </p>
+      </div>
+
       <button
         type="button"
         onClick={cerrarBanner}
-        className="shrink-0 rounded p-1 text-blue-500 transition-colors hover:bg-blue-100 hover:text-blue-800"
+        className="shrink-0 rounded-lg p-1 text-blue-400 transition-colors hover:bg-blue-100 hover:text-blue-700"
         aria-label="Cerrar aviso de actualización"
       >
         <X size={16} />

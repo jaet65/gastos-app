@@ -95,7 +95,6 @@ describe('ListaSolicitudes Component', () => {
         render(<ListaSolicitudes adminGlobalView />);
 
         expect(await screen.findByText('TrackSIM - CECAI')).toBeInTheDocument();
-        expect(screen.getByText('Vista global de solicitudes de todos los usuarios. Solo lectura.')).toBeInTheDocument();
         expect(screen.queryByTitle('Eliminar solicitud')).not.toBeInTheDocument();
         expect(where).not.toHaveBeenCalled();
         expect(updateDoc).not.toHaveBeenCalled();

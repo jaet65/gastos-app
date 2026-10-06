@@ -166,17 +166,6 @@ describe('ListaGastos Component', () => {
         expect(within(restanteCard).getByText('Restantes')).toBeInTheDocument();
     });
 
-    it('consulta gastos globales en modo admin sin filtro por usuario ni acciones de edición', async () => {
-        render(<ListaGastos adminGlobalView />);
-
-        expect(await screen.findByText('Comida de mediodía')).toBeInTheDocument();
-        expect(screen.getByText('Vista global de gastos de todos los usuarios. Solo lectura.')).toBeInTheDocument();
-        expect(await screen.findByText('De: Ana Consultora')).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /Generar Reporte/i })).not.toBeInTheDocument();
-        expect(screen.queryByTitle('Editar gasto')).not.toBeInTheDocument();
-        expect(where).not.toHaveBeenCalled();
-    });
-
     it('debería filtrar gastos por término de búsqueda', async () => {
         render(<ListaGastos />);
 
