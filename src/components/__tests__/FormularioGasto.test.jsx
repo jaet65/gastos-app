@@ -88,6 +88,24 @@ describe('FormularioGasto Component', () => {
         expect(window.location.search).toBe('');
     });
 
+    it('no deja adjunta una factura compartida si el análisis detecta un duplicado cancelado', async () => {
+        const invoice = new File(['pdf'], 'factura-duplicada.pdf', { type: 'application/pdf' });
+        takeSharedInvoice.mockResolvedValue(invoice);
+        analyzeInvoice.mockResolvedValue({
+            amount: 321.45,
+            receiverRfc: null,
+            uuid: '123E4567-E89B-12D3-A456-426614174000',
+            duplicateCancelled: true
+        });
+        window.history.replaceState({}, '', '/?sharedInvoice=share-duplicate');
+
+        render(<FormularioGasto />);
+
+        await waitFor(() => expect(takeSharedInvoice).toHaveBeenCalledWith('share-duplicate'));
+        expect(await screen.findByText('Se canceló el adjunto porque la factura ya está registrada.')).toBeInTheDocument();
+        expect(screen.queryByText('factura-duplicada.pdf')).not.toBeInTheDocument();
+    });
+
     it('debería mostrar la opción de propina solo cuando la categoría es "Comida"', async () => {
         render(<FormularioGasto />);
 

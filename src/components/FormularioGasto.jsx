@@ -700,6 +700,9 @@ const FormularioGasto = () => {
                 </button>
               </div>
             )}
+            {!archivo && mensajeAnalisis && (
+              <p className="mt-1 text-center text-xs text-slate-500">{mensajeAnalisis}</p>
+            )}
             <div className="mt-0.5 flex justify-center">
               <span
                 aria-label="Autocompletado por QR disponible"

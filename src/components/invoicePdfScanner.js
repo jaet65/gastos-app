@@ -22,14 +22,20 @@ const getAmountFromQr = (value) => {
 
 const normalizeUuid = (value) => {
     const uuid = value?.trim();
-    return uuid && /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(uuid)
-        ? uuid.toUpperCase()
-        : null;
+    if (!uuid) return null;
+
+    const compactUuid = uuid.replace(/-/g, '');
+    if (!/^[\da-f]{32}$/i.test(compactUuid)) return null;
+    return `${compactUuid.slice(0, 8)}-${compactUuid.slice(8, 12)}-${compactUuid.slice(12, 16)}-${compactUuid.slice(16, 20)}-${compactUuid.slice(20)}`.toUpperCase();
 };
 
-const getUuidFromText = (value) => normalizeUuid(
-    value.match(/\b[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\b/i)?.[0]
-);
+export const extractInvoiceUuid = (value) => {
+    const compactText = value.replace(/\s+/g, '');
+    const uuidMatch = compactText.match(
+        /[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}|[\da-f]{32}/i
+    );
+    return normalizeUuid(uuidMatch?.[0]);
+};
 
 export const parseInvoiceQr = (value) => {
     const query = value.includes('?') ? value.slice(value.indexOf('?') + 1) : value;
@@ -101,7 +107,7 @@ export const extractInvoiceDetails = async (file) => {
             }
         }
 
-        const uuid = getUuidFromText(text) || qrDetails?.uuid || null;
+        const uuid = extractInvoiceUuid(text) || qrDetails?.uuid || null;
         if (qrAmount !== null) {
             console.log(`[invoicePdfScanner] Total detectado por QR: $${qrAmount.toFixed(2)}`);
             return { ...(qrDetails || {}), amount: qrAmount, uuid };
