@@ -194,6 +194,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
         fecha: gastoActualizado.fecha,
         categoria: gastoActualizado.categoria,
         url_factura: gastoActualizado.url_factura || "",
+        uuid_factura: gastoActualizado.uuid_factura || "",
         deleteToken: gastoActualizado.deleteToken || "",
       };
 

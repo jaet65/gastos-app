@@ -5,7 +5,7 @@ Aplicación web moderna para la administración, control y reporte de gastos y s
 ## 🚀 Características Principales
 
 - **Gestión de Solicitudes**: Módulo completo para la creación, seguimiento y cierre de solicitudes de recursos.
-- **Control de Gastos**: Registro detallado de gastos con soporte para múltiples categorías y edición dinámica.
+- **Control de Gastos**: Registro detallado de gastos con soporte para múltiples categorías, edición dinámica, análisis automático de facturas PDF y detección de duplicados por UUID.
 - **Gestión de Casetas**: Manejo especializado de gastos de peaje, permitiendo el registro sin factura inicial y actualización posterior.
 - **Generación de Reportes**:
   - Exportación a **Excel** y **PDF**.

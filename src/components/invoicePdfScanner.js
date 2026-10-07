@@ -20,13 +20,25 @@ const getAmountFromQr = (value) => {
     return match ? parseAmount(match[1]) : null;
 };
 
+const normalizeUuid = (value) => {
+    const uuid = value?.trim();
+    return uuid && /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(uuid)
+        ? uuid.toUpperCase()
+        : null;
+};
+
+const getUuidFromText = (value) => normalizeUuid(
+    value.match(/\b[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\b/i)?.[0]
+);
+
 export const parseInvoiceQr = (value) => {
     const query = value.includes('?') ? value.slice(value.indexOf('?') + 1) : value;
     const params = new URLSearchParams(query);
     const receiverRfc = params.get('rr');
     return {
         amount: getAmountFromQr(value),
-        receiverRfc: receiverRfc?.trim().toUpperCase() || null
+        receiverRfc: receiverRfc?.trim().toUpperCase() || null,
+        uuid: normalizeUuid(params.get('id'))
     };
 };
 
@@ -47,6 +59,7 @@ export const extractInvoiceDetails = async (file) => {
     let loadingTask;
     let text = '';
     let qrDetails = null;
+    let qrAmount = null;
 
     try {
         loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
@@ -69,27 +82,39 @@ export const extractInvoiceDetails = async (file) => {
                 const image = context.getImageData(0, 0, canvas.width, canvas.height);
                 const qr = jsQR(image.data, image.width, image.height, { inversionAttempts: 'attemptBoth' });
                 const details = qr ? parseInvoiceQr(qr.data) : null;
-                if (details?.receiverRfc && !qrDetails) qrDetails = details;
-                if (details?.amount !== null && details?.amount !== undefined) {
-                    console.log(`[invoicePdfScanner] Total detectado por QR en página ${pageNumber}: $${details.amount.toFixed(2)}`);
-                    return details;
+                if (details?.receiverRfc && !qrDetails?.receiverRfc) {
+                    qrDetails = { ...qrDetails, receiverRfc: details.receiverRfc };
+                }
+                if (details?.uuid && !qrDetails?.uuid) {
+                    qrDetails = { ...qrDetails, uuid: details.uuid };
+                }
+                if (details?.amount !== null && details?.amount !== undefined && qrAmount === null) {
+                    qrAmount = details.amount;
                 }
                 if (qr) {
-                    console.log(`[invoicePdfScanner] Se encontró un QR en página ${pageNumber}, pero no contiene un total válido.`);
+                    if (details?.amount === null || details?.amount === undefined) {
+                        console.log(`[invoicePdfScanner] Se encontró un QR en página ${pageNumber}, pero no contiene un total válido.`);
+                    }
                 }
             } catch (error) {
                 console.warn(`[invoicePdfScanner] No se pudo escanear el QR de la página ${pageNumber}; se intentará extraer el texto.`, error);
             }
         }
 
+        const uuid = getUuidFromText(text) || qrDetails?.uuid || null;
+        if (qrAmount !== null) {
+            console.log(`[invoicePdfScanner] Total detectado por QR: $${qrAmount.toFixed(2)}`);
+            return { ...(qrDetails || {}), amount: qrAmount, uuid };
+        }
+
         const amount = getAmountFromText(text);
         if (amount !== null) {
             console.log(`[invoicePdfScanner] Total detectado por texto: $${amount.toFixed(2)}`);
-            return { ...(qrDetails || {}), amount };
+            return { ...(qrDetails || {}), amount, uuid };
         }
 
         console.warn('[invoicePdfScanner] No se detectó un total ni por QR ni por texto.');
-        return qrDetails || { amount: null, receiverRfc: null };
+        return { ...(qrDetails || {}), amount: null, receiverRfc: qrDetails?.receiverRfc || null, uuid };
     } catch (error) {
         console.error('[invoicePdfScanner] Falló el escaneo de la factura.', error);
         throw error;

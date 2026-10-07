@@ -54,6 +54,7 @@ const FormularioGasto = () => {
   const casetaMontos = useRef(new Map());
   const montoActualRef = useRef('');
   const invoiceReceiverRfc = useRef(null);
+  const invoiceUuid = useRef(null);
   const processedShareRef = useRef(null);
 
   const CLOUD_NAME = "didj7kuah";
@@ -75,12 +76,25 @@ const FormularioGasto = () => {
     setArchivo(file);
     setAnalizandoFactura(true);
     setMensajeAnalisis('');
+    invoiceReceiverRfc.current = null;
+    invoiceUuid.current = null;
 
     try {
       const analysis = await analyzeInvoice(file);
-      const amount = analysis.amount;
       if (invoiceScanId.current !== scanId) return;
+      if (analysis.duplicateCancelled || analysis.duplicateCheckError) {
+        setArchivo(null);
+        invoiceReceiverRfc.current = null;
+        invoiceUuid.current = null;
+        setMensajeAnalisis(analysis.duplicateCancelled
+          ? 'Se canceló el adjunto porque la factura ya está registrada.'
+          : 'No se adjuntó la factura porque no se pudo verificar si ya estaba registrada.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      const amount = analysis.amount;
       invoiceReceiverRfc.current = analysis.receiverRfc || null;
+      invoiceUuid.current = analysis.uuid || null;
       if (isMafRfc(analysis.receiverRfc)) {
         setFormData((current) => ({ ...current, categoria: 'MAF' }));
       }
@@ -241,6 +255,7 @@ const FormularioGasto = () => {
   const removeFile = () => {
     invoiceScanId.current += 1;
     invoiceReceiverRfc.current = null;
+    invoiceUuid.current = null;
     setArchivo(null);
     setAnalizandoFactura(false);
     setMensajeAnalisis('');
@@ -286,12 +301,34 @@ const FormularioGasto = () => {
 
       analyzeInvoice(value).then(async (analysis) => {
         if (casetaScanIds.current.get(caseta.scanKey) !== scanId) return;
+        if (analysis.duplicateCancelled || analysis.duplicateCheckError) {
+          setCasetas((current) => current.map((item) => (
+            item.scanKey === caseta.scanKey
+              ? {
+                  ...item,
+                  archivo: null,
+                  uuidFactura: null,
+                  analizandoFactura: false,
+                  mensajeAnalisis: analysis.duplicateCancelled
+                    ? 'Se canceló el adjunto porque la factura ya está registrada.'
+                    : 'No se adjuntó la factura porque no se pudo verificar si ya estaba registrada.'
+                }
+              : item
+          )));
+          return;
+        }
+        const uuidFactura = analysis.uuid || null;
         const amount = analysis.amount;
 
         if (amount === null) {
           setCasetas((current) => current.map((item) => (
             item.scanKey === caseta.scanKey
-              ? { ...item, analizandoFactura: false, mensajeAnalisis: appendInvoiceRfcStatus('No se detectó el total; puedes ingresarlo manualmente.', analysis) }
+              ? {
+                  ...item,
+                  uuidFactura,
+                  analizandoFactura: false,
+                  mensajeAnalisis: appendInvoiceRfcStatus('No se detectó el total; puedes ingresarlo manualmente.', analysis)
+                }
               : item
           )));
           return;
@@ -305,6 +342,7 @@ const FormularioGasto = () => {
             ? {
                 ...item,
                 monto: resultado.amount,
+                uuidFactura,
                 analizandoFactura: false,
                 mensajeAnalisis: appendInvoiceRfcStatus(resultado.source === 'detected'
                   ? `Total detectado: $${amount.toFixed(2)}`
@@ -431,6 +469,7 @@ const FormularioGasto = () => {
         concepto: conceptoFinal,
         monto: montoOriginal,
         url_factura: fileData?.secure_url || '',
+        uuid_factura: invoiceUuid.current || '',
         deleteToken: fileData?.delete_token || '',
         creado_en: timestamp,
         userId: user.uid
@@ -489,6 +528,7 @@ const FormularioGasto = () => {
             monto: parseFloat(caseta.monto),
             categoria: 'Transporte',
             url_factura: fileDataCaseta.secure_url,
+            uuid_factura: caseta.uuidFactura || '',
             deleteToken: fileDataCaseta.delete_token,
             creado_en: timestamp,
             userId: user.uid,

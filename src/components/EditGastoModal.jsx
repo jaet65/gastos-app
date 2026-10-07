@@ -42,6 +42,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
     const montoPrincipalRef = useRef(String(gasto.monto ?? ''));
     const facturaPrincipalScanId = useRef(0);
     const invoiceReceiverRfc = useRef(null);
+    const invoiceUuid = useRef(null);
     const casetaScanIds = useRef(new Map());
     const casetaMontos = useRef(new Map());
     const casetaIdCounter = useRef(0);
@@ -126,12 +127,25 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
         setNuevoArchivo(file);
         setAnalizandoFactura(true);
         setMensajeAnalisis('');
+        invoiceReceiverRfc.current = null;
+        invoiceUuid.current = null;
 
         try {
             const analysis = await analyzeInvoice(file);
-            const amount = analysis.amount;
             if (facturaPrincipalScanId.current !== scanId) return;
+            if (analysis.duplicateCancelled || analysis.duplicateCheckError) {
+                setNuevoArchivo(null);
+                invoiceReceiverRfc.current = null;
+                invoiceUuid.current = null;
+                setMensajeAnalisis(analysis.duplicateCancelled
+                    ? 'Se canceló el adjunto porque la factura ya está registrada.'
+                    : 'No se adjuntó la factura porque no se pudo verificar si ya estaba registrada.');
+                if (fileInputEditRef.current) fileInputEditRef.current.value = '';
+                return;
+            }
+            const amount = analysis.amount;
             invoiceReceiverRfc.current = analysis.receiverRfc || null;
+            invoiceUuid.current = analysis.uuid || null;
             if (isMafRfc(analysis.receiverRfc)) {
                 setGastoEditado((current) => ({ ...current, categoria: 'MAF' }));
             }
@@ -181,11 +195,25 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
 
         try {
             const analysis = await analyzeInvoice(file);
-            const amount = analysis.amount;
             if (casetaScanIds.current.get(scanKey) !== scanId) return;
+            if (analysis.duplicateCancelled || analysis.duplicateCheckError) {
+                actualizarCaseta(scanKey, (caseta) => ({
+                    ...caseta,
+                    archivo: null,
+                    uuidFactura: caseta.uuid_factura || caseta.uuidFactura || null,
+                    analizandoFactura: false,
+                    mensajeAnalisis: analysis.duplicateCancelled
+                        ? 'Se canceló el adjunto porque la factura ya está registrada.'
+                        : 'No se adjuntó la factura porque no se pudo verificar si ya estaba registrada.'
+                }));
+                return;
+            }
+            const uuidFactura = analysis.uuid || null;
+            const amount = analysis.amount;
             if (amount === null) {
                 actualizarCaseta(scanKey, (caseta) => ({
                     ...caseta,
+                    uuidFactura,
                     analizandoFactura: false,
                     mensajeAnalisis: appendInvoiceRfcStatus('No se detectó el total; puedes ingresarlo manualmente.', analysis)
                 }));
@@ -198,6 +226,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
             actualizarCaseta(scanKey, (caseta) => ({
                 ...caseta,
                 monto: resultado.amount,
+                uuidFactura,
                 analizandoFactura: false,
                 mensajeAnalisis: appendInvoiceRfcStatus(resultado.source === 'detected'
                     ? `Total detectado: $${amount.toFixed(2)}`
@@ -285,6 +314,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                         monto: parseFloat(caseta.monto),
                         categoria: 'Transporte',
                         url_factura: fileDataCaseta.secure_url,
+                        uuid_factura: caseta.uuidFactura || '',
                         deleteToken: fileDataCaseta.delete_token,
                         creado_en: Timestamp.now(),
                         userId: gasto.userId,
@@ -294,6 +324,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                     // c) Actualizar casetas existentes (si cambiaron)
                     const casetaRef = doc(db, "gastos", caseta.id);
                     let url_factura = caseta.url_factura || "";
+                    let uuid_factura = caseta.uuid_factura || caseta.uuidFactura || "";
                     let deleteToken = caseta.deleteToken || "";
 
                     if (caseta.archivo) { // Se subió una factura para una caseta que no tenía o se cambió
@@ -303,6 +334,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                         }
                         const fileData = await subirACloudinary(caseta.archivo);
                         url_factura = fileData.secure_url;
+                        uuid_factura = caseta.uuidFactura || '';
                         deleteToken = fileData.delete_token;
                     }
 
@@ -310,6 +342,7 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                         monto: parseFloat(caseta.monto),
                         fecha: gastoEditado.fecha, // Sincronizar fecha con el gasto principal
                         url_factura,
+                        uuid_factura,
                         deleteToken
                     });
                 }
@@ -325,6 +358,9 @@ const EditGastoModal = ({ gasto, onClose, onSave }) => {
                 ...gastoEditado,
                 concepto: conceptoFinal,
                 url_factura: fileData ? fileData.secure_url : gastoEditado.url_factura,
+                uuid_factura: fileData
+                    ? (invoiceUuid.current || '')
+                    : (seQuitoFactura ? '' : gasto.uuid_factura || ''),
                 deleteToken: fileData ? fileData.delete_token : (seQuitoFactura ? "" : gasto.deleteToken)
             };
 

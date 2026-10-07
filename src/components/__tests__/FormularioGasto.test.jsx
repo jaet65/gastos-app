@@ -61,6 +61,7 @@ describe('FormularioGasto Component', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        vi.unstubAllGlobals();
     });
 
     it('debería renderizar el formulario con los campos iniciales', () => {
@@ -126,6 +127,34 @@ describe('FormularioGasto Component', () => {
 
         await waitFor(() => expect(screen.getByPlaceholderText('0.00')).toHaveValue(987.65));
         expect(screen.getByText('Total detectado: $987.65')).toBeInTheDocument();
+    });
+
+    it('guarda el UUID detectado junto con el gasto y la factura', async () => {
+        const uuid = '123E4567-E89B-12D3-A456-426614174000';
+        analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: null, uuid });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+                secure_url: 'http://fake.url/factura.pdf',
+                delete_token: 'fake-delete-token'
+            })
+        }));
+        const firestore = await import('firebase/firestore');
+        const { container } = render(<FormularioGasto />);
+
+        fireEvent.change(screen.getByPlaceholderText('Descripción'), { target: { value: 'Gasto con UUID' } });
+        fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '123.45' } });
+        fireEvent.change(container.querySelector('input[type="file"]'), {
+            target: { files: [new File(['pdf'], 'factura.pdf', { type: 'application/pdf' })] }
+        });
+
+        await waitFor(() => expect(screen.getByText('factura.pdf')).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: /GUARDAR GASTO/i }));
+
+        await waitFor(() => expect(firestore.addDoc).toHaveBeenCalledWith(
+            expect.any(Object),
+            expect.objectContaining({ uuid_factura: uuid })
+        ));
     });
 
     it('cambia automáticamente la categoría a MAF para la RFC MAF', async () => {
