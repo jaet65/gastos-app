@@ -32,13 +32,32 @@ export default defineConfig({
     react(),
     basicSsl(), // Genera el certificado SSL autofirmado automáticamente
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'service-worker.js',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Gastos MAF',
         short_name: 'GastosMAF',
         description: 'Aplicación para el registro de gastos',
+        lang: 'es',
+        start_url: '/',
+        display: 'standalone',
         theme_color: '#ffffff',
+        share_target: {
+          action: '/share-target',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            files: [
+              {
+                name: 'file',
+                accept: ['application/pdf', '.pdf']
+              }
+            ]
+          }
+        },
         icons: [
           {
             src: '/pwa-192x192.png',

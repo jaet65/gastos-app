@@ -3,11 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FormularioGasto from '../FormularioGasto';
 import { AuthProvider } from '../AuthContext';
 import { analyzeInvoice } from '../invoiceAnalysis';
+import { takeSharedInvoice } from '../../shareTarget';
 import Swal from 'sweetalert2';
 
 vi.mock('../invoiceAnalysis', () => ({
     analyzeInvoice: vi.fn(),
     appendInvoiceRfcStatus: vi.fn((message) => message),
+}));
+
+vi.mock('../../shareTarget', () => ({
+    takeSharedInvoice: vi.fn(),
 }));
 
 // Mock de dependencias externas
@@ -48,6 +53,8 @@ describe('FormularioGasto Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         analyzeInvoice.mockResolvedValue({ amount: null, receiverRfc: null });
+        takeSharedInvoice.mockResolvedValue(null);
+        window.history.replaceState({}, '', '/');
         // Mock de alert para que no interrumpa las pruebas
         window.alert = vi.fn();
     });
@@ -64,6 +71,20 @@ describe('FormularioGasto Component', () => {
         expect(screen.getByPlaceholderText('0.00')).toBeInTheDocument();
         expect(screen.getByLabelText('Autocompletado por QR disponible')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /GUARDAR GASTO/i })).toBeInTheDocument();
+    });
+
+    it('recibe la factura compartida y la carga en el formulario de nuevo gasto', async () => {
+        const invoice = new File(['pdf'], 'factura-compartida.pdf', { type: 'application/pdf' });
+        takeSharedInvoice.mockResolvedValue(invoice);
+        analyzeInvoice.mockResolvedValue({ amount: 321.45, receiverRfc: null });
+        window.history.replaceState({}, '', '/?sharedInvoice=share-123');
+
+        render(<FormularioGasto />);
+
+        await waitFor(() => expect(takeSharedInvoice).toHaveBeenCalledWith('share-123'));
+        await waitFor(() => expect(screen.getByPlaceholderText('0.00')).toHaveValue(321.45));
+        expect(screen.getByText('factura-compartida.pdf')).toBeInTheDocument();
+        expect(window.location.search).toBe('');
     });
 
     it('debería mostrar la opción de propina solo cuando la categoría es "Comida"', async () => {

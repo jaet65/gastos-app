@@ -11,6 +11,7 @@ import Swal from 'sweetalert2';
 import { confirmInvoiceAmount } from './invoiceAmountConfirmation';
 import { analyzeInvoice, appendInvoiceRfcStatus } from './invoiceAnalysis';
 import { hasMafRfcMismatch, isMafRfc } from './invoiceRfcRules';
+import { takeSharedInvoice } from '../shareTarget';
 
 // InputGroup: Bloque plano sin bordes
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
@@ -53,6 +54,7 @@ const FormularioGasto = () => {
   const casetaMontos = useRef(new Map());
   const montoActualRef = useRef('');
   const invoiceReceiverRfc = useRef(null);
+  const processedShareRef = useRef(null);
 
   const CLOUD_NAME = "didj7kuah";
   const UPLOAD_PRESET = "Gastos_Facturas";
@@ -105,6 +107,60 @@ const FormularioGasto = () => {
       if (invoiceScanId.current === scanId) setAnalizandoFactura(false);
     }
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedInvoiceId = params.get('sharedInvoice');
+    const shareError = params.get('shareError');
+    if (!sharedInvoiceId && !shareError) return;
+
+    const processedId = sharedInvoiceId || `error-${shareError}`;
+    if (processedShareRef.current === processedId) return;
+    processedShareRef.current = processedId;
+
+    params.delete('sharedInvoice');
+    params.delete('shareError');
+    const remainingParams = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${remainingParams ? `?${remainingParams}` : ''}${window.location.hash}`
+    );
+
+    if (shareError) {
+      const message = shareError === 'invalid'
+        ? 'Comparte un archivo PDF para adjuntarlo al gasto.'
+        : 'No se pudo recibir la factura compartida. Intenta compartirla nuevamente o selecciónala desde el formulario.';
+      Swal.fire({
+        title: 'No se recibió la factura',
+        text: message,
+        icon: 'warning',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    takeSharedInvoice(sharedInvoiceId).then((file) => {
+      if (!file) {
+        Swal.fire({
+          title: 'No se encontró la factura',
+          text: 'Vuelve a compartir el PDF o selecciónalo desde el formulario.',
+          icon: 'warning',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      handleInvoiceFile(file);
+    }).catch((error) => {
+      console.error('Error recuperando la factura compartida:', error);
+      Swal.fire({
+        title: 'No se pudo abrir la factura',
+        text: 'Intenta compartir el PDF nuevamente o selecciónalo desde el formulario.',
+        icon: 'error',
+        confirmButtonText: 'Entendido'
+      });
+    });
+  }, [handleInvoiceFile]);
 
   // --- LOGICA DE DRAG & DROP GLOBAL ---
   useEffect(() => {
