@@ -39,7 +39,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Gastos MAF',
-        short_name: 'Gastos MAF',
+        short_name: 'GastosMAF',
         description: 'Aplicación para el registro de gastos',
         lang: 'es',
         start_url: '/',
@@ -69,7 +69,7 @@ export default defineConfig({
             src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
         ],
       },

@@ -1,5 +1,5 @@
 {
-  "short_name": "Gastos MAF",
+  "short_name": "GastosMAF",
   "name": "Gastos MAF",
   "description": "Aplicación para el registro de gastos",
   "lang": "es",
@@ -32,7 +32,7 @@
       "src": "/pwa-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
