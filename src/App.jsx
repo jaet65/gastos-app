@@ -338,8 +338,8 @@ function App() {
         </div>
 
         {/* COLUMNA DERECHA */}
-        <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-y-auto lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser || adminGlobalView ? 'pt-6' : ''}`}>
-          <div className="h-full w-full overflow-y-auto px-4 lg:px-16 pb-32 pt-4">
+        <div {...closeHandlers} className={`fixed inset-0 w-full h-full bg-slate-100 z-30 transform transition-transform duration-300 ease-in-out lg:static lg:flex-1 lg:h-full lg:overflow-hidden lg:translate-x-0 lg:z-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${adminSelectedUser || adminGlobalView ? 'pt-6' : ''}`}>
+          <div className={`h-full w-full overflow-y-auto px-4 lg:px-16 pt-4 ${activeTab === 'dashboard' ? 'pb-4 lg:pb-6' : 'pb-32'}`}>
             <div {...tabSwipeHandlers} className="tabs-container pb-2 -mt-2 pt-2">
               <div className="flex justify-end lg:hidden mb-4">
                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-500 hover:text-red-600">

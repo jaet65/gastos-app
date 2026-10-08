@@ -92,15 +92,21 @@ const AdminDashboard = ({ onNavigate }) => {
   const metricas = [
     { label: 'Gasto del mes', value: formatCurrency(totalMes), detail: 'Registros no archivados', icon: Wallet, tone: 'text-emerald-700 bg-emerald-50 rounded-full' },
     { label: 'Movimientos', value: gastosActivos.length, detail: 'En el mes actual', icon: ReceiptText, tone: 'text-blue-700 bg-blue-50 rounded-full' },
-    { label: 'Solicitudes abiertas', value: totalPendientes, detail: `${solicitudesPorEstado.Solicitada} solicitadas · ${solicitudesPorEstado.Recibida} recibidas`, icon: Clock3, tone: 'text-amber-700 bg-amber-50 rounded-full' },
+    { label: 'Solicitudes abiertas', value: totalPendientes, detail: `${solicitudesPorEstado.Solicitada} Sol. · ${solicitudesPorEstado.Recibida} Rec. · ${solicitudesPorEstado['En revisión']} Rev.`, icon: Clock3, tone: 'text-amber-700 bg-amber-50 rounded-full' },
     { label: 'Consultores', value: consultores, detail: 'Cuentas registradas', icon: Users, tone: 'text-rose-700 bg-rose-50 rounded-full' },
   ];
 
   return (
-    <main data-testid="admin-dashboard" className="mx-auto w-full max-w-6xl space-y-7 pb-8">
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-5">
+    <main data-testid="admin-dashboard" className="mx-auto w-full max-w-6xl space-y-5 lg:space-y-6 pb-0">
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4 lg:pb-5">
         <div>
           <p className="mb-1 text-xs font-black uppercase tracking-widest text-emerald-700">Panel de administración</p>
+          
+          <nav aria-label="Accesos de administración" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 lg:pb-4">
+            <button type="button" onClick={() => onNavigate('usuarios')} className="border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:border-slate-500 rounded-2xl">Usuarios</button>
+            <button type="button" onClick={() => onNavigate('auditoria')} className="border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:border-slate-500 rounded-2xl">Auditoría</button>
+          </nav>
+          
           <h2 className="text-3xl font-black text-slate-900">Resumen general</h2>
           <p className="mt-1 text-sm text-slate-500">Indicadores y actividad reciente de la operación.</p>
         </div>
@@ -126,7 +132,7 @@ const AdminDashboard = ({ onNavigate }) => {
         ))}
       </section>
 
-      <section className="grid gap-7 xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,0.8fr)]">
+      <section className="grid gap-5 lg:gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,0.8fr)]">
         <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-lg font-black text-slate-800">Gastos recientes</h3>
@@ -141,7 +147,7 @@ const AdminDashboard = ({ onNavigate }) => {
               <p className="p-5 text-sm text-slate-500">No hay gastos registrados este mes.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {gastosActivos.slice(0, 6).map((gasto) => {
+                {gastosActivos.slice(0, 3).map((gasto) => {
                   const usuario = usuariosPorId.get(gasto.userId);
                   return (
                     <li key={gasto.id} className="flex items-center justify-between gap-4 px-4 py-3">
@@ -181,11 +187,7 @@ const AdminDashboard = ({ onNavigate }) => {
           </button>
         </aside>
       </section>
-
-      <nav aria-label="Accesos de administración" className="flex flex-wrap gap-2 border-t border-slate-200 pt-5">
-        <button type="button" onClick={() => onNavigate('usuarios')} className="border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:border-slate-500 rounded-2xl">Administrar usuarios</button>
-        <button type="button" onClick={() => onNavigate('auditoria')} className="border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:border-slate-500 rounded-2xl">Abrir auditoría</button>
-      </nav>
+      
     </main>
   );
 };
