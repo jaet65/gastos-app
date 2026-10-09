@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// @vitest-environment-options {"url":"https://comprobacionmaf.web.app/"}
+// @vitest-environment-options {"url":"https://comprobacionmaf--pruebas-testhash.web.app/"}
 import { describe, expect, it, vi } from 'vitest';
 
 describe('app bridge content script', () => {

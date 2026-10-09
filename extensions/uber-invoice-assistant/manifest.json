@@ -7,6 +7,7 @@
   "host_permissions": [
     "https://help.uber.com/*",
     "https://comprobacionmaf.web.app/*",
+    "https://*.web.app/*",
     "https://comprobacionmaf.firebaseapp.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
@@ -31,6 +32,7 @@
     {
       "matches": [
         "https://comprobacionmaf.web.app/*",
+        "https://*.web.app/*",
         "https://comprobacionmaf.firebaseapp.com/*",
         "http://localhost/*",
         "http://127.0.0.1/*",
