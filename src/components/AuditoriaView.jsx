@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { Card, Title, Text, Flex, Button, Subtitle } from "@tremor/react";
 import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar, Upload } from 'lucide-react';
+import Swal from 'sweetalert2';
 import PanelAuditoria from './PanelAuditoria';
 
 const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
@@ -46,6 +47,41 @@ const formatImportedDate = (dateStr) => {
     return null; // Return null if format is not recognized
 };
 
+const parseImportedAmount = (value) => {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value !== 'string' || !value.trim()) {
+        return null;
+    }
+
+    const amount = value.trim().replace(/[^\d,.\-()]/g, '');
+    const isNegative = amount.startsWith('(') && amount.endsWith(')');
+    let normalized = amount.replace(/[()]/g, '');
+    const lastComma = normalized.lastIndexOf(',');
+    const lastPeriod = normalized.lastIndexOf('.');
+
+    if (lastComma !== -1 && lastPeriod !== -1) {
+        const decimalSeparator = lastComma > lastPeriod ? ',' : '.';
+        const groupingSeparator = decimalSeparator === ',' ? '.' : ',';
+        normalized = normalized.split(groupingSeparator).join('');
+        if (decimalSeparator === ',') {
+            normalized = normalized.replace(',', '.');
+        }
+    } else if (lastComma !== -1) {
+        const decimalDigits = normalized.length - lastComma - 1;
+        normalized = decimalDigits === 3
+            ? normalized.replace(/,/g, '')
+            : normalized.replace(',', '.');
+    }
+
+    const parsedAmount = Number(normalized);
+    if (!Number.isFinite(parsedAmount)) {
+        return null;
+    }
+    return isNegative ? -Math.abs(parsedAmount) : parsedAmount;
+};
+
 
 const AuditoriaView = () => {
     const [allGastos, setAllGastos] = useState([]);
@@ -70,54 +106,99 @@ const AuditoriaView = () => {
         fileInputRef.current.click();
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) {
             return;
         }
 
-        setIsImporting(true); // Start importing
+        setIsImporting(true);
+        Swal.fire({
+            title: 'Importando auditorías',
+            html: '<p>Leyendo archivo...</p>',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+        });
+
         const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const XLSX = await import('xlsx');
-                const data = event.target.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+        try {
+            const XLSX = await import('xlsx');
+            const data = await new Promise((resolve, reject) => {
+                reader.onload = (event) => resolve(event.target.result);
+                reader.onerror = () => reject(reader.error || new Error('No se pudo leer el archivo.'));
+                reader.onabort = () => reject(new Error('La lectura del archivo fue cancelada.'));
+                reader.readAsArrayBuffer(file);
+            });
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+            const totalRows = Math.max(json.length - 1, 0);
+            let processedRows = 0;
+            let importedRows = 0;
 
-                // Start from 1 to skip header row
-                for (let i = 1; i < json.length; i++) {
-                    const row = json[i];
-                    const startDate = formatImportedDate(row[0]);
-                    const endDate = formatImportedDate(row[1]);
-                    const city = row[3];
+            const updateProgress = () => {
+                const percentage = totalRows === 0 ? 100 : Math.round((processedRows / totalRows) * 100);
+                Swal.update({
+                    html: `<p>Procesando filas: ${processedRows} de ${totalRows}</p>
+                        <progress value="${processedRows}" max="${Math.max(totalRows, 1)}" style="width:100%"></progress>
+                        <p>${percentage}% · ${importedRows} periodos importados</p>`,
+                });
+            };
+            updateProgress();
 
-                    if (!startDate || !endDate || !city) { // Basic validation
-                        console.warn("Skipping incomplete or invalid data in row:", row);
-                        continue;
-                    }
-                    
+            for (let i = 1; i < json.length; i++) {
+                const row = json[i];
+                const startDate = formatImportedDate(row[0]);
+                const endDate = formatImportedDate(row[1]);
+                const city = row[3];
+                const costo = parseImportedAmount(row[8]);
+                const hasCosto = row[8] !== null && row[8] !== undefined && String(row[8]).trim() !== '';
+
+                if (!startDate || !endDate || !city) {
+                    console.warn("Skipping incomplete or invalid data in row:", row);
+                } else if (hasCosto && costo === null) {
+                    console.warn("Skipping row with invalid Costo in column I:", row);
+                } else {
                     const auditData = {
                         city: city,
                         startDate: startDate,
                         endDate: endDate,
+                        costo,
                     };
 
                     await addDoc(collection(db, "auditorias"), { ...auditData, creado_en: Timestamp.now() });
+                    importedRows += 1;
                 }
-                alert("¡Periodos importados con éxito!");
-            } catch (error) {
-                console.error("Error processing file:", error);
-                alert("Error al procesar el archivo: " + error.message);
-            } finally {
-                // Reset file input
-                e.target.value = '';
-                setIsImporting(false); // End importing
+
+                processedRows += 1;
+                updateProgress();
             }
-        };
-        reader.readAsBinaryString(file);
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'Importación completada',
+                text: `Se importaron ${importedRows} de ${totalRows} filas.`,
+                timer: 1800,
+                timerProgressBar: true,
+                showConfirmButton: false,
+            });
+        } catch (error) {
+            console.error("Error processing file:", error);
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error al importar auditorías',
+                text: error.message,
+                timer: 3000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+            });
+        } finally {
+            e.target.value = '';
+            setIsImporting(false);
+        }
     };
 
 

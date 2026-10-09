@@ -4,6 +4,7 @@ import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react'
 import { Car, Utensils, Layers, ShieldCheck, Trash } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import Swal from 'sweetalert2';
 
 const formatoMoneda = (cantidad) => {
     return new Intl.NumberFormat('en-US', {
@@ -78,10 +79,14 @@ const PanelAuditoria = ({ allGastos, audits }) => {
     const [isDeleting, setIsDeleting] = useState(false); // State to handle loading for delete all button
 
     const availableYears = useMemo(() => {
-        if (!allGastos || allGastos.length === 0) return [new Date().getFullYear()];
-        const years = new Set(allGastos.map(gasto => parseInt(gasto.fecha.split('-')[0], 10)));
-        return Array.from(years).sort((a, b) => a - b);
-    }, [allGastos]);
+        const years = new Set([
+            ...allGastos.map(gasto => parseInt(String(gasto.fecha || '').split('-')[0], 10)),
+            ...audits.map(audit => parseInt(String(audit.startDate || '').split('-')[0], 10)),
+        ].filter(Number.isFinite));
+        return years.size > 0
+            ? Array.from(years).sort((a, b) => a - b)
+            : [new Date().getFullYear()];
+    }, [allGastos, audits]);
 
     const handlePrevYear = () => {
         const currentIndex = availableYears.indexOf(selectedYear);
@@ -99,7 +104,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
     const auditResults = useMemo(() => {
         if (auditType === 0) { // By Period
-            if (!audits.length || !allGastos.length) return [];
+            if (!audits.length) return [];
             
             const filteredAudits = audits.filter(audit => {
                 const startYear = parseInt(String(audit.startDate || '').split('-')[0], 10);
@@ -142,20 +147,21 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     ...audit,
                     gastosPorCategoria: gastosPorCategoriaWithAverages,
                     totalCiudad,
+                    totalIngresos: typeof audit.costo === 'number' && Number.isFinite(audit.costo) ? audit.costo : null,
                     averagePerDay: averagePerDayCity,
                 };
             });
 
             return results
                 .filter(Boolean)
-                .filter(result => result.totalCiudad > 0)
+                .filter(result => result.totalCiudad > 0 || result.totalIngresos > 0)
                 .sort((a, b) => {
                     const aDate = parseLocalDate(a.startDate) || new Date(0);
                     const bDate = parseLocalDate(b.startDate) || new Date(0);
                     return aDate - bDate;
                 });
         } else { // By City
-            if (!allGastos || !allGastos.length || !audits || !audits.length) return [];
+            if (!audits || !audits.length) return [];
         
             const gastosThisYear = allGastos.filter(gasto => 
                 parseInt(gasto.fecha.split('-')[0], 10) === selectedYear
@@ -170,28 +176,29 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
                 const city = auditPeriod ? auditPeriod.city : 'Sin asignación';
 
-                if (!acc[city]) acc[city] = [];
-                acc[city].push(gasto);
+                if (!acc[city]) acc[city] = { gastos: [], audits: [] };
+                acc[city].gastos.push(gasto);
                 return acc;
             }, {});
 
-            return Object.entries(cityGroups).map(([city, gastos]) => {
-                const totalCiudad = gastos.reduce((sum, gasto) => sum + parseFloat(gasto.monto), 0);
-                
-                const contributingAudits = new Set();
-                gastos.forEach(gasto => {
-                    const auditPeriod = audits.find(audit => {
-                        const adjustedStart = adjustDate(audit.startDate, -1);
-                        const adjustedEnd = adjustDate(audit.endDate, 1);
-                        return adjustedStart && adjustedEnd && gasto.fecha >= adjustedStart && gasto.fecha <= adjustedEnd;
-                    });
-                    if (auditPeriod) {
-                        contributingAudits.add(JSON.stringify({startDate: auditPeriod.startDate, endDate: auditPeriod.endDate}));
-                    }
+            audits
+                .filter(audit => parseInt(String(audit.startDate || '').split('-')[0], 10) === selectedYear)
+                .forEach(audit => {
+                    const city = audit.city || 'Sin asignación';
+                    if (!cityGroups[city]) cityGroups[city] = { gastos: [], audits: [] };
+                    cityGroups[city].audits.push(audit);
                 });
 
-                const dateRanges = Array.from(contributingAudits)
-                    .map(s => JSON.parse(s))
+            return Object.entries(cityGroups).map(([city, { gastos, audits: cityAudits }]) => {
+                const totalCiudad = gastos.reduce((sum, gasto) => sum + parseFloat(gasto.monto), 0);
+                const tieneIngresos = cityAudits.some(audit => typeof audit.costo === 'number' && Number.isFinite(audit.costo));
+                const totalIngresos = cityAudits.reduce(
+                    (sum, audit) => sum + (typeof audit.costo === 'number' && Number.isFinite(audit.costo) ? audit.costo : 0),
+                    0
+                );
+
+                const dateRanges = cityAudits
+                    .map(audit => ({ startDate: audit.startDate, endDate: audit.endDate }))
                     .filter(range => parseLocalDate(range.startDate) && parseLocalDate(range.endDate))
                     .sort((a, b) => {
                         const aStart = parseLocalDate(a.startDate) || new Date(0);
@@ -219,11 +226,14 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     id: city,
                     city: city,
                     totalCiudad: totalCiudad,
+                    totalIngresos: tieneIngresos ? totalIngresos : null,
                     gastosPorCategoria: gastosPorCategoria,
                     dateRanges: dateRanges,
                     averagePerDay: averagePerDayCity,
                 };
-            }).sort((a, b) => {
+            })
+            .filter(result => result.totalCiudad > 0 || result.totalIngresos > 0)
+            .sort((a, b) => {
                 const cityA = (a.city || '').trim();
                 const cityB = (b.city || '').trim();
                 const isSinCiudadA = cityA.toLowerCase() === "sin ciudad";
@@ -243,9 +253,15 @@ const PanelAuditoria = ({ allGastos, audits }) => {
     const totalGastosAnual = useMemo(() => {
         if (!allGastos || allGastos.length === 0) return 0;
         return allGastos
-            .filter(gasto => parseInt(gasto.fecha.split('-')[0], 10) === selectedYear)
+            .filter(gasto => parseInt(String(gasto.fecha || '').split('-')[0], 10) === selectedYear)
             .reduce((sum, gasto) => sum + parseFloat(gasto.monto || 0), 0);
     }, [allGastos, selectedYear]);
+    const totalIngresosAnual = useMemo(() => audits
+        .filter(audit => parseInt(String(audit.startDate || '').split('-')[0], 10) === selectedYear)
+        .reduce((sum, audit) => (
+            sum + (typeof audit.costo === 'number' && Number.isFinite(audit.costo) ? audit.costo : 0)
+        ), 0), [audits, selectedYear]);
+    const diferenciaAnual = totalIngresosAnual - totalGastosAnual;
 
     if (auditType === 0 && audits.length === 0) {
         return (
@@ -286,7 +302,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         doc.text(formatoMoneda(totalGastosAnual), 190, cardY + 9, { align: 'right' });
 
         // 3. Preparación de datos de la tabla
-        const tableColumn = ["Ciudad", "Periodo", "Total", "Promedio/Día", "Categorías"];
+        const tableColumn = ["Ciudad", "Periodo", "Ingresos", "Egresos", "Diferencia", "Promedio/Día", "Categorías"];
         const tableRows = [];
 
         auditResults.forEach(result => {
@@ -301,7 +317,9 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             const rowData = [
                 result.city,
                 period,
-                formatoMoneda(result.totalCiudad),
+                result.totalIngresos === null ? '-' : formatoMoneda(result.totalIngresos),
+                formatoMoneda(-result.totalCiudad),
+                result.totalIngresos === null ? '-' : formatoMoneda(result.totalIngresos - result.totalCiudad),
                 formatoMoneda(result.averagePerDay),
                 categories,
             ];
@@ -324,6 +342,21 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             },
             alternateRowStyles: {
                 fillColor: [249, 250, 251] // Filas intercaladas para mejor lectura
+            },
+            didParseCell: (data) => {
+                if (data.section !== 'body') return;
+                if (data.column.index === 2) {
+                    data.cell.styles.textColor = [5, 150, 105];
+                } else if (data.column.index === 3) {
+                    data.cell.styles.textColor = [220, 38, 38];
+                } else if (data.column.index === 4) {
+                    const difference = auditResults[data.row.index].totalIngresos - auditResults[data.row.index].totalCiudad;
+                    data.cell.styles.textColor = difference > 0
+                        ? [5, 150, 105]
+                        : difference < 0
+                            ? [220, 38, 38]
+                            : [100, 116, 139];
+                }
             }
         });
 
@@ -331,26 +364,70 @@ const PanelAuditoria = ({ allGastos, audits }) => {
     };
 
     const handleDeleteAllAudits = async () => {
-        if (!window.confirm("¿Estás seguro de que quieres eliminar TODOS los periodos de auditoría? Esta acción es irreversible y eliminará todos los datos de auditoría de la base de datos.")) {
+        const confirmation = await Swal.fire({
+            title: '¿Limpiar auditorías?',
+            text: 'Esta acción es irreversible y eliminará todos los periodos de auditoría.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, limpiar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc2626',
+        });
+        if (!confirmation.isConfirmed) {
             return;
         }
 
-        setIsDeleting(true); // Start loading
+        setIsDeleting(true);
+        Swal.fire({
+            title: 'Limpiando auditorías',
+            html: '<p>Consultando periodos...</p>',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+        });
 
         try {
             const querySnapshot = await getDocs(collection(db, "auditorias"));
-            const deletePromises = [];
-            querySnapshot.forEach((document) => {
-                deletePromises.push(deleteDoc(doc(db, "auditorias", document.id)));
+            const documents = querySnapshot.docs;
+            const total = documents.length;
+            let deleted = 0;
+            const updateProgress = () => {
+                const percentage = total === 0 ? 100 : Math.round((deleted / total) * 100);
+                Swal.update({
+                    html: `<p>Auditorías eliminadas: ${deleted} de ${total}</p>
+                        <progress value="${deleted}" max="${Math.max(total, 1)}" style="width:100%"></progress>
+                        <p>${percentage}%</p>`,
+                });
+            };
+            updateProgress();
+
+            await Promise.all(documents.map(async (document) => {
+                await deleteDoc(doc(db, "auditorias", document.id));
+                deleted += 1;
+                updateProgress();
+            }));
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'Limpieza completada',
+                text: `Se eliminaron ${deleted} auditorías.`,
+                timer: 1800,
+                timerProgressBar: true,
+                showConfirmButton: false,
             });
-            await Promise.all(deletePromises);
-            alert("Todos los periodos de auditoría han sido eliminados correctamente.");
-            // Optionally, you might want to refresh the audits data here if it's not handled by a real-time listener
         } catch (error) {
             console.error("Error al eliminar todos los periodos de auditoría:", error);
-            alert("Ocurrió un error al intentar eliminar los periodos de auditoría.");
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error al limpiar auditorías',
+                text: error.message,
+                timer: 3000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+            });
         } finally {
-            setIsDeleting(false); // End loading
+            setIsDeleting(false);
         }
     };
 
@@ -418,12 +495,31 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             </Flex>
             
             <Card className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
-                <Flex alignItems="start">
-                    <div className="truncate">
-                        <Text>Gastos anuales: {selectedYear}</Text>
-                        <Metric className="truncate">{formatoMoneda(totalGastosAnual)}</Metric>
+                <div>
+                    <Text>Auditoria anual: {selectedYear}</Text>
+                    <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                        <div>
+                            <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Ingresos anuales</Text>
+                            <Metric className="truncate text-emerald-600">{formatoMoneda(totalIngresosAnual)}</Metric>
+                        </div>
+                        <div>
+                            <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Egresos anuales</Text>
+                            <Metric className="truncate text-red-600">{formatoMoneda(-totalGastosAnual)}</Metric>
+                        </div>
+                        <div>
+                            <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Diferencia anual</Text>
+                            <Metric className={`truncate ${
+                                diferenciaAnual > 0
+                                    ? 'text-emerald-600'
+                                    : diferenciaAnual < 0
+                                        ? 'text-red-600'
+                                        : 'text-slate-500'
+                            }`}>
+                                {formatoMoneda(diferenciaAnual)}
+                            </Metric>
+                        </div>
                     </div>
-                </Flex>
+                </div>
             </Card>
 
 
@@ -479,10 +575,30 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                     </div>
                     <Divider className="mt-4!" />
                     <Flex className="mt-4 justify-center gap-12">
+                        {result.totalIngresos !== null && (
+                            <div className="text-center">
+                                <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Ingresos (Costo)</Text>
+                                <Metric className="text-emerald-600">{formatoMoneda(result.totalIngresos)}</Metric>
+                            </div>
+                        )}
                         <div className="text-center">
-                            <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Total por {auditType === 0 ? 'Periodo' : 'Año'}</Text>
-                            <Metric className={auditType === 0 ? 'text-indigo-600' : 'text-blue-600'}>{formatoMoneda(result.totalCiudad)}</Metric>
+                            <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Egresos (Gastos)</Text>
+                            <Metric className="text-red-600">{formatoMoneda(-result.totalCiudad)}</Metric>
                         </div>
+                        {result.totalIngresos !== null && (
+                            <div className="text-center">
+                                <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Diferencia</Text>
+                                <Metric className={
+                                    result.totalIngresos > result.totalCiudad
+                                        ? 'text-emerald-600'
+                                        : result.totalIngresos < result.totalCiudad
+                                            ? 'text-red-600'
+                                            : 'text-slate-500'
+                                }>
+                                    {formatoMoneda(result.totalIngresos - result.totalCiudad)}
+                                </Metric>
+                            </div>
+                        )}
                         {result.averagePerDay > 0 && (
                             <div className="flex-1 text-right">
                                 <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider">Promedio/Día</Text>
