@@ -290,8 +290,6 @@ function App() {
             <div className="flex items-center gap-2">
               <a
                 href="https://agendaservicios.web.app/index.html"
-                target="_blank"
-                rel="noopener noreferrer"
                 aria-label="Abrir Agenda de Servicios"
                 title="Agenda de Servicios"
                 className="p-2 text-slate-400 transition-colors hover:text-blue-600"

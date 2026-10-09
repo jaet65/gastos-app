@@ -75,7 +75,7 @@ describe('App Component', () => {
             'href',
             'https://agendaservicios.web.app/index.html'
         );
-        expect(screen.getByRole('link', { name: /abrir agenda de servicios/i })).toHaveAttribute('target', '_blank');
+        expect(screen.getByRole('link', { name: /abrir agenda de servicios/i })).not.toHaveAttribute('target');
     });
 
     it('debería avisar de las novedades al detectar una nueva versión y recordar el cierre', async () => {
