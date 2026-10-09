@@ -28,19 +28,17 @@ const formatImportedDate = (dateStr) => {
         return dateStr;
     }
 
-    // Handle various slash-separated date formats (m/d/yy, mm/dd/yy, etc.)
+    // Handle slash-separated dates in the app's import format: dd/mm/yyyy
     const parts = dateStr.split('/');
     if (parts.length === 3) {
-        let [month, day, year] = parts;
+        let [day, month, year] = parts;
         if (year.length === 2) {
-            // Assuming 2-digit years are in the 21st century
             year = `20${year}`;
         }
-        
-        // Pad month and day with a leading zero if necessary
-        month = month.padStart(2, '0');
-        day = day.padStart(2, '0');
-        
+
+        day = String(Number(day)).padStart(2, '0');
+        month = String(Number(month)).padStart(2, '0');
+
         return `${year}-${month}-${day}`;
     }
 

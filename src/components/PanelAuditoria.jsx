@@ -22,18 +22,54 @@ const getCategoryDetails = (cat) => {
     }
 };
 
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+
+const parseLocalDate = (dateValue) => {
+    if (dateValue === null || dateValue === undefined) return null;
+
+    const value = String(dateValue).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return null;
+    }
+
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return date;
+};
+
+const formatLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const getNumberOfDays = (startDate, endDate) => {
-    const start = new Date(startDate + 'T00:00:00'); // Ensure local time parsing
-    const end = new Date(endDate + 'T00:00:00'); // Ensure local time parsing
-    const diffTime = Math.abs(end - start);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays + 1; // Include both start and end day
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
+
+    if (!start || !end) {
+        return 0;
+    }
+
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / DAY_IN_MS);
+    return diffDays + 1;
 };
 
 const adjustDate = (dateString, adjustment) => {
-    const date = new Date(dateString + 'T00:00:00');
-    date.setDate(date.getDate() + adjustment);
-    return date.toISOString().split('T')[0];
+    const date = parseLocalDate(dateString);
+    if (!date) {
+        return null;
+    }
+
+    const adjustedDate = new Date(date.getTime());
+    adjustedDate.setDate(adjustedDate.getDate() + adjustment);
+    return formatLocalDate(adjustedDate);
 };
 
 const PanelAuditoria = ({ allGastos, audits }) => {
@@ -66,14 +102,18 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             if (!audits.length || !allGastos.length) return [];
             
             const filteredAudits = audits.filter(audit => {
-                const auditYear = parseInt(audit.startDate.split('-')[0], 10);
-                return auditYear === selectedYear;
+                const startYear = parseInt(String(audit.startDate || '').split('-')[0], 10);
+                return Number.isFinite(startYear) && startYear === selectedYear;
             });
 
             const results = filteredAudits.map(audit => {
                 const adjustedStartDate = adjustDate(audit.startDate, -1);
                 const adjustedEndDate = adjustDate(audit.endDate, 1);
-                
+
+                if (!adjustedStartDate || !adjustedEndDate) {
+                    return null;
+                }
+
                 const gastosEnPeriodo = allGastos.filter(gasto =>
                     gasto.fecha >= adjustedStartDate && gasto.fecha <= adjustedEndDate
                 );
@@ -106,8 +146,14 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 };
             });
 
-            return results.filter(result => result.totalCiudad > 0)
-                          .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+            return results
+                .filter(Boolean)
+                .filter(result => result.totalCiudad > 0)
+                .sort((a, b) => {
+                    const aDate = parseLocalDate(a.startDate) || new Date(0);
+                    const bDate = parseLocalDate(b.startDate) || new Date(0);
+                    return aDate - bDate;
+                });
         } else { // By City
             if (!allGastos || !allGastos.length || !audits || !audits.length) return [];
         
@@ -116,13 +162,14 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             );
 
             const cityGroups = gastosThisYear.reduce((acc, gasto) => {
-                // Find the audit period for this expense
-                const auditPeriod = audits.find(audit => 
-                    gasto.fecha >= adjustDate(audit.startDate, -1) && gasto.fecha <= adjustDate(audit.endDate, 1)
-                );
+                const auditPeriod = audits.find(audit => {
+                    const adjustedStart = adjustDate(audit.startDate, -1);
+                    const adjustedEnd = adjustDate(audit.endDate, 1);
+                    return adjustedStart && adjustedEnd && gasto.fecha >= adjustedStart && gasto.fecha <= adjustedEnd;
+                });
 
                 const city = auditPeriod ? auditPeriod.city : 'Sin asignación';
-                
+
                 if (!acc[city]) acc[city] = [];
                 acc[city].push(gasto);
                 return acc;
@@ -133,15 +180,24 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 
                 const contributingAudits = new Set();
                 gastos.forEach(gasto => {
-                    const auditPeriod = audits.find(audit => 
-                        gasto.fecha >= adjustDate(audit.startDate, -1) && gasto.fecha <= adjustDate(audit.endDate, 1)
-                    );
+                    const auditPeriod = audits.find(audit => {
+                        const adjustedStart = adjustDate(audit.startDate, -1);
+                        const adjustedEnd = adjustDate(audit.endDate, 1);
+                        return adjustedStart && adjustedEnd && gasto.fecha >= adjustedStart && gasto.fecha <= adjustedEnd;
+                    });
                     if (auditPeriod) {
                         contributingAudits.add(JSON.stringify({startDate: auditPeriod.startDate, endDate: auditPeriod.endDate}));
                     }
                 });
-        
-                const dateRanges = Array.from(contributingAudits).map(s => JSON.parse(s)).sort((a,b) => new Date(a.startDate) - new Date(b.startDate));
+
+                const dateRanges = Array.from(contributingAudits)
+                    .map(s => JSON.parse(s))
+                    .filter(range => parseLocalDate(range.startDate) && parseLocalDate(range.endDate))
+                    .sort((a, b) => {
+                        const aStart = parseLocalDate(a.startDate) || new Date(0);
+                        const bStart = parseLocalDate(b.startDate) || new Date(0);
+                        return aStart - bStart;
+                    });
                 
                 const totalDaysInCity = dateRanges.reduce((total, range) => total + getNumberOfDays(range.startDate, range.endDate), 0);
                 const averagePerDayCity = totalDaysInCity > 0 ? totalCiudad / totalDaysInCity : 0;
