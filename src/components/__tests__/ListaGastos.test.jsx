@@ -6,6 +6,18 @@ import Swal from 'sweetalert2';
 import ListaGastos from '../ListaGastos';
 import { filtrarGastosParaReporte, resolverGastosPorIds } from '../reportFilters';
 
+const { mockCheckUberAssistant } = vi.hoisted(() => ({
+    mockCheckUberAssistant: vi.fn(),
+}));
+
+vi.mock('../uberAssistantBridge', () => ({
+    createUberAssistantBridge: vi.fn(() => ({
+        checkInstalled: mockCheckUberAssistant,
+        probe: vi.fn(),
+        disconnect: vi.fn(),
+    })),
+}));
+
 // Mock de dependencias externas
 vi.mock('../AuthContext', () => ({
     useAuth: () => ({
@@ -19,6 +31,8 @@ const mockGastos = [
     { id: 'g3', concepto: 'Gasto especial MAF', monto: 1200, fecha: '2026-04-17', categoria: 'MAF', url_factura: 'http://factura.url/3', archivado: false, creado_en: { toDate: () => new Date() } },
     { id: 'g4', concepto: 'Gasto archivado', monto: 100, fecha: '2026-04-10', categoria: 'Otros', url_factura: '', archivado: true, creado_en: { toDate: () => new Date() } },
 ];
+const initialMockGastos = [...mockGastos];
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
 const mockSolicitudes = [
     { id: 's1', totalSolicitado: 2000, estado: 'Recibida', userId: 'test-user-id' }
@@ -87,11 +101,19 @@ describe('ListaGastos Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockCheckUberAssistant.mockResolvedValue(false);
         window.confirm = vi.fn(() => true); // Mockear confirm para que no bloquee
         vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: true });
     });
 
     afterEach(() => {
+        mockGastos.splice(0, mockGastos.length, ...initialMockGastos);
+        if (originalClipboard) {
+            Object.defineProperty(navigator, 'clipboard', originalClipboard);
+        } else {
+            delete navigator.clipboard;
+        }
+        vi.restoreAllMocks();
         vi.unstubAllGlobals();
     });
 
@@ -186,10 +208,90 @@ describe('ListaGastos Component', () => {
         expect(screen.queryByText('Gasto archivado')).not.toBeInTheDocument();
 
         const toggleArchivados = screen.getByTitle('Mostrar archivados');
-        fireEvent.click(toggleArchivados);
+           await fireEvent.click(toggleArchivados);
 
         // Ahora debería estar visible
         expect(await screen.findByText('Gasto archivado')).toBeInTheDocument();
+    });
+
+    it('filtra Uber Invoice, permite continuar desde un registro y limita la selección a cinco', async () => {
+        mockCheckUberAssistant.mockResolvedValue(true);
+        getDoc.mockResolvedValue({ exists: () => true, id: 'CCI190920376' });
+        const writeText = vi.fn().mockResolvedValue();
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+        const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+        mockGastos.push(...Array.from({ length: 6 }, (_, index) => ({
+            id: `uber-${index}`,
+            concepto: `Viaje Uber ${index}`,
+            monto: 100 + index,
+            fecha: `2026-04-${18 + index}`,
+            categoria: 'Transporte',
+            url_factura: '',
+            archivado: false,
+            creado_en: { toDate: () => new Date() },
+        })));
+        render(<ListaGastos />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Uber Assistant' }));
+
+        await screen.findByText('RFC fiscal cargado desde Firestore. La extensión completa RFC, fechas y montos; revisa y envía el reclamo desde Uber.');
+        expect(await screen.findByText('Gasolina para viaje')).toBeInTheDocument();
+        expect(screen.queryByText('Comida de mediodía')).not.toBeInTheDocument();
+        expect(screen.queryByText('Gasto especial MAF')).not.toBeInTheDocument();
+        expect(screen.queryByText('Gasto archivado')).not.toBeInTheDocument();
+
+        const continuar = screen.getByRole('button', { name: 'Continuar reclamo' });
+        expect(continuar).toBeDisabled();
+        const conceptos = ['Gasolina para viaje', ...Array.from({ length: 5 }, (_, index) => `Viaje Uber ${index}`)];
+        fireEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${conceptos[0]}` }));
+        await waitFor(() => expect(continuar).toBeEnabled());
+        fireEvent.click(continuar);
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith(
+            'RFC: CCI190920376\n\nFactura 1:\nFecha: 2026-04-16\nMonto: 800.00'
+        ));
+        expect(openSpy).toHaveBeenCalledWith(
+            expect.stringContaining('help.uber.com/es/riders/article/no-se-generaron-mis-facturas-de-viaje-'),
+            '_blank',
+            'noopener,noreferrer'
+        );
+
+        conceptos.slice(1, 5).forEach(concepto => {
+            fireEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${concepto}` }));
+        });
+
+        expect(screen.getByText('Seleccionados: 5/5')).toBeInTheDocument();
+        expect(continuar).toBeEnabled();
+        expect(screen.getByRole('checkbox', { name: 'Seleccionar Viaje Uber 4' })).toBeDisabled();
+    }, 15000);
+
+    it('descarga instrucciones y no activa el reclamo si no está instalada la extensión', async () => {
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+        const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+        render(<ListaGastos />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Uber Assistant' }));
+
+        await waitFor(() => expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Instala Uber Assistant',
+            confirmButtonText: 'Descargar ZIP',
+        })));
+        expect(screen.queryByRole('button', { name: 'Continuar reclamo' })).not.toBeInTheDocument();
+        expect(openSpy).not.toHaveBeenCalled();
+    });
+
+    it('descarga el ZIP cuando se confirma la instalación de Uber Assistant', async () => {
+        Swal.fire.mockResolvedValueOnce({ isConfirmed: true });
+        let downloadedLink;
+        vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+            downloadedLink = this;
+        });
+        render(<ListaGastos />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Uber Assistant' }));
+
+        await waitFor(() => expect(downloadedLink).toBeDefined());
+        expect(downloadedLink.getAttribute('href')).toBe('/downloads/uber-invoice-assistant.zip');
+        expect(downloadedLink.download).toBe('uber-invoice-assistant.zip');
     });
 
     it('debería abrir el modal de opciones de reporte al hacer clic en el botón', async () => {

@@ -12,7 +12,7 @@ vi.mock('firebase/firestore', () => ({
 
 vi.mock('../../firebase', () => ({ db: { name: 'test-db' } }));
 
-import { validateInvoiceReceiverRfc } from '../cfdiCatalog';
+import { getUberInvoiceRfc, validateInvoiceReceiverRfc } from '../cfdiCatalog';
 
 describe('validateInvoiceReceiverRfc', () => {
     beforeEach(() => {
@@ -43,5 +43,24 @@ describe('validateInvoiceReceiverRfc', () => {
 
         expect(mockDoc).toHaveBeenCalledWith({ name: 'test-db' }, 'cfdi', 'NOEXISTE010101AAA');
         expect(result).toEqual({ receiverRfc: 'NOEXISTE010101AAA', isValid: false, razon: null });
+    });
+});
+
+describe('getUberInvoiceRfc', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('obtiene el RFC corporativo desde el ID del documento cfdi', async () => {
+        mockGetDoc.mockResolvedValue({ exists: () => true, id: 'CCI190920376' });
+
+        await expect(getUberInvoiceRfc()).resolves.toBe('CCI190920376');
+        expect(mockDoc).toHaveBeenCalledWith({ name: 'test-db' }, 'cfdi', 'CCI190920376');
+    });
+
+    it('regresa null si el RFC corporativo no existe en cfdi', async () => {
+        mockGetDoc.mockResolvedValue({ exists: () => false });
+
+        await expect(getUberInvoiceRfc()).resolves.toBeNull();
     });
 });

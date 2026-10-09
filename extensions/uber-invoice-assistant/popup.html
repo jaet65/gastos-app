@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Uber Invoice Assistant</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">GASTOS APP</p>
+      <h1>Completar reclamo</h1>
+      <p class="description">Lee el RFC, las fechas y los montos copiados y completa los campos disponibles en Uber.</p>
+      <button id="fill-button" type="button">Leer datos y completar campos</button>
+      <p id="status" role="status" aria-live="polite">Abre la página de ayuda de Uber con sesión iniciada.</p>
+      <p class="notice">Revisa los datos y envía el reclamo manualmente en Uber.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

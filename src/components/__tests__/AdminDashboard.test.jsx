@@ -58,7 +58,7 @@ describe('AdminDashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Revisar solicitudes/i }));
     expect(onNavigate).toHaveBeenCalledWith('solicitudes');
-    fireEvent.click(screen.getByRole('button', { name: /Administrar usuarios/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Usuarios/i }));
     expect(onNavigate).toHaveBeenCalledWith('usuarios');
   });
 });

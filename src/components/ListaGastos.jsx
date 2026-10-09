@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useImperativeHandle, forwardRef } from 'react';
+import { useEffect, useState, useMemo, useImperativeHandle, forwardRef, useRef } from 'react';
 import { db } from '../firebase'; import { CLOUD_NAME } from './config';
 import { useAuth } from './AuthContext';
 import SolicitudRecursosModal from './SolicitudRecursosModal';
@@ -14,9 +14,11 @@ import { getDoc } from 'firebase/firestore';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, addDoc, Timestamp, where } from 'firebase/firestore';
 import { differenceInCalendarDays } from 'date-fns';
 import {Card, Title, Text, Metric, List, ListItem, Badge, Flex, Icon,Divider,} from '@tremor/react';
-import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Eye, EyeOff, ArchiveRestore, Loader2, ShieldCheck } from 'lucide-react';
+import { FileText, Trash2, Calendar, FileCheck, AlertTriangle, Car, Utensils, Layers, Pencil, RotateCcw, Coins, Search, FileDown, Eye, EyeOff, ArchiveRestore, Loader2, ShieldCheck, Receipt } from 'lucide-react';
 import Swal from 'sweetalert2';
 import mostrarToastConVistaPrevia from './pdfPreviewToast';
+import { getUberInvoiceRfc } from './cfdiCatalog';
+import { createUberAssistantBridge } from './uberAssistantBridge';
 
 const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, adminSelectedUser = null, adminGlobalView = false }, ref) => {
   const { user } = useAuth();
@@ -34,6 +36,12 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   const [reporteGenerandose, setReporteGenerandose] = useState(false);
   const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
+  const [uberInvoiceMode, setUberInvoiceMode] = useState(false);
+  const uberAssistantBridgeRef = useRef(null);
+  const [uberInvoiceRfc, setUberInvoiceRfc] = useState(null);
+  const [uberRfcLoading, setUberRfcLoading] = useState(false);
+  const [uberRfcError, setUberRfcError] = useState('');
+  const [uberSelectedIds, setUberSelectedIds] = useState([]);
   const [isUnarchiving, setIsUnarchiving] = useState(false); // Nuevo estado para el proceso de desarchivado
   const [selectedCategories, setSelectedCategories] = useState([]); // Nuevo estado
   const [usuarios, setUsuarios] = useState([]);
@@ -62,6 +70,145 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   };
 
   const [solicitudes, setSolicitudes] = useState([]);
+
+  useEffect(() => {
+    const bridge = createUberAssistantBridge(() => {});
+    uberAssistantBridgeRef.current = bridge;
+    return () => {
+      bridge.disconnect();
+      uberAssistantBridgeRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!uberInvoiceMode) {
+      setUberInvoiceRfc(null);
+      setUberRfcError('');
+      setUberRfcLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    setUberInvoiceRfc(null);
+    setUberRfcError('');
+    setUberRfcLoading(true);
+    getUberInvoiceRfc()
+      .then(rfc => {
+        if (!active) return;
+        if (!rfc) throw new Error('No se encontró el RFC en el catálogo cfdi.');
+        setUberInvoiceRfc(rfc);
+      })
+      .catch(() => {
+        if (active) setUberRfcError('No se pudo consultar el RFC CCI190920376 en Firestore cfdi.');
+      })
+      .finally(() => {
+        if (active) setUberRfcLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [uberInvoiceMode]);
+
+  const uberSelectedExpenses = useMemo(() => uberSelectedIds
+    .map(id => gastos.find(gasto => gasto.id === id))
+    .filter(gasto => gasto && gasto.categoria === 'Transporte' && !gasto.url_factura), [gastos, uberSelectedIds]);
+
+  const toggleUberExpense = (gasto) => {
+    setUberSelectedIds(prev => {
+      if (prev.includes(gasto.id)) return prev.filter(id => id !== gasto.id);
+      if (prev.length >= 5) return prev;
+      return [...prev, gasto.id];
+    });
+  };
+
+  const pedirInstalacionUberAssistant = async () => {
+    const result = await Swal.fire({
+      title: 'Instala Uber Assistant',
+      html: '<p>Necesitas tener instalada la extensión.</p><ol style="text-align:left;padding-left:1.25rem"><li>1. Descarga y extrae el ZIP.</li><li>2. Abre <strong>chrome://extensions</strong></li><li>3. Activa el modo de desarrollador.</li><li>4. Pulsa <strong>Cargar descomprimida</strong> y selecciona la carpeta extraída.</li><li>5. Regresa aquí y recarga Gastos App.</li></ol>',
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: 'Descargar ZIP',
+      cancelButtonText: 'Cerrar',
+      confirmButtonColor: '#14775b',
+    });
+
+    if (result.isConfirmed) {
+      const downloadLink = document.createElement('a');
+      downloadLink.href = '/downloads/uber-invoice-assistant.zip';
+      downloadLink.download = 'uber-invoice-assistant.zip';
+      downloadLink.click();
+      
+      Swal.fire({
+        title: '¡Extensión descargada!',
+        html: `
+          <div style="text-align: left; font-size: 14px; line-height: 1.6; color: #444;">
+            <p style="margin-bottom: 12px;">Para instalar la extensión, sigue estos sencillos pasos:</p>
+            <ol style="padding-left: 20px; margin: 0 0 15px 0;">
+              <li style="margin-bottom: 8px;">Abre una nueva pestaña y escribe: <br><code style="background: #f1f3f4; padding: 2px 6px; border-radius: 4px; color: #1a73e8; user-select: all;">chrome://extensions/</code></li>
+              <li style="margin-bottom: 8px;">Activa el <b>Modo de desarrollador</b> (esquina superior derecha).</li>
+              <li style="margin-bottom: 8px;">Haz clic en <b>"Cargar descomprimida"</b> y selecciona la carpeta de la extensión.</li>
+            </ol>
+            <p style="margin: 0; background: #e8f0fe; padding: 10px; border-radius: 6px; color: #174ea6; font-weight: 500;">
+              💡 Una vez instalada, recarga <b>Gastos App</b> para comenzar a usarla.
+            </p>
+          </div>
+        `,
+        icon: 'info',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#1a73e8'
+      });
+    }
+  };
+
+  const handleUberAssistantClick = async () => {
+    const extensionAvailable = await uberAssistantBridgeRef.current?.checkInstalled();
+    if (!extensionAvailable) {
+      await pedirInstalacionUberAssistant();
+      return;
+    }
+    setUberInvoiceMode(mode => !mode);
+    setUberSelectedIds([]);
+  };
+
+  const iniciarReclamoUber = async () => {
+    if (!await uberAssistantBridgeRef.current?.checkInstalled()) {
+      await pedirInstalacionUberAssistant();
+      return;
+    }
+    if (!uberInvoiceRfc || uberSelectedExpenses.length < 1 || uberSelectedExpenses.length > 5) return;
+
+    const datosReclamo = [
+      `RFC: ${uberInvoiceRfc}`,
+      ...uberSelectedExpenses.map((gasto, index) => `Factura ${index + 1}:\nFecha: ${gasto.fecha}\nMonto: ${Number(gasto.monto).toFixed(2)}`),
+    ].join('\n\n');
+    let escrituraPortapapeles;
+    try {
+      escrituraPortapapeles = navigator.clipboard?.writeText(datosReclamo);
+    } catch {
+      escrituraPortapapeles = null;
+    }
+    window.open('https://help.uber.com/es/riders/article/no-se-generaron-mis-facturas-de-viaje-?nodeId=e5ab8b00-7eb9-473d-b0a8-206fd536bb94', '_blank', 'noopener,noreferrer');
+
+    try {
+      if (!escrituraPortapapeles) throw new Error('Portapapeles no disponible');
+      await escrituraPortapapeles;
+      await Swal.fire({
+        title: 'Uber assistant',
+        text: 'Copiamos los registros. Inicia sesión en Uber, abre Uber Assistant y pulsa “Leer datos y completar campos”. Revisa la información y envía el reclamo desde Uber.',
+        icon: 'info',
+        timer: 15000,
+        confirmButtonText: 'Entendido',
+      });
+    } catch {
+      await Swal.fire({
+        title: 'Datos para el reclamo',
+        text: `No fue posible copiar automáticamente. Captura estos datos en la página de Uber:\n\n${datosReclamo}`,
+        icon: 'info',
+        confirmButtonText: 'Entendido',
+      });
+    }
+  };
 
   const nombresUsuarios = useMemo(() => new Map(usuarios.map((usuario) => [
     usuario.uid || usuario.id,
@@ -1299,6 +1446,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       if (!mostrarArchivados && g.archivado) {
         return false;
       }
+      if (uberInvoiceMode) return g.categoria === 'Transporte' && !g.url_factura;
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
       if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
@@ -1312,13 +1460,14 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       }
       return true;
     });
-  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados]);
+  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados, uberInvoiceMode]);
 
   const dataAgrupada = useMemo(() => {
     const filtrados = gastos.filter(g => {
       if (!mostrarArchivados && g.archivado) {
         return false;
       }
+      if (uberInvoiceMode) return g.categoria === 'Transporte' && !g.url_factura;
       if (fechaInicio && g.fecha < fechaInicio) return false;
       if (fechaFin && g.fecha > fechaFin) return false;
       if (terminoBusqueda && !g.concepto.toLowerCase().includes(terminoBusqueda.toLowerCase())) {
@@ -1361,7 +1510,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     }, {});
 
     return resultado;
-  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados, selectedCategories]);
+  }, [gastos, fechaInicio, fechaFin, terminoBusqueda, mostrarArchivados, selectedCategories, uberInvoiceMode]);
 
   const totalNormal = useMemo(() => {
     let total = 0;
@@ -1481,11 +1630,39 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
               className="border-none bg-transparent w-full text-xs outline-none text-gray-600"
             />
           </div>
-          {!adminGlobalView && (
-            <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
-              <FileDown size={16} />
-              <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Generar Reporte'}</span>
-            </button>
+          {!esVistaAdmin && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleUberAssistantClick}
+                className={`hidden shrink-0 px-3 py-1.5 text-[10px] font-bold rounded-full justify-center items-center gap-1.5 transition-all sm:flex ${uberInvoiceMode ? 'bg-slate-700 text-white hover:bg-slate-800' : 'bg-slate-800 hover:bg-slate-900 text-white'}`}
+              >
+                <Receipt size={14} />
+                <span className="text-xs uppercase font-bold tracking-wider">{uberInvoiceMode ? 'Salir Uber Assistant' : 'Uber Assistant'}</span>
+              </button>
+              <button onClick={() => setModalReporteAbierto(true)} disabled={reporteGenerandose} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 disabled:cursor-wait">
+                <FileDown size={16} />
+                <span className="text-xs uppercase font-bold tracking-wider">{reporteGenerandose ? 'Generando...' : 'Generar Reporte'}</span>
+              </button>
+            </div>
+          )}
+          {uberInvoiceMode && !esVistaAdmin && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <span className="text-xs font-semibold text-slate-600">Seleccionados: {uberSelectedExpenses.length}/5</span>
+                <button
+                  type="button"
+                  onClick={iniciarReclamoUber}
+                  disabled={uberRfcLoading || !uberInvoiceRfc || uberSelectedExpenses.length < 1 || uberSelectedExpenses.length > 5}
+                  className="rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  Continuar reclamo
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {uberRfcLoading ? 'Consultando RFC CCI190920376 en Firestore...' : uberRfcError || 'RFC fiscal cargado desde Firestore. La extensión completa RFC, fechas y montos; revisa y envía el reclamo desde Uber.'}
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -1644,6 +1821,16 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
                                             <div className="grid grid-cols-12 w-full items-center py-2 px-2 bg-slate-50/50 rounded hover:bg-slate-100 transition-colors">
 
                                               <div className="col-span-6 pr-2 flex items-center gap-2 overflow-hidden">
+                                                {uberInvoiceMode && (
+                                                  <input
+                                                    type="checkbox"
+                                                    aria-label={`Seleccionar ${gasto.concepto}`}
+                                                    checked={uberSelectedIds.includes(gasto.id)}
+                                                    disabled={!uberSelectedIds.includes(gasto.id) && uberSelectedIds.length >= 5}
+                                                    onChange={() => toggleUberExpense(gasto)}
+                                                    className="h-4 w-4 shrink-0 accent-emerald-700 disabled:cursor-not-allowed"
+                                                  />
+                                                )}
                                                 {!esVistaAdmin && (
                                                   <button
                                                     type="button"
