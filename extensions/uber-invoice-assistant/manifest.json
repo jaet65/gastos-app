@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Uber Invoice Assistant",
+  "version": "1.0.0",
+  "description": "Completa los campos de RFC, fecha y monto de reclamos Uber tras confirmar en la página.",
+  "permissions": ["activeTab", "clipboardRead"],
+  "host_permissions": [
+    "https://help.uber.com/*",
+    "https://comprobacionmaf.web.app/*",
+    "https://comprobacionmaf.firebaseapp.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://localhost/*",
+    "https://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Completar reclamo Uber",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://help.uber.com/*"],
+      "css": ["prompt.css"],
+      "js": ["form-filler.js", "content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://comprobacionmaf.web.app/*",
+        "https://comprobacionmaf.firebaseapp.com/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://localhost/*",
+        "https://127.0.0.1/*"
+      ],
+      "js": ["app-bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

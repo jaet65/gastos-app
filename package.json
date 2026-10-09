@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/package-uber-assistant.cjs",
     "dev": "vite --host",
+    "prebuild": "node scripts/package-uber-assistant.cjs",
     "build": "node scripts/set-env.cjs && vite build",
     "lint": "eslint .",
     "test": "vitest",

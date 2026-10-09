@@ -1,6 +1,13 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
+export const UBER_INVOICE_RFC = 'CCI190920376';
+
+export const getUberInvoiceRfc = async () => {
+    const snapshot = await getDoc(doc(db, 'cfdi', UBER_INVOICE_RFC));
+    return snapshot.exists() ? snapshot.id : null;
+};
+
 export const validateInvoiceReceiverRfc = async (receiverRfc) => {
     const normalizedRfc = String(receiverRfc || '').trim().toUpperCase();
     if (!normalizedRfc) return null;
