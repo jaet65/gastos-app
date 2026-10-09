@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Card, Title, Text, Flex, Metric, Divider, Button } from '@tremor/react';
 import { Car, Utensils, Layers, ShieldCheck, Trash } from 'lucide-react';
@@ -73,7 +73,7 @@ const adjustDate = (dateString, adjustment) => {
     return formatLocalDate(adjustedDate);
 };
 
-const PanelAuditoria = ({ allGastos, audits }) => {
+const PanelAuditoria = ({ allGastos, audits, onImport, isImporting }) => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [auditType, setAuditType] = useState(1); // 0 for Periodo, 1 for Ciudad
     const [isDeleting, setIsDeleting] = useState(false); // State to handle loading for delete all button
@@ -276,7 +276,7 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             import('jspdf'),
             import('jspdf-autotable'),
         ]);
-        const doc = new jsPDF();
+        const doc = new jsPDF({ orientation: 'landscape' });
         
         // 1. Título principal
         const title = `Auditoría por ${auditType === 0 ? 'Periodo' : 'Ciudad'} - ${selectedYear}`;
@@ -285,24 +285,34 @@ const PanelAuditoria = ({ allGastos, audits }) => {
         doc.setTextColor(30, 41, 59);
         doc.text(title, 14, 16);
 
-        // 2. Tarjeta de Resumen General (Antes de la tabla)
-        const cardY = 22;
-        doc.setFillColor(248, 250, 252); // Fondo gris muy claro
-        doc.setDrawColor(226, 232, 240); // Borde sutil
-        doc.roundedRect(14, cardY, 182, 14, 2, 2, 'FD');
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(71, 85, 105);
-        doc.text('GASTO TOTAL ANUAL ACUMULADO:', 18, cardY + 9);
-
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(220, 38, 38); // Rojo destacado (o azul [37, 99, 235])
-        doc.text(formatoMoneda(totalGastosAnual), 190, cardY + 9, { align: 'right' });
+        // 2. Resumen anual, con las mismas métricas de la tarjeta en pantalla
+        const summaryY = 23;
+        const summaryWidth = (doc.internal.pageSize.getWidth() - 28) / 3;
+        const summaryItems = [
+            { label: 'INGRESOS ANUALES', value: formatoMoneda(totalIngresosAnual), color: [5, 150, 105] },
+            { label: 'EGRESOS ANUALES', value: formatoMoneda(-totalGastosAnual), color: [220, 38, 38] },
+            {
+                label: 'DIFERENCIA ANUAL',
+                value: formatoMoneda(diferenciaAnual),
+                color: diferenciaAnual > 0 ? [5, 150, 105] : diferenciaAnual < 0 ? [220, 38, 38] : [100, 116, 139],
+            },
+        ];
+        summaryItems.forEach((item, index) => {
+            const x = 14 + index * summaryWidth;
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(226, 232, 240);
+            doc.roundedRect(x, summaryY, summaryWidth - 4, 18, 2, 2, 'FD');
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(71, 85, 105);
+            doc.text(item.label, x + 4, summaryY + 6);
+            doc.setFontSize(12);
+            doc.setTextColor(...item.color);
+            doc.text(item.value, x + 4, summaryY + 14);
+        });
 
         // 3. Preparación de datos de la tabla
-        const tableColumn = ["Ciudad", "Periodo", "Ingresos", "Egresos", "Diferencia", "Promedio/Día", "Categorías"];
+        const tableColumn = ["Ciudad", "Periodos considerados", "Ingresos (Costo)", "Egresos (Gastos)", "Diferencia", "Promedio/Día", "Gastos por categoría"];
         const tableRows = [];
 
         auditResults.forEach(result => {
@@ -311,7 +321,12 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 : result.dateRanges.map(r => `${r.startDate} al ${r.endDate}`).join('\n');
                 
             const categories = Object.entries(result.gastosPorCategoria)
-                .map(([cat, data]) => `${cat}: ${formatoMoneda(data.total)}`)
+                .sort(([, a], [, b]) => b.total - a.total)
+                .map(([cat, data]) => (
+                    data.averagePerDay > 0
+                        ? `${cat}: ${formatoMoneda(data.total)} (${formatoMoneda(data.averagePerDay)}/día)`
+                        : `${cat}: ${formatoMoneda(data.total)}`
+                ))
                 .join('\n');
             
             const rowData = [
@@ -326,36 +341,57 @@ const PanelAuditoria = ({ allGastos, audits }) => {
             tableRows.push(rowData);
         });
 
-        // 4. Generar la tabla arrancando después de la tarjeta (startY: 42)
+        // 4. Generar la tabla debajo del resumen anual
         autoTable(doc, {
             head: [tableColumn],
             body: tableRows,
-            startY: 42,
+            startY: 47,
             headStyles: {
                 fillColor: [30, 41, 59], // Encabezado elegante slate/oscuro
                 textColor: [255, 255, 255],
-                fontStyle: 'bold'
+                fontStyle: 'bold',
+                halign: 'left',
             },
             styles: {
-                fontSize: 9,
-                cellPadding: 3
+                fontSize: 8,
+                cellPadding: 2,
+                valign: 'middle',
+                overflow: 'linebreak',
             },
             alternateRowStyles: {
                 fillColor: [249, 250, 251] // Filas intercaladas para mejor lectura
             },
+            tableWidth: 'auto',
+            margin: { left: 14, right: 14 },
+            columnStyles: {
+                0: { cellWidth: 32, halign: 'left' },
+                1: { cellWidth: 55, halign: 'left' },
+                2: { cellWidth: 34, halign: 'left' },
+                3: { cellWidth: 36, halign: 'left' },
+                4: { cellWidth: 32, halign: 'left' },
+                5: { cellWidth: 30, halign: 'left' },
+                6: { cellWidth: 50, halign: 'left' },
+            },
             didParseCell: (data) => {
                 if (data.section !== 'body') return;
                 if (data.column.index === 2) {
-                    data.cell.styles.textColor = [5, 150, 105];
+                    data.cell.styles.textColor = auditResults[data.row.index].totalIngresos === null
+                        ? [100, 116, 139]
+                        : [5, 150, 105];
                 } else if (data.column.index === 3) {
                     data.cell.styles.textColor = [220, 38, 38];
                 } else if (data.column.index === 4) {
-                    const difference = auditResults[data.row.index].totalIngresos - auditResults[data.row.index].totalCiudad;
-                    data.cell.styles.textColor = difference > 0
-                        ? [5, 150, 105]
-                        : difference < 0
-                            ? [220, 38, 38]
-                            : [100, 116, 139];
+                    const { totalIngresos, totalCiudad } = auditResults[data.row.index];
+                    if (totalIngresos === null) {
+                        data.cell.styles.textColor = [100, 116, 139];
+                    } else {
+                        const difference = totalIngresos - totalCiudad;
+                        data.cell.styles.textColor = difference > 0
+                            ? [5, 150, 105]
+                            : difference < 0
+                                ? [220, 38, 38]
+                                : [100, 116, 139];
+                    }
                 }
             }
         });
@@ -437,40 +473,24 @@ const PanelAuditoria = ({ allGastos, audits }) => {
 
     return (
         <div className="space-y-6 mt-6">
-            <div className="grid grid-cols-3 items-center w-full">
-            {/* Columna izquierda vacía para balancear el espacio */}
-            <div></div>
-
-            {/* Columna central: Botones centrados */}
-            <div className="flex justify-center gap-2 mt-20">
+            <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button
-                variant={auditType === 1 ? "primary" : "light"}
-                color={auditType === 1 ? "blue" : "slate"}
-                onClick={() => setAuditType(1)}
+                variant="light"
+                onClick={onImport}
                 size="xs"
-                className="rounded-xl px-4 py-2"
+                icon={Upload}
+                loading={isImporting}
+                disabled={isImporting}
+                className="inline-flex h-9 min-h-9 items-center justify-center bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600 rounded-md px-2 text-xs"
                 >
-                Ciudad
+                {isImporting ? 'Importando...' : 'Importar'}
                 </Button>
-                <Button
-                variant={auditType === 0 ? "primary" : "light"}
-                color={auditType === 0 ? "blue" : "slate"}
-                onClick={() => setAuditType(0)}
-                size="xs"
-                className="rounded-xl px-4 py-2"
-                >
-                Periodo
-                </Button>
-            </div>
-
-            {/* Columna derecha: Botón alinear a la derecha */}
-            <div className="flex justify-end gap-2">
                 <Button
                 variant="light"
                 onClick={handleGenerateReport}
                 size="xs"
                 icon={Download}
-                className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600 rounded-md px-2 py-1 text-xs"
+                className="inline-flex h-9 min-h-9 items-center justify-center bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600 rounded-md px-2 text-xs"
                 >
                 Generar Reporte
                 </Button>
@@ -481,11 +501,31 @@ const PanelAuditoria = ({ allGastos, audits }) => {
                 icon={Trash}
                 loading={isDeleting}
                 disabled={isDeleting}
-                className="bg-red-500 hover:bg-red-600 text-white border-red-500 hover:border-red-600 rounded-md px-2 py-1 text-xs"
+                className="inline-flex h-9 min-h-9 items-center justify-center bg-red-500 hover:bg-red-600 text-white border-red-500 hover:border-red-600 rounded-md px-2 text-xs"
                 >
                 Limpiar
                 </Button>
             </div>
+
+            <div className="flex justify-center gap-2">
+                <Button
+                    variant={auditType === 1 ? "primary" : "light"}
+                    color={auditType === 1 ? "blue" : "slate"}
+                    onClick={() => setAuditType(1)}
+                    size="xs"
+                    className="rounded-xl px-4 py-2"
+                >
+                    Ciudad
+                </Button>
+                <Button
+                    variant={auditType === 0 ? "primary" : "light"}
+                    color={auditType === 0 ? "blue" : "slate"}
+                    onClick={() => setAuditType(0)}
+                    size="xs"
+                    className="rounded-xl px-4 py-2"
+                >
+                    Periodo
+                </Button>
             </div>
 
             <Flex justifyContent="center" alignItems="center" className="gap-4">

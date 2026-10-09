@@ -1,21 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { Card, Title, Text, Flex, Button, Subtitle } from "@tremor/react";
-import { PlusCircle, Trash2, MapPin, Edit, XCircle, Calendar, Upload } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, addDoc, Timestamp } from 'firebase/firestore';
+import { Title, Text } from "@tremor/react";
 import Swal from 'sweetalert2';
 import PanelAuditoria from './PanelAuditoria';
-
-const InputGroup = ({ icon: Icon, children }) => ( // eslint-disable-line no-unused-vars
-    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-12 hover:bg-white focus-within:bg-white focus-within:border-blue-300 transition-all">
-        <div className="pl-4 text-slate-400">
-            <Icon size={16} strokeWidth={2.5} />
-        </div>
-        <div className="flex-1 h-full flex items-center pr-4">
-            {children}
-        </div>
-    </div>
-);
 
 // Helper function to format date from Excel import
 const formatImportedDate = (dateStr) => {
@@ -87,20 +75,8 @@ const AuditoriaView = () => {
     const [allGastos, setAllGastos] = useState([]);
     const [audits, setAudits] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [_showDefinedPeriods, _setShowDefinedPeriods] = useState(false);
-    const [showForm, setShowForm] = useState(false); // New state to control form visibility
-
-    const [newCity, setNewCity] = useState('');
-    const [newStartDate, setNewStartDate] = useState(null);
-    const [newEndDate, setNewEndDate] = useState(null);
-    const [editingId, setEditingId] = useState(null);
-    const [isImporting, setIsImporting] = useState(false); // New state for import loading
+    const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = useRef(null);
-
-    const dateToInputValue = (date) => {
-        if (!date) return '';
-        return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-    };
 
     const handleImportClick = () => {
         fileInputRef.current.click();
@@ -248,65 +224,6 @@ const AuditoriaView = () => {
         return () => unsubscribe();
     }, [loading]);
 
-    const resetForm = () => {
-        setNewCity('');
-        setNewStartDate(null);
-        setNewEndDate(null);
-        setEditingId(null);
-    };
-    
-    const handleFormSubmit = async (e) => {
-        e.preventDefault();
-        if (!newCity || !newStartDate || !newEndDate) {
-            alert("Por favor, completa todos los campos.");
-            return;
-        }
-        
-        const formattedStartDate = dateToInputValue(newStartDate);
-        const formattedEndDate = dateToInputValue(newEndDate);
-        
-        const auditData = {
-            city: newCity,
-            startDate: formattedStartDate,
-            endDate: formattedEndDate,
-        };
-
-        try {
-            if (editingId) {
-                const docRef = doc(db, "auditorias", editingId);
-                await updateDoc(docRef, auditData);
-            } else {
-                await addDoc(collection(db, "auditorias"), { ...auditData, creado_en: Timestamp.now() });
-            }
-            resetForm();
-            setTimeout(() => {
-                setShowForm(false); // Hide form after successful submission
-            }, 0);
-        } catch (error) {
-            console.error("Error saving audit:", error);
-            alert("Error al guardar la auditoría: " + error.message);
-        }
-    };
-
-    const _handleEdit = (audit) => {
-        setEditingId(audit.id);
-        setNewCity(audit.city);
-        setNewStartDate(new Date(audit.startDate + 'T00:00:00'));
-        setNewEndDate(new Date(audit.endDate + 'T00:00:00'));
-        setShowForm(true); // Show form when editing
-    };
-
-    const _handleRemoveAudit = async (id) => {
-        if (confirm("¿Estás seguro de que quieres eliminar este periodo de auditoría?")) {
-            try {
-                await deleteDoc(doc(db, "auditorias", id));
-            } catch (error) {
-                console.error("Error removing audit:", error);
-                alert("Error al eliminar la auditoría: " + error.message);
-            }
-        }
-    };
-
     if (loading) return <Text className="text-center mt-8">Cargando datos de auditoría...</Text>;
 
     return (
@@ -319,88 +236,15 @@ const AuditoriaView = () => {
                 accept=".xlsx, .xls"
             />
             <header>
-                <Title className="text-slate-800">Auditoría General de Gastos</Title>
-                <Text className="text-slate-500 text-sm mt-1">Auditar los gastos correspondientes por periodo o ciudad.</Text>
+                <Title className="text-slate-800">Auditoría General</Title>
             </header>
 
-            <Flex justifyContent="end" className="gap-2">
-                {!showForm && (
-                    <Button
-                        icon={PlusCircle}
-                        size="sm"
-                        color="blue"
-                        onClick={() => { setShowForm(true); resetForm(); }} // Show form and reset fields
-                        className="rounded-2xl px-2 py-1 text-sm font-semibold"
-                    >
-                        Añadir Periodo
-                    </Button>
-                )}
-                <Button
-                    type="button"
-                    onClick={handleImportClick}
-                    icon={Upload}
-                    size="sm"
-                    color="blue"
-                    variant="light"
-                    loading={isImporting} // Add loading prop
-                    disabled={isImporting} // Disable button while importing
-                    className="rounded-2xl px-2 py-1 text-sm font-semibold"
-                >
-                    {isImporting ? 'Importando...' : 'Importar'}
-                </Button>
-            </Flex>
-
-            {showForm && (
-                <Card className="rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm ring-1 ring-slate-200/80">
-                    <form onSubmit={handleFormSubmit}>
-                        <Subtitle className="mb-4">{editingId ? 'Editando Periodo' : 'Añadir Nuevo Periodo'}</Subtitle>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <InputGroup icon={MapPin}>
-                                <input
-                                    type="text"
-                                    placeholder="Ej. Guadalajara"
-                                    value={newCity}
-                                    onChange={(e) => setNewCity(e.target.value)}
-                                    className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-900 font-bold text-base placeholder-slate-400"
-                                />
-                            </InputGroup>
-                            <InputGroup icon={Calendar}>
-                                <input
-                                    type="date"
-                                    value={dateToInputValue(newStartDate)}
-                                    onChange={(e) => setNewStartDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
-                                    className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base"
-                                />
-                            </InputGroup>
-                            <InputGroup icon={Calendar}>
-                                 <input
-                                    type="date"
-                                    value={dateToInputValue(newEndDate)}
-                                    onChange={(e) => setNewEndDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
-                                    className="w-full h-full pl-2 bg-transparent border-none outline-none text-slate-700 font-bold text-base"
-                                />
-                            </InputGroup>
-                        </div>
-                        <Flex justifyContent="end" className="gap-2 mt-6 pt-4 border-t border-slate-200">
-
-                             {(editingId || !editingId) && ( // Show Cancel button for both edit and add new
-                                <Button onClick={() => { resetForm(); setShowForm(false); }} icon={XCircle} size="sm" color="gray" variant="light">Cancelar</Button>
-                            )}
-                            <Button
-                                type="submit"
-                                icon={editingId ? Edit : PlusCircle}
-                                size="sm"
-                                color="blue"
-                                className="rounded-2xl px-2 py-1 text-sm font-semibold"
-                            >
-                                {editingId ? 'Guardar Cambios' : 'Guardar'}
-                            </Button>
-                        </Flex>
-                    </form>
-                </Card>
-            )}
-
-            <PanelAuditoria allGastos={allGastos} audits={audits} />
+            <PanelAuditoria
+                allGastos={allGastos}
+                audits={audits}
+                onImport={handleImportClick}
+                isImporting={isImporting}
+            />
 
         </div>
     );

@@ -6,6 +6,25 @@ import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import Swal from 'sweetalert2';
 import { vi } from 'vitest';
 
+const { pdfDocumentMock, jsPDFMock, autoTableMock } = vi.hoisted(() => {
+  const pdfDocumentMock = {
+    internal: { pageSize: { getWidth: () => 297 } },
+    setFontSize: vi.fn(),
+    setFont: vi.fn(),
+    setTextColor: vi.fn(),
+    text: vi.fn(),
+    setFillColor: vi.fn(),
+    setDrawColor: vi.fn(),
+    roundedRect: vi.fn(),
+    save: vi.fn(),
+  };
+  return {
+    pdfDocumentMock,
+    jsPDFMock: vi.fn(function JsPDF() { return pdfDocumentMock; }),
+    autoTableMock: vi.fn(),
+  };
+});
+
 vi.mock('sweetalert2', () => ({
   default: {
     fire: vi.fn(),
@@ -13,6 +32,9 @@ vi.mock('sweetalert2', () => ({
     showLoading: vi.fn(),
   },
 }));
+
+vi.mock('jspdf', () => ({ default: jsPDFMock }));
+vi.mock('jspdf-autotable', () => ({ default: autoTableMock }));
 
 // Mock Firebase functions
 vi.mock('../../firebase', () => ({
@@ -128,6 +150,69 @@ describe('PanelAuditoria', () => {
     expect(screen.getByText('Diferencia anual')).toBeInTheDocument();
     expect(screen.getAllByText('-$80.00').some(element => element.className.includes('text-red-600'))).toBe(true);
     expect(screen.getAllByText('-$20.00').every(element => element.className.includes('text-red-600'))).toBe(true);
+  });
+
+  test('generates a report with the annual comparison and matching city details', async () => {
+    const year = new Date().getFullYear();
+    const audits = [{
+      id: 'audit-report',
+      city: 'Test City',
+      startDate: `${year}-01-01`,
+      endDate: `${year}-01-05`,
+      costo: 100,
+    }];
+    const allGastos = [{
+      id: 'expense-report',
+      fecha: `${year}-01-03`,
+      categoria: 'Transporte',
+      monto: 60,
+    }];
+
+    render(<PanelAuditoria allGastos={allGastos} audits={audits} />);
+    fireEvent.click(screen.getByRole('button', { name: /Generar Reporte/i }));
+
+    await waitFor(() => expect(pdfDocumentMock.save).toHaveBeenCalledWith('TrackSIM_Audit.pdf'));
+
+    expect(jsPDFMock).toHaveBeenCalledWith({ orientation: 'landscape' });
+    expect(pdfDocumentMock.text).toHaveBeenCalledWith('INGRESOS ANUALES', expect.any(Number), expect.any(Number));
+    expect(pdfDocumentMock.text).toHaveBeenCalledWith('$100.00', expect.any(Number), expect.any(Number));
+    expect(pdfDocumentMock.text).toHaveBeenCalledWith('EGRESOS ANUALES', expect.any(Number), expect.any(Number));
+    expect(pdfDocumentMock.text).toHaveBeenCalledWith('-$60.00', expect.any(Number), expect.any(Number));
+    expect(pdfDocumentMock.text).toHaveBeenCalledWith('DIFERENCIA ANUAL', expect.any(Number), expect.any(Number));
+
+    const report = autoTableMock.mock.calls[0][1];
+    expect(report.startY).toBe(47);
+    expect(Object.values(report.columnStyles).reduce((total, style) => total + style.cellWidth, 0))
+      .toBe(pdfDocumentMock.internal.pageSize.getWidth() - report.margin.left - report.margin.right);
+    expect(report.head[0]).toEqual([
+      'Ciudad',
+      'Periodos considerados',
+      'Ingresos (Costo)',
+      'Egresos (Gastos)',
+      'Diferencia',
+      'Promedio/Día',
+      'Gastos por categoría',
+    ]);
+    expect(report.body[0]).toEqual(expect.arrayContaining([
+      'Test City',
+      `${year}-01-01 al ${year}-01-05`,
+      '$100.00',
+      '-$60.00',
+      '$40.00',
+      '$12.00',
+      'Transporte: $60.00 ($12.00/día)',
+    ]));
+  });
+
+  test('places Importar with the report and clear actions', () => {
+    const onImport = vi.fn();
+    render(<PanelAuditoria allGastos={[]} audits={[]} onImport={onImport} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Importar/i }));
+
+    expect(onImport).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: /Generar Reporte/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Limpiar/i })).toBeInTheDocument();
   });
 
   test('omits cities with no expenses and no income', () => {
