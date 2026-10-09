@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { ArrowRight, Clock3, ReceiptText, Users, Wallet } from 'lucide-react';
 import { db } from '../firebase';
 
@@ -11,6 +11,22 @@ const formatCurrency = (amount) => new Intl.NumberFormat('es-MX', {
 
 const formatDate = (date) => new Date(`${date}T00:00:00`).toLocaleDateString('es-MX', {
   day: 'numeric',
+  month: 'short',
+});
+
+const getMonthKey = (date) => date.slice(0, 7);
+
+const getCurrentMonthKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatMonth = (month) => new Date(`${month}-01T00:00:00`).toLocaleDateString('es-MX', {
+  month: 'long',
+  year: 'numeric',
+});
+
+const getMonthLabel = (month) => new Date(`${month}-01T00:00:00`).toLocaleDateString('es-MX', {
   month: 'short',
 });
 
@@ -26,11 +42,9 @@ const AdminDashboard = ({ onNavigate }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [loaded, setLoaded] = useState({ gastos: false, solicitudes: false, usuarios: false });
   const [error, setError] = useState('');
+  const [mesSeleccionado, setMesSeleccionado] = useState(getCurrentMonthKey);
 
   useEffect(() => {
-    const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
     const markLoaded = (source) => setLoaded((current) => ({ ...current, [source]: true }));
     const handleError = (source) => (snapshotError) => {
       console.error(`Error cargando ${source} del dashboard:`, snapshotError);
@@ -39,12 +53,7 @@ const AdminDashboard = ({ onNavigate }) => {
     };
 
     const unsubscribeGastos = onSnapshot(
-      query(
-        collection(db, 'gastos'),
-        where('fecha', '>=', monthStart),
-        where('fecha', '<=', monthEnd),
-        orderBy('fecha', 'desc')
-      ),
+      query(collection(db, 'gastos'), orderBy('fecha', 'desc')),
       (snapshot) => {
         setGastos(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
         markLoaded('gastos');
@@ -76,7 +85,44 @@ const AdminDashboard = ({ onNavigate }) => {
   }, []);
 
   const gastosActivos = useMemo(() => gastos.filter((gasto) => !gasto.archivado), [gastos]);
-  const totalMes = gastosActivos.reduce((total, gasto) => total + (Number(gasto.monto) || 0), 0);
+  const mesActual = getCurrentMonthKey();
+  const mesesDisponibles = useMemo(() => (
+    [...new Set([mesActual, ...gastos
+      .filter((gasto) => typeof gasto.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(gasto.fecha))
+      .map((gasto) => getMonthKey(gasto.fecha))])]
+      .sort((a, b) => b.localeCompare(a))
+  ), [gastos, mesActual]);
+  const gastosMesActual = useMemo(
+    () => gastosActivos.filter((gasto) => typeof gasto.fecha === 'string' && getMonthKey(gasto.fecha) === mesActual),
+    [gastosActivos, mesActual]
+  );
+  const gastosMesSeleccionado = useMemo(
+    () => gastos.filter((gasto) => typeof gasto.fecha === 'string' && getMonthKey(gasto.fecha) === mesSeleccionado),
+    [gastos, mesSeleccionado]
+  );
+  const anioActual = Number(mesActual.slice(0, 4));
+  const gastosPorMesDelAnio = Array.from({ length: 12 }, (_, index) => {
+    const mes = `${anioActual}-${String(index + 1).padStart(2, '0')}`;
+    const gastosMes = gastos.filter(
+      (gasto) => typeof gasto.fecha === 'string' && getMonthKey(gasto.fecha) === mes
+    );
+    const total = gastosMes.reduce((suma, gasto) => suma + (Number(gasto.monto) || 0), 0);
+    return { mes, total, indice: index, tieneRegistros: gastosMes.length > 0 };
+  });
+  const maximoMensual = Math.max(...gastosPorMesDelAnio.map(({ total }) => total), 1);
+  const puntosGrafica = gastosPorMesDelAnio.filter(({ tieneRegistros }) => tieneRegistros).map(({ mes, total, indice }) => ({
+    mes,
+    total,
+    x: 40 + indice * 58,
+    y: 110 - (total / maximoMensual) * 78,
+    seleccionado: mes.slice(-2) === mesSeleccionado.slice(-2),
+  }));
+  const lineaGrafica = puntosGrafica.map(({ x, y }) => `${x},${y}`).join(' ');
+  const gastosActivosMesSeleccionado = gastosMesSeleccionado.filter((gasto) => !gasto.archivado);
+  const totalMes = gastosMesSeleccionado.reduce((total, gasto) => total + (Number(gasto.monto) || 0), 0);
+  const totalNoArchivadoMes = gastosActivosMesSeleccionado.reduce((total, gasto) => total + (Number(gasto.monto) || 0), 0);
+  const [anioMesSeleccionado, numeroMesSeleccionado] = mesSeleccionado.split('-').map(Number);
+  const diasMesSeleccionado = new Date(anioMesSeleccionado, numeroMesSeleccionado, 0).getDate();
   const solicitudesPorEstado = solicitudes.reduce((counts, solicitud) => {
     const status = normalizeStatus(solicitud.estado);
     if (['Solicitada', 'Recibida', 'En revisión'].includes(status)) {
@@ -88,10 +134,29 @@ const AdminDashboard = ({ onNavigate }) => {
   const consultores = usuarios.filter((usuario) => usuario.role !== 'admin').length;
   const usuariosPorId = new Map(usuarios.map((usuario) => [usuario.uid || usuario.id, usuario]));
   const cargando = Object.values(loaded).some((sourceLoaded) => !sourceLoaded);
+  const resumenPorCategoria = Object.values(gastosMesSeleccionado.reduce((resumen, gasto) => {
+    const categoria = gasto.categoria || 'Sin categoría';
+    resumen[categoria] = resumen[categoria] || { nombre: categoria, total: 0, movimientos: 0 };
+    resumen[categoria].total += Number(gasto.monto) || 0;
+    resumen[categoria].movimientos += 1;
+    return resumen;
+  }, {})).map((categoria) => ({
+    ...categoria,
+    promedioDiario: categoria.total / diasMesSeleccionado,
+  })).sort((a, b) => b.total - a.total);
+  const resumenPorUsuario = Object.values(gastosMesSeleccionado.reduce((resumen, gasto) => {
+    const usuario = usuariosPorId.get(gasto.userId);
+    const nombre = usuario?.displayName || usuario?.email || 'Usuario desconocido';
+    const key = gasto.userId || nombre;
+    resumen[key] = resumen[key] || { nombre, total: 0, movimientos: 0 };
+    resumen[key].total += Number(gasto.monto) || 0;
+    resumen[key].movimientos += 1;
+    return resumen;
+  }, {})).sort((a, b) => b.total - a.total);
 
   const metricas = [
-    { label: 'Gasto del mes', value: formatCurrency(totalMes), detail: 'Registros no archivados', icon: Wallet, tone: 'text-emerald-700 bg-emerald-50 rounded-full' },
-    { label: 'Movimientos', value: gastosActivos.length, detail: 'En el mes actual', icon: ReceiptText, tone: 'text-blue-700 bg-blue-50 rounded-full' },
+    { label: 'Gasto del mes', value: formatCurrency(totalMes), detail: `Gastos no archivados: ${formatCurrency(totalNoArchivadoMes)} · ${formatMonth(mesSeleccionado)}`, icon: Wallet, tone: 'text-emerald-700 bg-emerald-50 rounded-full' },
+    { label: 'Movimientos', value: gastosMesActual.length, detail: 'En el mes actual', icon: ReceiptText, tone: 'text-blue-700 bg-blue-50 rounded-full' },
     { label: 'Solicitudes abiertas', value: totalPendientes, detail: `${solicitudesPorEstado.Solicitada} Sol. · ${solicitudesPorEstado.Recibida} Rec. · ${solicitudesPorEstado['En revisión']} Rev.`, icon: Clock3, tone: 'text-amber-700 bg-amber-50 rounded-full' },
     { label: 'Consultores', value: consultores, detail: 'Cuentas registradas', icon: Users, tone: 'text-rose-700 bg-rose-50 rounded-full' },
   ];
@@ -132,6 +197,120 @@ const AdminDashboard = ({ onNavigate }) => {
         ))}
       </section>
 
+      <section aria-labelledby="desglose-mensual" className="border border-slate-200 bg-white p-4 shadow-sm rounded-2xl">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 id="desglose-mensual" className="text-lg font-black text-slate-800">Desglose mensual</h3>
+            <p className="mt-1 text-sm text-slate-500">Gastos por categoría y usuario.</p>
+          </div>
+          <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
+            Mes del resumen
+            <select
+              aria-label="Mes del resumen"
+              value={mesSeleccionado}
+              onChange={(event) => setMesSeleccionado(event.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+            >
+              {mesesDisponibles.map((mes) => <option key={mes} value={mes}>{formatMonth(mes)}</option>)}
+            </select>
+          </label>
+        </div>
+        {cargando ? (
+          <p className="py-4 text-sm text-slate-500">Cargando desglose...</p>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="md:col-span-2" aria-label={`Gastos mensuales de ${anioActual}`}>
+              <h4 className="mb-2 text-sm font-black text-slate-700">Gastos por mes · {anioActual}</h4>
+              <div className="rounded-xl border border-slate-100 px-4 py-3">
+                <svg
+                  role="img"
+                  aria-label={`Gráfica de línea de gastos por mes en ${anioActual}`}
+                  viewBox="0 0 720 160"
+                  className="h-36 w-full"
+                  preserveAspectRatio="none"
+                >
+                  {[20, 65, 110].map((y) => {
+                    return <line key={y} x1="40" y1={y} x2="678" y2={y} stroke="#e2e8f0" strokeDasharray="4 4" />;
+                  })}
+                  <polyline
+                    points={lineaGrafica}
+                    fill="none"
+                    stroke="#059669"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {puntosGrafica.map(({ mes, total, x, y, seleccionado }) => (
+                    <g
+                      key={mes}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Seleccionar ${formatMonth(mes)} (${formatCurrency(total)})`}
+                      aria-pressed={seleccionado}
+                      onClick={() => setMesSeleccionado(mes)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setMesSeleccionado(mes);
+                        }
+                      }}
+                      className="cursor-pointer outline-none focus:outline-none focus-visible:drop-shadow-[0_0_3px_rgba(15,23,42,0.65)]"
+                    >
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={seleccionado ? 7 : 4}
+                        fill={seleccionado ? '#f59e0b' : '#059669'}
+                        stroke="white"
+                        strokeWidth="2"
+                        data-selected={seleccionado ? 'true' : 'false'}
+                      >
+                        <title>{`${formatMonth(mes)}: ${formatCurrency(total)}`}</title>
+                      </circle>
+                      <text
+                        x={x}
+                        y="140"
+                        textAnchor="middle"
+                        fontSize="11"
+                        fontWeight={seleccionado ? '700' : '400'}
+                        fill={seleccionado ? '#b45309' : '#64748b'}
+                      >
+                        {getMonthLabel(mes)}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+                <p className="mt-1 text-right text-xs text-slate-500">El punto ámbar señala el mes seleccionado.</p>
+              </div>
+            </div>
+            {[
+              { title: 'Gastos por categoría', rows: resumenPorCategoria, empty: 'No hay gastos por categoría en este mes.', showDailyAverage: true },
+              { title: 'Gastos por usuario', rows: resumenPorUsuario, empty: 'No hay gastos por usuario en este mes.', showDailyAverage: false },
+            ].map(({ title, rows, empty, showDailyAverage }) => (
+              <div key={title} aria-label={title}>
+                <h4 className="mb-2 text-sm font-black text-slate-700">{title}</h4>
+                {rows.length === 0 ? (
+                  <p className="rounded-xl bg-slate-50 px-3 py-4 text-sm text-slate-500">{empty}</p>
+                ) : (
+                  <ul className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+                    {rows.map(({ nombre, total, movimientos, promedioDiario }) => (
+                      <li key={nombre} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-800">{nombre}</p>
+                          <p className="text-xs text-slate-500">{movimientos} {movimientos === 1 ? 'movimiento' : 'movimientos'}</p>
+                          {showDailyAverage && <p className="text-xs text-slate-500">Promedio diario: {formatCurrency(promedioDiario)}</p>}
+                        </div>
+                        <span className="shrink-0 text-sm font-black text-slate-800">{formatCurrency(total)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="grid gap-5 lg:gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,0.8fr)]">
         <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -143,11 +322,11 @@ const AdminDashboard = ({ onNavigate }) => {
           <div className="overflow-hidden border border-slate-200 bg-white rounded-2xl">
             {cargando ? (
               <p className="p-5 text-sm text-slate-500">Cargando actividad...</p>
-            ) : gastosActivos.length === 0 ? (
+            ) : gastosMesActual.length === 0 ? (
               <p className="p-5 text-sm text-slate-500">No hay gastos registrados este mes.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {gastosActivos.slice(0, 3).map((gasto) => {
+                {gastosMesActual.slice(0, 3).map((gasto) => {
                   const usuario = usuariosPorId.get(gasto.userId);
                   return (
                     <li key={gasto.id} className="flex items-center justify-between gap-4 px-4 py-3">
