@@ -1,7 +1,7 @@
 import PanelUsuarioAdmin from './components/PanelUsuarioAdmin';
 import Login from './components/Login';
 import NovedadesBanner from './components/NovedadesBanner';
-import { Menu, X, LogOut, Share2, ShieldCheck } from 'lucide-react';
+import { Menu, X, LogOut, Share2, ShieldCheck, CalendarDays } from 'lucide-react';
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useAuth } from './components/AuthContext';
@@ -288,6 +288,16 @@ function App() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
+              <a
+                href="https://agendaservicios.web.app/index.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir Agenda de Servicios"
+                title="Agenda de Servicios"
+                className="p-2 text-slate-400 transition-colors hover:text-blue-600"
+              >
+                <CalendarDays size={18} />
+              </a>
               <span className="text-sm text-slate-600 hidden lg:block">
                 {user.displayName || user.email}
                 {isAdmin && <span className="ml-2 text-amber-600 text-[10px] font-black uppercase">Admin</span>}

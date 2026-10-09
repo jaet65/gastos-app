@@ -71,6 +71,11 @@ describe('App Component', () => {
         render(<App />);
         expect(await screen.findByTestId('formulario-gasto')).toBeInTheDocument();
         expect(await screen.findByTestId('lista-gastos')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /abrir agenda de servicios/i })).toHaveAttribute(
+            'href',
+            'https://agendaservicios.web.app/index.html'
+        );
+        expect(screen.getByRole('link', { name: /abrir agenda de servicios/i })).toHaveAttribute('target', '_blank');
     });
 
     it('debería avisar de las novedades al detectar una nueva versión y recordar el cierre', async () => {

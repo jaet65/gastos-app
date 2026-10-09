@@ -478,7 +478,7 @@ const PanelAuditoria = ({ allGastos, audits, onImport, isImporting }) => {
                 variant="light"
                 onClick={onImport}
                 size="xs"
-                icon={Upload}
+                icon={Download}
                 loading={isImporting}
                 disabled={isImporting}
                 className="inline-flex h-9 min-h-9 items-center justify-center bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600 rounded-md px-2 text-xs"
@@ -489,7 +489,7 @@ const PanelAuditoria = ({ allGastos, audits, onImport, isImporting }) => {
                 variant="light"
                 onClick={handleGenerateReport}
                 size="xs"
-                icon={Download}
+                icon={Upload}
                 className="inline-flex h-9 min-h-9 items-center justify-center bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600 rounded-md px-2 text-xs"
                 >
                 Generar Reporte
