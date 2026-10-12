@@ -37,6 +37,8 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
   const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
   const [uberInvoiceMode, setUberInvoiceMode] = useState(false);
+  const [gastosCargados, setGastosCargados] = useState(false);
+  const uberInitialSelectionPending = useRef(false);
   const uberAssistantBridgeRef = useRef(null);
   const [uberInvoiceRfc, setUberInvoiceRfc] = useState(null);
   const [uberRfcLoading, setUberRfcLoading] = useState(false);
@@ -114,6 +116,21 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     .map(id => gastos.find(gasto => gasto.id === id))
     .filter(gasto => gasto && gasto.categoria === 'Transporte' && !gasto.url_factura), [gastos, uberSelectedIds]);
 
+  useEffect(() => {
+    if (!uberInvoiceMode || !gastosCargados || !uberInitialSelectionPending.current) return;
+
+    const availableExpenses = gastos.filter(gasto => {
+      if (!mostrarArchivados && gasto.archivado) return false;
+      if (gasto.categoria !== 'Transporte' || gasto.url_factura) return false;
+      if (!gasto.idPadre) return true;
+
+      const gastoPadre = gastos.find(parent => parent.id === gasto.idPadre);
+      return !!gasto.url_factura !== !!gastoPadre?.url_factura;
+    });
+    uberInitialSelectionPending.current = false;
+    setUberSelectedIds(availableExpenses.slice(0, 5).map(gasto => gasto.id));
+  }, [gastos, gastosCargados, mostrarArchivados, uberInvoiceMode]);
+
   const toggleUberExpense = (gasto) => {
     setUberSelectedIds(prev => {
       if (prev.includes(gasto.id)) return prev.filter(id => id !== gasto.id);
@@ -167,7 +184,15 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
       await pedirInstalacionUberAssistant();
       return;
     }
-    setUberInvoiceMode(mode => !mode);
+    if (uberInvoiceMode) {
+      uberInitialSelectionPending.current = false;
+      setUberInvoiceMode(false);
+      setUberSelectedIds([]);
+      return;
+    }
+
+    uberInitialSelectionPending.current = true;
+    setUberInvoiceMode(true);
     setUberSelectedIds([]);
   };
 
@@ -228,6 +253,7 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
     const q = query(collection(db, "gastos"), ...constraints);
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setGastos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setGastosCargados(true);
     });
     return () => unsubscribe();
   }, [user, targetUid]);

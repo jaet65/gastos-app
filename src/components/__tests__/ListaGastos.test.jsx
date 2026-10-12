@@ -245,10 +245,15 @@ describe('ListaGastos Component', () => {
         expect(screen.queryByText('Gasto archivado')).not.toBeInTheDocument();
 
         const continuar = screen.getByRole('button', { name: 'Continuar reclamo' });
-        expect(continuar).toBeDisabled();
+        expect(screen.getByText('Seleccionados: 5/5')).toBeInTheDocument();
         const conceptos = ['Gasolina para viaje', ...Array.from({ length: 5 }, (_, index) => `Viaje Uber ${index}`)];
-        fireEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${conceptos[0]}` }));
-        await waitFor(() => expect(continuar).toBeEnabled());
+        for (const concepto of conceptos.slice(1, 5)) {
+            expect(screen.getByRole('checkbox', { name: `Seleccionar ${concepto}` })).toBeChecked();
+            fireEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${concepto}` }));
+        }
+        await waitFor(() => expect(screen.getByText('Seleccionados: 1/5')).toBeInTheDocument());
+        expect(screen.getByRole('checkbox', { name: `Seleccionar ${conceptos[0]}` })).toBeChecked();
+        expect(continuar).toBeEnabled();
         fireEvent.click(continuar);
         await waitFor(() => expect(writeText).toHaveBeenCalledWith(
             'RFC: CCI190920376\n\nFactura 1:\nFecha: 2026-04-16\nMonto: 920.00'
