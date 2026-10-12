@@ -230,6 +230,10 @@ describe('ListaGastos Component', () => {
             archivado: false,
             creado_en: { toDate: () => new Date() },
         })));
+        mockGastos.push(
+            { id: 'caseta-g2', idPadre: 'g2', concepto: 'Caseta', monto: 120, fecha: '2026-04-16', categoria: 'Transporte', url_factura: '', archivado: false, creado_en: { toDate: () => new Date() } },
+            { id: 'caseta-g2-facturada', idPadre: 'g2', concepto: 'Caseta facturada', monto: 50, fecha: '2026-04-16', categoria: 'Transporte', url_factura: 'http://factura.url/caseta', archivado: false, creado_en: { toDate: () => new Date() } },
+        );
         render(<ListaGastos />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Uber Assistant' }));
@@ -247,7 +251,7 @@ describe('ListaGastos Component', () => {
         await waitFor(() => expect(continuar).toBeEnabled());
         fireEvent.click(continuar);
         await waitFor(() => expect(writeText).toHaveBeenCalledWith(
-            'RFC: CCI190920376\n\nFactura 1:\nFecha: 2026-04-16\nMonto: 800.00'
+            'RFC: CCI190920376\n\nFactura 1:\nFecha: 2026-04-16\nMonto: 920.00'
         ));
         expect(openSpy).toHaveBeenCalledWith(
             expect.stringContaining('help.uber.com/es/riders/article/no-se-generaron-mis-facturas-de-viaje-'),

@@ -50,39 +50,48 @@ function showPrompt() {
   description.textContent = 'Detectamos la página de facturas Uber. ¿Deseas pegar el RFC, las fechas y los montos copiados desde Gastos App?';
   const status = document.createElement('p');
   status.className = 'uber-invoice-assistant-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
   const actions = document.createElement('div');
   actions.className = 'uber-invoice-assistant-actions';
+  let notificationTimeout;
 
   const closePanel = () => {
+    window.clearTimeout(notificationTimeout);
     dismissedUrl = window.location.href;
     panel.remove();
   };
 
+  const showResult = (ok, message) => {
+    const fillButton = actions.querySelector('[data-fill]');
+    heading.textContent = ok ? 'Llenado exitoso' : 'Llenado no exitoso';
+    status.dataset.state = ok ? 'success' : 'error';
+    status.textContent = `${ok ? 'Éxito: ' : 'No fue exitoso: '}${message}`;
+    fillButton.disabled = ok;
+    fillButton.textContent = ok ? 'Datos completados' : 'Reintentar';
+    actions.querySelector('[data-dismiss]').textContent = 'Cerrar';
+    window.clearTimeout(notificationTimeout);
+    notificationTimeout = window.setTimeout(closePanel, 5000);
+  };
+
   const fillFromClipboard = () => {
     const fillButton = actions.querySelector('[data-fill]');
+    window.clearTimeout(notificationTimeout);
+    status.dataset.state = '';
     fillButton.disabled = true;
     status.textContent = 'Leyendo los datos copiados y buscando los campos...';
 
     const applyResponse = (response, runtimeError) => {
       if (runtimeError || !response?.ok) {
-        status.textContent = runtimeError?.message || response?.error || 'No se pudieron preparar los datos.';
-        fillButton.disabled = false;
-        fillButton.textContent = 'Reintentar';
+        showResult(false, runtimeError?.message || response?.error || 'No se pudieron preparar los datos.');
         return;
       }
       const result = globalThis.UberInvoiceFormFiller.fillUberForm(response.rfc, response.invoices);
-      status.textContent = result.message;
-      fillButton.disabled = result.ok;
-      fillButton.textContent = result.ok ? 'Datos completados' : 'Reintentar';
-      if (result.ok) {
-        actions.querySelector('[data-dismiss]').textContent = 'Cerrar';
-      }
+      showResult(result.ok, result.message);
     };
 
     if (!navigator.clipboard?.readText) {
-      status.textContent = 'Este navegador bloqueó el acceso al portapapeles en la página. Prueba desde el popup de la extensión.';
-      fillButton.disabled = false;
-      fillButton.textContent = 'Reintentar';
+      showResult(false, 'Este navegador bloqueó el acceso al portapapeles en la página. Prueba desde el popup de la extensión.');
       return;
     }
 
@@ -90,9 +99,7 @@ function showPrompt() {
       .then(parseClipboardText)
       .then(response => applyResponse(response, null))
       .catch(() => {
-        status.textContent = 'Chrome bloqueó la lectura del portapapeles. Prueba desde el popup de la extensión.';
-        fillButton.disabled = false;
-        fillButton.textContent = 'Reintentar';
+        showResult(false, 'Chrome bloqueó la lectura del portapapeles. Prueba desde el popup de la extensión.');
       });
   };
 

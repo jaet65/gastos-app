@@ -41,6 +41,10 @@
   font-weight: 600;
 }
 
+#uber-invoice-assistant-prompt .uber-invoice-assistant-status[data-state="error"] {
+  color: #b42318;
+}
+
 #uber-invoice-assistant-prompt .uber-invoice-assistant-actions {
   display: flex;
   justify-content: flex-end;

@@ -48,7 +48,9 @@ describe('Uber help page prompt', () => {
       { invoiceNumber: 1, date: '2026-04-01', amount: '100.00' },
     ]));
     expect(panel.textContent).toContain('RFC, fecha y monto completados.');
-  });
+    expect(panel.querySelector('[role="status"]').textContent).toContain('Éxito:');
+    await vi.waitFor(() => expect(document.getElementById('uber-invoice-assistant-prompt')).toBeNull(), { timeout: 6000 });
+  }, 10000);
 
   it('no muestra el popup si el portapapeles no contiene información de factura válida', async () => {
     vi.resetModules();

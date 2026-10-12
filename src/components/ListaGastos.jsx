@@ -180,7 +180,12 @@ const ListaGastos = forwardRef(({ adminViewUid = null, adminEditMode = false, ad
 
     const datosReclamo = [
       `RFC: ${uberInvoiceRfc}`,
-      ...uberSelectedExpenses.map((gasto, index) => `Factura ${index + 1}:\nFecha: ${gasto.fecha}\nMonto: ${Number(gasto.monto).toFixed(2)}`),
+      ...uberSelectedExpenses.map((gasto, index) => {
+        const total = gastos
+          .filter(caseta => caseta.idPadre === gasto.id && !!caseta.url_factura === !!gasto.url_factura)
+          .reduce((monto, caseta) => monto + Number(caseta.monto), Number(gasto.monto));
+        return `Factura ${index + 1}:\nFecha: ${gasto.fecha}\nMonto: ${total.toFixed(2)}`;
+      }),
     ].join('\n\n');
     let escrituraPortapapeles;
     try {
